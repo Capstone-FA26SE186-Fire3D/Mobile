@@ -11,11 +11,11 @@
 ## Chạy và kiểm tra
 
 Từ gốc Mobile, sau khi dependencies đã sẵn sàng theo [README](../README.md):
-- `npm run typecheck`: kiểm tra kiểu, không chứng minh app chạy trên thiết bị.
-- `npm start` hoặc `npm run android`: chỉ khi task cần runtime/emulator và môi trường đã sẵn sàng.
+- `pnpm typecheck`: kiểm tra kiểu, không chứng minh app chạy trên thiết bị.
+- `pnpm start` hoặc `pnpm android`: chỉ khi task cần runtime/emulator và môi trường đã sẵn sàng.
 - Theo README, Android emulator dùng `10.0.2.2` để truy cập host; thiết bị thật cần địa chỉ mạng phù hợp. Không lưu IP cá nhân trong tài liệu dùng chung.
 - Với thay đổi chat, kiểm tra loading/error/result/sources và kết nối API trên môi trường test; không mặc định Unity, QR hoặc offline đã có.
-- Chưa có test script; không dùng `npm test` như một kiểm tra hiện có. Kết quả chạy app/typecheck từng task nằm trong handoff local hoặc PR, không suy ra từ context này.
+- Chưa có test script; không dùng `pnpm test` như một kiểm tra hiện có. Kết quả chạy app/typecheck từng task nằm trong handoff local hoặc PR, không suy ra từ context này.
 
 ## Thiết kế liên quan
 
