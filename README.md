@@ -11,6 +11,8 @@ Use pnpm 10.28.2 (pinned in `package.json`). With Corepack installed, run `corep
 - Start: `pnpm start`; Android: `pnpm android`; typecheck: `pnpm typecheck`.
 - Commit `pnpm-lock.yaml` with dependency changes. Use pnpm in this repository; do not generate npm/yarn lockfiles.
 
+Keep React Native and native packages compatible with the installed Expo SDK; do not replace their version ranges with `latest`. After changing dependencies, run `pnpm exec expo install --check`, `pnpm typecheck`, and `pnpm exec expo export --platform android --output-dir .expo/export-check` before merging.
+
 ## Codex cho thành viên team
 
 Sau khi checkout nhánh có bộ hướng dẫn, mở repo bằng Codex và yêu cầu:
