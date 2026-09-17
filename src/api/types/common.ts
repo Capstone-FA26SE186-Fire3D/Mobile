@@ -1,4 +1,4 @@
-export type ApiHttpMethod = "DELETE" | "GET" | "HEAD" | "PATCH" | "POST" | "PUT";
+export type ApiHttpMethod = 'DELETE' | 'GET' | 'HEAD' | 'PATCH' | 'POST' | 'PUT';
 
 export type ApiQueryValue = boolean | number | string | null | undefined;
 export type ApiQueryParams = Record<string, ApiQueryValue | ApiQueryValue[]>;
@@ -20,7 +20,7 @@ export class ApiError extends Error {
 
   constructor(message: string, status: number, payload?: ApiErrorPayload) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
     this.payload = payload;
     this.status = status;
   }
