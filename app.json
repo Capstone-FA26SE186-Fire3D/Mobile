@@ -1,1 +1,22 @@
-{"expo":{"name":"RAG Assistant","slug":"rag-assistant","plugins":["expo-router"]}}
+{
+  "expo": {
+    "name": "Fire3D",
+    "slug": "rag-assistant",
+    "scheme": "fire3d",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F7F3EA",
+    "web": { "bundler": "metro", "output": "single", "name": "Fire3D" },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép Fire3D dùng camera để quét QR tòa nhà.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
+  }
+}
