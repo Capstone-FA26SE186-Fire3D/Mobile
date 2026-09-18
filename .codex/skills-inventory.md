@@ -27,6 +27,9 @@ installed.
 
 ## Stack boundary
 
-This checkout is Expo/React Native. Do not infer Flutter, Dart, Kotlin Compose,
-Unity, or native-module support from a skill. Those workflows remain excluded
-until the repository actually migrates.
+This checkout is Expo/React Native. Do not infer Flutter, Dart or Kotlin Compose.
+Unity gameplay and native Android bridge are part of the Fire3D target
+architecture, but are not implemented in this checkout yet. They require an
+Expo development/native build and a separately managed Unity project; Expo Go
+or web preview cannot be used as evidence of the integration. Do not install a
+skill/plugin merely to record this boundary.
