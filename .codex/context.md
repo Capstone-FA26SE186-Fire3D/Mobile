@@ -3,7 +3,7 @@
 ## Hiện trạng đã kiểm tra
 
 - Expo + React Native + TypeScript, Expo Router theo [package.json](../package.json).
-- UI prototype Fire3D có login demo, sảnh tòa nhà low-poly, danh sách/search, camera/nhập QR mẫu, chi tiết/chuẩn bị tập huấn, kết quả trống và tài khoản demo. Route ở `app/`, nghiệp vụ ở `src/features/`, UI chung ở `src/components/ui/`, tokens ở `src/theme/`.
+- UI prototype FET3D có login demo, sảnh tòa nhà low-poly, danh sách/search, camera/nhập QR mẫu, chi tiết/chuẩn bị tập huấn, kết quả trống và tài khoản demo. Route ở `app/`, nghiệp vụ ở `src/features/`, UI chung ở `src/components/ui/`, tokens ở `src/theme/`.
 - Chat cũ được giữ tại `src/features/chat/`, gọi `POST /chat` qua `EXPO_PUBLIC_RAG_API_URL`; không có xác thực backend mới.
 - Scripts có `start`, `android`, `web`, `typecheck`, `test`, `test:e2e`, `format:check`. Tests browser không thay kiểm chứng thiết bị Android.
 - Stack đã chốt trong Docs là React Native/Expo với native Android Unity bridge. Prototype hiện **chưa** có bridge, runtime hoặc auth/QR backend; hình low-poly chỉ là PNG sprite minh họa.
@@ -12,7 +12,7 @@
 ## Kiến trúc tích hợp đích — 2026-09-17
 
 - Mobile giữ React Native + Expo. Unity là runtime gameplay được mở qua native Android bridge; Expo không thay Unity bằng scene 3D tự dựng.
-- Đăng nhập production dùng Firebase Authentication với Google Sign-In. Mobile gửi Firebase ID token tới C#/.NET backend; không tự suy ra role/tenant và không dùng Supabase Auth.
+- Đăng nhập production dùng email/password qua .NET hoặc Google Sign-In qua Firebase. Mobile gửi credential/token tới C#/.NET backend; không tự suy ra role/tenant và không dùng Supabase Auth.
 - Push notification dùng Firebase Cloud Messaging. FCM registration token được quản lý theo installation, có rotate/revoke và không được dùng như credential đăng nhập.
 - Mobile không truy cập trực tiếp Supabase PostgreSQL/`pgvector` hoặc AWS S3 bằng service credential. Backend trả signed S3 URL TTL ngắn cho đúng release/session; app tải và verify hash/schema/runtime trước khi mở Unity.
 - RAG production thuộc Python/FastAPI và `pgvector`; provider LLM là OpenAI hoặc Gemini sau khi chốt. Mobile chỉ dựa vào API contract chung, không khóa UI vào SDK/provider cụ thể.
@@ -57,3 +57,23 @@ Khi có Docs cạnh repo, đọc technology/workflows cho phần dự kiến. N�
 - Backend có thể cache-aside danh sách bài/package metadata/dashboard và giao event/job qua Redis Streams, nhưng Mobile chỉ nhận API status. Cache không thay thế online start.
 - Event/result gameplay giữ local queue sau khi session đã bắt đầu; backend xác nhận ghi bền vững rồi mới coi sync thành công. Retry event dùng event ID/sequence ổn định; Redis lỗi không được làm mất kết quả đã backend xác nhận.
 - Mobile không biết dispatcher lease hoặc worker attempt lease; app chỉ retry API/event với event ID/sequence ổn định và chờ backend xác nhận receipt. Cache hoặc Redis không mở session mới offline.
+
+## Learn blog boundary — 2026-09-19
+
+- Mobile đọc Learn blog public qua `.NET API`, lọc theo situation/kind và gửi bookmark của Trainee; không kết nối PostgreSQL/Redis trực tiếp. Hidden/Unpublished/Deleted không trả nội dung.
+- Bài có thể chứa video YouTube/Facebook/TikTok. Phiên bản thiết kế hiện tại mở provider bằng trình duyệt hoặc fallback link/summary; chưa coi embed native trong Expo là đã triển khai.
+- Mobile không nhận Draft/Hidden/Deleted, không quản trị Learn và không tự tải video/transcript. Khi hỏi AI về bài, gửi `postId`/`versionId` theo contract; backend tự kiểm tra Published/Hidden hợp lệ và trả citation/scope. Trainee nhập username trong local registration hoặc Google onboarding; không còn màn hình username khi start. Profile/password/avatar flows vẫn đi qua API.
+
+## FET3D onboarding and Building billing UI — 2026-09-19
+
+- Google mới sau khi Firebase xác minh chọn Trainee hoặc OrganizationUser; Trainee nhập username, OrganizationUser nhập tên/địa chỉ/điện thoại tổ chức. Account đã link không chọn lại role/tenant.
+- OrganizationUser xem nhiều Building, chọn Building và thời hạn khi checkout/gia hạn, thấy discount/tổng tiền từ backend và nhận notification hết hạn. Mobile không tự tính giá/quyền hoặc kết nối Redis.
+
+## Final review corrections — 2026-09-19
+
+- QR accepts an existing FET3D local email/password session or a Google exchange; Mobile must not force Google Sign-In. Trainee username is collected during registration/onboarding, so game start has no `ProfileIncomplete` username gate.
+- Profile/password/avatar and Learn bookmark/video flows remain API-owned. Hidden/Deleted Learn content is never returned to Mobile; local gameplay sync after an already-authorized start remains allowed when service later expires.
+
+## Recovery gate correction — 2026-09-19
+
+- After online start, Mobile retries events with stable event ID/sequence and sends one result idempotency key/hash to the backend completion gate. It never calls database functions directly or rechecks entitlement locally; a started playtest/session may finish and sync after expiry or account disablement.

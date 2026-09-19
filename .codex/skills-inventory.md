@@ -28,7 +28,7 @@ installed.
 ## Stack boundary
 
 This checkout is Expo/React Native. Do not infer Flutter, Dart or Kotlin Compose.
-Unity gameplay and native Android bridge are part of the Fire3D target
+Unity gameplay and native Android bridge are part of the FET3D target
 architecture, but are not implemented in this checkout yet. They require an
 Expo development/native build and a separately managed Unity project; Expo Go
 or web preview cannot be used as evidence of the integration. Do not install a
