@@ -17,7 +17,7 @@
 - Mobile không truy cập trực tiếp Supabase PostgreSQL/`pgvector` hoặc AWS S3 bằng service credential. Backend trả signed S3 URL TTL ngắn cho đúng release/session; app tải và verify hash/schema/runtime trước khi mở Unity.
 - RAG production thuộc Python/FastAPI và `pgvector`; provider LLM là OpenAI hoặc Gemini sau khi chốt. Mobile chỉ dựa vào API contract chung, không khóa UI vào SDK/provider cụ thể.
 - AI/RAG FastAPI chạy riêng trên Azure; Container Apps là phương án triển khai đề xuất. Mobile production gọi `.NET API` để backend kiểm tra identity, tenant, quota/consent và request idempotency. Mobile chỉ nhận response/citations/usage kỹ thuật, không tự tính overage hoặc gọi AI trực tiếp như prototype cũ; timeout phải tra cứu request status trước khi retry.
-- Mobile production gọi API qua endpoint Nginx đã chốt; Nginx chuyển request tới .NET API. Domain, TLS và endpoint theo môi trường là cấu hình triển khai, không hard-code vào app.
+- Mobile production gọi API qua endpoint OneShield/OnePortal (iNET) → Nginx đã chốt; Nginx chuyển request tới .NET API. Domain, TLS, edge policy và endpoint theo môi trường là cấu hình triển khai, không hard-code vào app.
 - Luồng runtime mục tiêu tách rõ: Building QR → danh sách bài đã publish → người học chọn bài → tạo preparation/idempotency record → tải/verify phần package còn thiếu → `POST /api/training/sessions/{sessionId}/start` online kiểm tra entitlement/QR/release/scenario/package/runtime → cấp launch grant pin `training/release/scenario` → mở Unity. Hết hạn chặn session mới; phiên đã start vẫn được tiếp tục và sync kết quả sau khi có mạng.
 - OrganizationUser playtest là luồng riêng: nhận package draft/version đã verify từ web/backend, start với Trial còn quota thử hoặc Building entitlement Active, không dùng QR Trainee, không ghi learner analytics; entitlement hết hạn sau start không cắt playtest.
 - Unity/native Android bridge là một phần kiến trúc đích, không phải skill bị loại trừ. Cần development/native build (không dùng Expo Go để chứng minh tích hợp), truyền event/session/package tối thiểu qua bridge và không gửi credential dài hạn vào Unity.
@@ -53,7 +53,7 @@ Khi có Docs cạnh repo, đọc technology/workflows cho phần dự kiến. N�
 
 ## Redis boundary — 2026-09-19
 
-- Mobile không kết nối Redis, Redis Streams hoặc PostgreSQL trực tiếp. App chỉ gọi API qua Nginx/.NET; mọi quyền start, entitlement, quota, package và analytics do backend kiểm tra.
+- Mobile không kết nối Redis, Redis Streams hoặc PostgreSQL trực tiếp. App chỉ gọi API qua OneShield/OnePortal → Nginx/.NET; mọi quyền start, entitlement, quota, package và analytics do backend kiểm tra.
 - Backend có thể cache-aside danh sách bài/package metadata/dashboard và giao event/job qua Redis Streams, nhưng Mobile chỉ nhận API status. Cache không thay thế online start.
 - Event/result gameplay giữ local queue sau khi session đã bắt đầu; backend xác nhận ghi bền vững rồi mới coi sync thành công. Retry event dùng event ID/sequence ổn định; Redis lỗi không được làm mất kết quả đã backend xác nhận.
 - Mobile không biết dispatcher lease hoặc worker attempt lease; app chỉ retry API/event với event ID/sequence ổn định và chờ backend xác nhận receipt. Cache hoặc Redis không mở session mới offline.
