@@ -50,3 +50,10 @@ Từ gốc Mobile, sau khi dependencies đã sẵn sàng theo [README](../README
 ## Thiết kế liên quan
 
 Khi có Docs cạnh repo, đọc technology/workflows cho phần dự kiến. Nếu task cần chọn giữa implementation và thiết kế đang khác nhau, trình bày bằng chứng và xin quyết định, không tự migration. Clone độc lập không cần có workspace cha để đọc bộ hướng dẫn này.
+
+## Redis boundary — 2026-09-19
+
+- Mobile không kết nối Redis, Redis Streams hoặc PostgreSQL trực tiếp. App chỉ gọi API qua Nginx/.NET; mọi quyền start, entitlement, quota, package và analytics do backend kiểm tra.
+- Backend có thể cache-aside danh sách bài/package metadata/dashboard và giao event/job qua Redis Streams, nhưng Mobile chỉ nhận API status. Cache không thay thế online start.
+- Event/result gameplay giữ local queue sau khi session đã bắt đầu; backend xác nhận ghi bền vững rồi mới coi sync thành công. Retry event dùng event ID/sequence ổn định; Redis lỗi không được làm mất kết quả đã backend xác nhận.
+- Mobile không biết dispatcher lease hoặc worker attempt lease; app chỉ retry API/event với event ID/sequence ổn định và chờ backend xác nhận receipt. Cache hoặc Redis không mở session mới offline.
