@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Fire3D",
+    "name": "FETD3D",
     "slug": "rag-assistant",
     "scheme": "fire3d",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F7F3EA",
-    "web": { "bundler": "metro", "output": "single", "name": "Fire3D" },
+    "web": { "bundler": "metro", "output": "single", "name": "FETD3D" },
     "plugins": [
       "expo-router",
       "expo-font",

@@ -9,7 +9,14 @@ import {
 import { AccessibilityInfo } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initialState, parseDemoState, type DemoState } from './demo.model';
-import { buildings, saveBuilding, type Building } from '@/features/buildings/buildings.model';
+import {
+  buildings,
+  findTraining,
+  saveBuilding,
+  type Building,
+  type TrainingMode,
+} from '@/features/buildings/buildings.model';
+import { advanceSession, createDemoSession, restartSession } from '@/features/game/game.model';
 type Store = {
   state: DemoState;
   ready: boolean;
@@ -21,6 +28,11 @@ type Store = {
   loadExamples: () => void;
   clearBuildings: () => void;
   setReducedMotion: (value: boolean) => void;
+  startSession: (trainingId: string, mode: TrainingMode) => string;
+  chooseScene: (sessionId: string, choiceId: string) => void;
+  pauseSession: (sessionId: string) => void;
+  resumeSession: (sessionId: string) => void;
+  restartSession: (sessionId: string) => void;
 };
 const Context = createContext<Store | null>(null);
 export function DemoProvider({ children }: PropsWithChildren) {
@@ -31,9 +43,9 @@ export function DemoProvider({ children }: PropsWithChildren) {
   const writes = useRef(Promise.resolve());
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem('fire3d.demo.v1')
-      .then((raw) => {
-        if (active) setState(parseDemoState(raw));
+    Promise.all([AsyncStorage.getItem('fire3d.demo.v2'), AsyncStorage.getItem('fire3d.demo.v1')])
+      .then(([current, legacy]) => {
+        if (active) setState(parseDemoState(current ?? legacy));
       })
       .catch(() => {
         if (active)
@@ -59,7 +71,8 @@ export function DemoProvider({ children }: PropsWithChildren) {
     if (!ready) return;
     let active = true;
     writes.current = writes.current
-      .then(() => AsyncStorage.setItem('fire3d.demo.v1', JSON.stringify(state)))
+      .then(() => AsyncStorage.setItem('fire3d.demo.v2', JSON.stringify(state)))
+      .then(() => AsyncStorage.removeItem('fire3d.demo.v1'))
       .then(() => {
         if (active) setStorageError('');
       })
@@ -90,6 +103,61 @@ export function DemoProvider({ children }: PropsWithChildren) {
           })),
         clearBuildings: () => setState((s) => ({ ...s, saved: [] })),
         setReducedMotion: (value) => setState((s) => ({ ...s, reducedMotion: value })),
+        startSession: (trainingId, mode) => {
+          const match = findTraining(trainingId);
+          if (!match || match.training.status !== 'active')
+            throw new Error('Bài tập không khả dụng.');
+          const id = `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          const session = createDemoSession({
+            id,
+            trainingId,
+            buildingId: match.building.id,
+            mode,
+          });
+          setState((s) => ({ ...s, sessions: [session, ...s.sessions] }));
+          return id;
+        },
+        chooseScene: (sessionId, choiceId) =>
+          setState((s) => {
+            const current = s.sessions.find((session) => session.id === sessionId);
+            if (!current) return s;
+            const next = advanceSession(current, choiceId);
+            return {
+              ...s,
+              sessions: s.sessions.map((session) =>
+                session.id === sessionId ? next.session : session,
+              ),
+              results: next.result
+                ? [next.result, ...s.results.filter((result) => result.sessionId !== sessionId)]
+                : s.results,
+            };
+          }),
+        pauseSession: (sessionId) =>
+          setState((s) => ({
+            ...s,
+            sessions: s.sessions.map((session) =>
+              session.id === sessionId && session.status !== 'completed'
+                ? { ...session, status: 'paused' }
+                : session,
+            ),
+          })),
+        resumeSession: (sessionId) =>
+          setState((s) => ({
+            ...s,
+            sessions: s.sessions.map((session) =>
+              session.id === sessionId && session.status === 'paused'
+                ? { ...session, status: 'active' }
+                : session,
+            ),
+          })),
+        restartSession: (sessionId) =>
+          setState((s) => ({
+            ...s,
+            sessions: s.sessions.map((session) =>
+              session.id === sessionId ? restartSession(session) : session,
+            ),
+            results: s.results.filter((result) => result.sessionId !== sessionId),
+          })),
       }}
     >
       {children}
