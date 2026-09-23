@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Screen, PageHeader, Notice } from '@/components/ui/Screen';
@@ -7,17 +7,24 @@ import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { colors } from '@/theme/tokens';
 import { useDemo } from '@/store/DemoProvider';
-import { buildings, getLaunchIssue } from '@/features/buildings/buildings.model';
+import {
+  buildings,
+  getLaunchIssue,
+  trainingModes,
+  type TrainingMode,
+} from '@/features/buildings/buildings.model';
 import { BuildingArt } from '@/features/buildings/components/BuildingArt';
 
 export default function TrainingScreen() {
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
-  const { state } = useDemo();
+  const { state, startSession, resumeSession } = useDemo();
   const building =
     typeof id === 'string'
       ? buildings.find((b) => b.id === id && state.saved.some((s) => s.id === b.id))
       : undefined;
-  const [phase, setPhase] = useState<'overview' | 'preparing' | 'unavailable'>('overview');
+  const [trainingId, setTrainingId] = useState('');
+  const [mode, setMode] = useState<TrainingMode>('guided');
+  const [preparing, setPreparing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -26,7 +33,9 @@ export default function TrainingScreen() {
     [],
   );
   useEffect(() => {
-    setPhase('overview');
+    setTrainingId('');
+    setMode('guided');
+    setPreparing(false);
     if (timer.current) clearTimeout(timer.current);
   }, [id]);
   if (!building)
@@ -38,16 +47,32 @@ export default function TrainingScreen() {
       </Screen>
     );
   const issue = getLaunchIssue(building);
+  const selectedTraining =
+    building.trainings.find((training) => training.id === trainingId) ?? building.trainings[0];
+  const resumable = state.sessions.find(
+    (session) =>
+      session.buildingId === building.id &&
+      session.trainingId === selectedTraining.id &&
+      session.status !== 'completed',
+  );
   function prepare() {
-    if (phase === 'preparing' || issue) return;
-    setPhase('preparing');
-    // Demonstrates the preparation UI only; never claims to download a package or launch Unity.
-    timer.current = setTimeout(() => setPhase('unavailable'), 1200);
+    if (preparing || issue || selectedTraining.status !== 'active') return;
+    setPreparing(true);
+    // UI-only preparation: it never claims to download or verify a production package.
+    timer.current = setTimeout(() => {
+      const sessionId = startSession(selectedTraining.id, mode);
+      router.replace({ pathname: '/game/[sessionId]', params: { sessionId } });
+    }, 900);
+  }
+  function resume() {
+    if (!resumable) return;
+    resumeSession(resumable.id);
+    router.push({ pathname: '/game/[sessionId]', params: { sessionId: resumable.id } });
   }
   return (
     <Screen>
       <PageHeader
-        title={phase === 'overview' ? 'Sẵn sàng tập huấn' : 'Chuẩn bị không gian'}
+        title={preparing ? 'Chuẩn bị không gian' : 'Chọn bài tập huấn'}
         onBack={() => router.dismissTo('/(tabs)')}
       />
       {source === 'scan' && <Notice>Đã lưu tòa nhà vào sảnh của bạn.</Notice>}
@@ -62,23 +87,7 @@ export default function TrainingScreen() {
       </View>
       <View style={styles.title}>
         <Text variant="title">{building.name}</Text>
-        <Text muted>{building.training}</Text>
-      </View>
-      <View style={styles.details}>
-        <View style={styles.detail}>
-          <Ionicons name="time-outline" size={23} color={colors.green} />
-          <Text variant="label">{building.minutes} phút</Text>
-          <Text variant="small" muted>
-            Thời lượng dự kiến
-          </Text>
-        </View>
-        <View style={styles.detail}>
-          <Ionicons name="compass-outline" size={23} color={colors.green} />
-          <Text variant="label">Có hướng dẫn</Text>
-          <Text variant="small" muted>
-            Từng bước làm quen
-          </Text>
-        </View>
+        <Text muted>Chọn bài và cách bạn muốn trải nghiệm mô phỏng.</Text>
       </View>
       {issue ? (
         <>
@@ -89,30 +98,102 @@ export default function TrainingScreen() {
             onPress={() => router.replace('/scan')}
           />
         </>
-      ) : phase === 'preparing' ? (
+      ) : preparing ? (
         <View style={styles.preparing} accessibilityLiveRegion="polite">
           <ActivityIndicator color={colors.green} />
-          <Text variant="label">Đang chuẩn bị giao diện mẫu…</Text>
+          <Text variant="label">Đang chuẩn bị cảnh mô phỏng…</Text>
           <Text variant="small" muted>
-            Không tải gói nội dung trong bản trải nghiệm.
+            Dùng dữ liệu cục bộ; không tải package hoặc kiểm tra entitlement thật.
           </Text>
         </View>
-      ) : phase === 'unavailable' ? (
-        <>
-          <Notice>
-            Giao diện đã sẵn sàng. Bản trải nghiệm chưa kết nối nội dung tập huấn và Unity, nên chưa
-            thể bắt đầu trò chơi.
-          </Notice>
-          <Button title="Về sảnh tòa nhà" onPress={() => router.dismissTo('/(tabs)')} />
-        </>
       ) : (
         <>
-          <Text variant="heading">Trước khi bắt đầu</Text>
-          <Text muted>
-            Chọn một nơi thoải mái để thao tác. Bạn sẽ làm quen với không gian và luyện tập theo
-            hướng dẫn trong bài.
-          </Text>
-          <Button title="Vào tập huấn" icon="play-outline" onPress={prepare} />
+          <View style={styles.sectionHeading}>
+            <Text variant="heading">Bài đang mở</Text>
+            <Text variant="small" muted>
+              {building.trainings.length} bài mẫu
+            </Text>
+          </View>
+          {building.trainings.map((training) => (
+            <Pressable
+              key={training.id}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selectedTraining.id === training.id }}
+              accessibilityLabel={`Chọn bài ${training.title}`}
+              onPress={() => setTrainingId(training.id)}
+              style={[
+                styles.trainingCard,
+                selectedTraining.id === training.id && styles.selectedCard,
+              ]}
+            >
+              <View style={styles.trainingIcon}>
+                <Ionicons name="flag-outline" size={22} color={colors.green} />
+              </View>
+              <View style={styles.trainingCopy}>
+                <Text variant="label">{training.title}</Text>
+                <Text variant="small" muted>
+                  {training.summary}
+                </Text>
+                <View style={styles.meta}>
+                  <Ionicons name="time-outline" size={15} color={colors.muted} />
+                  <Text variant="small" muted>
+                    Khoảng {training.minutes} phút
+                  </Text>
+                </View>
+              </View>
+              <Ionicons
+                name={selectedTraining.id === training.id ? 'checkmark-circle' : 'ellipse-outline'}
+                size={22}
+                color={selectedTraining.id === training.id ? colors.green : colors.muted}
+              />
+            </Pressable>
+          ))}
+          <Text variant="heading">Chọn chế độ</Text>
+          <View accessibilityRole="radiogroup" style={styles.modes}>
+            {trainingModes.map((item) => (
+              <Pressable
+                key={item.id}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mode === item.id }}
+                accessibilityLabel={item.title}
+                onPress={() => setMode(item.id)}
+                style={[styles.modeCard, mode === item.id && styles.selectedMode]}
+              >
+                <View style={styles.modeTop}>
+                  <View style={styles.modeIcon}>
+                    <Ionicons name={item.icon} size={21} color={colors.green} />
+                  </View>
+                  <View style={styles.modeTitle}>
+                    <Text variant="label">{item.title}</Text>
+                    <Text variant="small" muted>
+                      {item.shortTitle}
+                    </Text>
+                  </View>
+                  {mode === item.id && (
+                    <Ionicons name="checkmark-circle" size={22} color={colors.green} />
+                  )}
+                </View>
+                <Text variant="small" muted>
+                  {item.description}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {resumable && (
+            <Notice>
+              Bạn có một phiên {resumable.mode === 'assessment' ? 'Assessment' : 'mô phỏng'} đang
+              lưu ở bước {resumable.checkpoint.sequence + 1}.
+            </Notice>
+          )}
+          {resumable && (
+            <Button
+              title="Tiếp tục phiên đã lưu"
+              icon="play-forward-outline"
+              variant="secondary"
+              onPress={resume}
+            />
+          )}
+          <Button title="Bắt đầu mô phỏng" icon="play-outline" onPress={prepare} />
         </>
       )}
       <Text variant="small" muted style={styles.disclaimer}>
@@ -141,15 +222,49 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   title: { alignItems: 'center', gap: 8 },
-  details: {
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  trainingCard: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 20,
+    padding: 16,
   },
-  detail: { flex: 1, alignItems: 'center', gap: 7 },
+  selectedCard: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  trainingIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.greenSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trainingCopy: { flex: 1, gap: 5 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  modes: { gap: 10 },
+  modeCard: {
+    minHeight: 92,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 15,
+    gap: 8,
+  },
+  selectedMode: { borderColor: colors.green, backgroundColor: '#F0F3E9' },
+  modeTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: colors.greenSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeTitle: { flex: 1 },
   preparing: {
     padding: 25,
     alignItems: 'center',

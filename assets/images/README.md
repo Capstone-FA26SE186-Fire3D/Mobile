@@ -19,3 +19,25 @@ the assets consumed by the app. No pre-existing project asset was overwritten.
 `building-office.png` (residence sprite as style reference):
 
 > Use case stylized-concept, game sprite. Reference role: material, style, lighting and camera. Generate ONE different companion building: a five-storey compact contemporary office building, elegant rectangular tower with muted blue-gray window panels, sandstone ivory frame, flat roof, recessed sage entrance canopy. Small beveled square cream pavement plinth, two tiny polygonal sage trees. Low-poly geometric matte architectural miniature for friendly warm Fire3D mobile lobby. Same orthographic three-quarter camera looking gently down, soft afternoon illumination and ambient occlusion. Full building and base visible with generous padding. Genuinely transparent alpha background, square. No text/numbers/letters/watermark, no people, fire, smoke. Crisp simplified planes, avoid detailed realism.
+
+## POV gameplay mock backgrounds
+
+Generated with the built-in imagegen tool on 2026-09-23. These four portrait images
+are static backgrounds for the React Native gameplay mock, not Unity screenshots,
+validated BIM geometry or emergency guidance. The first scene established the visual
+reference; the other three used it only for style, palette, materials and camera height.
+Smoke, route markers and HUD are rendered by the app so the same images can serve all
+three demo modes.
+
+Shared prompt constraints:
+
+> Use case: stylized-concept. Asset type: portrait 9:16 mobile game environment background for Fire3D. Premium friendly low-poly 3D architecture, matte simplified planes, eye-level first-person camera, stable horizon, cream/charcoal/sage/terracotta/blue-gray palette, soft ambient occlusion. Keep the top 18% and bottom 28% calm for readable HUD overlays. No text, letters, numbers, UI, HUD, route marker, logo, watermark, person or fisheye distortion.
+
+- `game-start.png`: calm apartment-floor starting area leading into a corridor; no
+  fire or smoke.
+- `game-corridor.png`: longer corridor with doors, columns and a gentle turn; no fire
+  or smoke.
+- `game-junction.png`: clear two-branch corridor junction with only subtle distant
+  haze, suitable for a route choice.
+- `game-exit.png`: protected stair landing and closed destination door with reassuring
+  light; no fire or smoke.

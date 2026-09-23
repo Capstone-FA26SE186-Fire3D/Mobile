@@ -10,7 +10,17 @@ async function seed(page: Page) {
   await page.getByRole('button', { name: /Xem sảnh với 3 tòa nhà mẫu/ }).click();
   await expect(page.getByText('3 tòa nhà đã lưu')).toBeVisible();
 }
-test('login, empty lobby, map, list, sheet and preparation are usable', async ({ page }) => {
+async function openAnBinhTraining(page: Page) {
+  await page.getByRole('button', { name: 'Mở Chung cư An Bình' }).click();
+  await page.getByRole('button', { name: 'Vào tập huấn', exact: true }).click();
+  await expect(page.getByText('Chọn bài tập huấn')).toBeVisible();
+}
+async function startMode(page: Page, mode: 'Learn' | 'Guided Drill' | 'Assessment') {
+  await page.getByRole('radio', { name: mode }).click();
+  await page.getByRole('button', { name: 'Bắt đầu mô phỏng' }).click();
+  await expect(page.getByText(`${mode} · DEMO`)).toBeVisible();
+}
+test('login, lobby and a complete Guided Drill flow are usable', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
@@ -36,13 +46,20 @@ test('login, empty lobby, map, list, sheet and preparation are usable', async ({
     animations: 'disabled',
   });
   await page.getByRole('button', { name: 'Vào tập huấn', exact: true }).click();
-  await expect(page.getByText('Sẵn sàng tập huấn')).toBeVisible();
-  await page.getByRole('button', { name: 'Vào tập huấn', exact: true }).click();
-  await expect(page.getByText('Đang chuẩn bị giao diện mẫu…')).toBeVisible();
+  await expect(page.getByText('Chọn bài tập huấn')).toBeVisible();
+  await page.getByRole('radio', { name: 'Guided Drill' }).click();
+  await page.getByRole('button', { name: 'Bắt đầu mô phỏng' }).click();
+  await expect(page.getByText('Đang chuẩn bị cảnh mô phỏng…')).toBeVisible();
   await page.screenshot({ path: `${shots}/07-preparing.png`, fullPage: true });
-  await expect(
-    page.getByText(/Bản trải nghiệm chưa kết nối nội dung tập huấn và Unity/),
-  ).toBeVisible();
+  await expect(page.getByText('Guided Drill · DEMO')).toBeVisible();
+  await page.screenshot({ path: `${shots}/09-game-guided.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Quan sát hành lang' }).click();
+  await page.getByRole('button', { name: 'Đi theo các mốc đã quan sát' }).click();
+  await page.getByRole('button', { name: 'Chọn nhánh A' }).click();
+  await page.getByRole('button', { name: 'Hoàn tất mô phỏng' }).click();
+  await expect(page.getByText('Debrief cá nhân')).toBeVisible();
+  await expect(page.getByText(/Dữ liệu local-only/)).toBeVisible();
+  await page.screenshot({ path: `${shots}/10-debrief.png`, fullPage: true });
   expect(errors).toEqual([]);
 });
 test('invalid login is rejected and signed-in session survives reload; logout protects routes', async ({
@@ -58,7 +75,7 @@ test('invalid login is rejected and signed-in session survives reload; logout pr
   await expect(page.getByText('Một hành trình mới bắt đầu')).toBeVisible();
   await expect
     .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('fire3d.demo.v1') || '{}').signedIn),
+      page.evaluate(() => JSON.parse(localStorage.getItem('fire3d.demo.v2') || '{}').signedIn),
     )
     .toBe(true);
   await page.reload();
@@ -126,4 +143,66 @@ test('unscanned building deep links do not expose training', async ({ page }) =>
   await enter(page);
   await page.goto('/training/an-binh');
   await expect(page.getByText('Không tìm thấy tòa nhà')).toBeVisible();
+});
+
+test('Learn keeps hints visible and stores a scoreless local result', async ({ page }) => {
+  await seed(page);
+  await openAnBinhTraining(page);
+  await startMode(page, 'Learn');
+  await expect(page.getByText('GỢI Ý MÔ PHỎNG')).toBeVisible();
+  await page.getByRole('button', { name: 'Quan sát hành lang' }).click();
+  await page.getByRole('button', { name: 'Đi theo các mốc đã quan sát' }).click();
+  await page.getByRole('button', { name: 'Chọn nhánh A' }).click();
+  await page.getByRole('button', { name: 'Hoàn tất mô phỏng' }).click();
+  await expect(page.getByText(/ĐÃ HOÀN THÀNH · LEARN/)).toBeVisible();
+  await expect(page.getByText('Điểm mô phỏng')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Về danh sách kết quả' }).click();
+  await expect(page.getByRole('button', { name: /Xem kết quả Khói xuất hiện/ })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: /Xem kết quả Khói xuất hiện/ })).toBeVisible();
+});
+
+test('Assessment hides hints, records a blocked route and creates a score', async ({ page }) => {
+  await seed(page);
+  await openAnBinhTraining(page);
+  await startMode(page, 'Assessment');
+  await expect(page.getByText('GỢI Ý MÔ PHỎNG')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Quan sát hành lang' }).click();
+  await page.getByRole('button', { name: 'Đi theo các mốc đã quan sát' }).click();
+  await page.getByRole('button', { name: 'Chọn nhánh B' }).click();
+  await expect(page.getByText('Re-plan theo trạng thái mới')).toBeVisible();
+  await page.getByRole('button', { name: 'Đổi sang nhánh A' }).click();
+  await page.getByRole('button', { name: 'Hoàn tất mô phỏng' }).click();
+  await expect(page.getByText('Điểm mô phỏng')).toBeVisible();
+  await expect(page.getByText(/Bạn đã gặp một nhánh bị chặn/)).toBeVisible();
+});
+
+test('paused checkpoint survives reload and can resume from the training screen', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await seed(page);
+  await openAnBinhTraining(page);
+  await startMode(page, 'Guided Drill');
+  await page.getByRole('button', { name: 'Quan sát hành lang' }).click();
+  await page.getByRole('button', { name: 'Tạm dừng mô phỏng' }).click();
+  await expect(page.getByText('Đã tạm dừng')).toBeVisible();
+  await page.getByRole('button', { name: 'Lưu và về sảnh' }).click();
+  await page.reload();
+  await openAnBinhTraining(page);
+  await expect(page.getByRole('button', { name: 'Tiếp tục phiên đã lưu' })).toBeVisible();
+  await page.getByRole('button', { name: 'Tiếp tục phiên đã lưu' }).click();
+  await expect(page.getByText('Tiến tới nút giao trong mô hình')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});
+
+test('unknown session deep links are guarded', async ({ page }) => {
+  await enter(page);
+  await page.goto('/game/not-a-session');
+  await expect(page.getByText(/Phiên mô phỏng không tồn tại/)).toBeVisible();
+  await page.goto('/results/not-a-session');
+  await expect(page.getByText('Không tìm thấy kết quả')).toBeVisible();
 });

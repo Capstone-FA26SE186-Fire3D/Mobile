@@ -44,6 +44,8 @@ function Navigation() {
           />
           <Stack.Screen name="buildings" />
           <Stack.Screen name="training/[id]" />
+          <Stack.Screen name="game/[sessionId]" options={{ animation: 'fade' }} />
+          <Stack.Screen name="results/[sessionId]" />
           <Stack.Screen name="chat" />
         </Stack.Protected>
       </Stack>

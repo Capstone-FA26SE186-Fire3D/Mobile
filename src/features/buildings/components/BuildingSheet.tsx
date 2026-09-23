@@ -21,6 +21,7 @@ export function BuildingSheet({
   const insets = useSafeAreaInsets();
   if (!building) return null;
   const issue = getLaunchIssue(building);
+  const training = building.trainings[0];
   function launch() {
     onClose();
     router.push({ pathname: '/training/[id]', params: { id: building!.id } });
@@ -72,18 +73,18 @@ export function BuildingSheet({
                 </Text>
               </View>
               <Text variant="heading" style={{ fontSize: 18 }}>
-                {building.training}
+                {training.title}
               </Text>
               <View style={styles.meta}>
                 <Ionicons name="time-outline" size={17} color={colors.muted} />
                 <Text variant="small" muted>
-                  Khoảng {building.minutes} phút
+                  Khoảng {training.minutes} phút
                 </Text>
                 <Text variant="small" muted>
                   ·
                 </Text>
                 <Text variant="small" muted>
-                  Có hướng dẫn
+                  3 chế độ
                 </Text>
               </View>
             </View>
