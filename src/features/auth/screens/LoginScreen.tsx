@@ -26,7 +26,7 @@ import { useDemo } from '@/store/DemoProvider';
 import { DEMO_EMAIL, DEMO_PASSWORD, validateDemoLogin } from '@/store/demo.model';
 
 export default function LoginScreen() {
-  const { signIn, reduceMotion } = useDemo();
+  const { signIn, signInWithPassword, reduceMotion } = useDemo();
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [show, setShow] = useState(false),
@@ -51,9 +51,15 @@ export default function LoginScreen() {
   const artStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - progress.value * 0.18 }, { translateY: -progress.value * 24 }],
   }));
-  function login(demo = false) {
+  async function login(demo = false) {
     if (busy) return;
-    const issue = validateDemoLogin(demo ? DEMO_EMAIL : email, demo ? DEMO_PASSWORD : password);
+    const issue = demo
+      ? validateDemoLogin(DEMO_EMAIL, DEMO_PASSWORD)
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+        ? 'Vui lòng nhập địa chỉ email hợp lệ.'
+        : password.length === 0
+          ? 'Vui lòng nhập mật khẩu.'
+          : null;
     if (issue) {
       setError(issue);
       return;
@@ -65,7 +71,18 @@ export default function LoginScreen() {
       duration: reduceMotion ? 0 : 450,
       easing: Easing.out(Easing.cubic),
     });
-    timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
+    if (demo) {
+      timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
+      return;
+    }
+    try {
+      await signInWithPassword(email.trim(), password);
+      timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
+    } catch (issue) {
+      progress.value = withTiming(0, { duration: reduceMotion ? 0 : 180 });
+      setBusy(false);
+      setError(issue instanceof Error ? issue.message : 'Không đăng nhập được. Vui lòng thử lại.');
+    }
   }
   return (
     <SafeAreaView style={styles.safe}>

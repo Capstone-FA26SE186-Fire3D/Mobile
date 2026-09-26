@@ -6,6 +6,7 @@ export type ApiQueryParams = Record<string, ApiQueryValue | ApiQueryValue[]>;
 export type ApiErrorPayload = Record<string, unknown>;
 
 export type ApiRequestOptions = {
+  accessToken?: string;
   body?: BodyInit;
   headers?: HeadersInit;
   json?: unknown;

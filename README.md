@@ -1,8 +1,8 @@
 # Fire3D Mobile
 
 Ứng dụng React Native / Expo cho người tập huấn, phong cách low-poly với nền kem,
-điểm nhấn cam và font Be Vietnam Pro. Hiện là **prototype tương tác**, chưa kết nối
-đăng nhập backend, hệ thống QR thật hoặc Unity. Không dùng tài khoản/mật khẩu thật.
+điểm nhấn cam và font Be Vietnam Pro. Đăng nhập Fire3D dùng API .NET; danh sách
+tòa nhà mẫu, quét QR mẫu và màn tập huấn vẫn là prototype, chưa nối Unity.
 
 ## Chạy và trải nghiệm
 
@@ -17,7 +17,11 @@ pnpm web
 Web preview chạy ở `http://localhost:8085`. Expo Go/dev build phải tương thích SDK 57;
 không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bundle export.
 
-- Bấm **Khám phá bản trải nghiệm**, hoặc dùng `demo@fire3d.vn` / `Fire3D123!`.
+- Sao chép `.env.example` thành `.env`, cấu hình `EXPO_PUBLIC_API_BASE_URL`, rồi chạy lại Expo.
+  Android emulator dùng `http://10.0.2.2:5173`; điện thoại thật cần IP LAN của máy chạy BE.
+- Đăng nhập bằng tài khoản Fire3D do BE cấp. Phiên được lưu bằng SecureStore trên thiết bị,
+  khôi phục qua `/api/auth/me` và `/api/auth/refresh`, thu hồi khi gọi `/api/auth/logout`.
+- Bấm **Khám phá bản trải nghiệm**, hoặc dùng `demo@fire3d.vn` / `Fire3D123!` để vào demo cục bộ.
 - Tài khoản mới có sảnh trống. Bấm **Xem sảnh với 3 tòa nhà mẫu**, hoặc nhập mã
   `F3D-ANBINH`, `F3D-HOASEN`, `F3D-MINHKHAI` ở màn quét QR.
 - Camera đọc QR chứa chính xác một mã mẫu hoặc deep link `fire3d://demo/an-binh`
@@ -25,8 +29,10 @@ không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bu
 - Quét lại cập nhật tòa nhà đã lưu, không nhân đôi. Minh Khai minh họa bài đã đóng.
 - Chạm tòa nhà → xem bài → vào tập huấn. Màn chuẩn bị ghi rõ chỉ là demo, không giả
   tải package, tạo session, kết quả hay mở Unity.
-- Tài khoản có giảm chuyển động, nạp/xóa dữ liệu mẫu (có xác nhận) và đăng xuất.
-  Phiên demo cùng danh sách nhà được lưu cục bộ; không lưu mật khẩu.
+- Tài khoản Fire3D hiển thị hồ sơ từ `/api/auth/me`; dữ liệu mẫu tòa nhà vẫn lưu cục bộ.
+  Phiên demo và danh sách nhà mẫu được lưu cục bộ; mật khẩu không được lưu.
+- BE hiện chưa có API Trainee để resolve QR/tìm tòa nhà, liệt kê bài tập, tạo session,
+  lưu kết quả hoặc hỏi AI. Không dùng endpoint Building/Training quản trị cho Trainee.
 - Trợ lý tài liệu giữ API `POST /chat` hiện có. Copy `.env.example` sang `.env` rồi
   cấu hình `EXPO_PUBLIC_RAG_API_URL` để dùng. Android emulator dùng `10.0.2.2` để
   kết nối host; điện thoại thật cần địa chỉ mạng phù hợp. Không có key bí mật trong app.

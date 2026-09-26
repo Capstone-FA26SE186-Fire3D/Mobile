@@ -9,7 +9,7 @@ import { colors } from '@/theme/tokens';
 import { useDemo } from '@/store/DemoProvider';
 import { DEMO_EMAIL } from '@/store/demo.model';
 export default function ProfileScreen() {
-  const { state, signOut, loadExamples, clearBuildings, setReducedMotion, reduceMotion } =
+  const { state, account, signOut, loadExamples, clearBuildings, setReducedMotion, reduceMotion } =
     useDemo();
   const [confirm, setConfirm] = useState(false);
   return (
@@ -17,13 +17,15 @@ export default function ProfileScreen() {
       <Text variant="title">Tài khoản</Text>
       <View style={styles.profile}>
         <View style={styles.avatar}>
-          <Text variant="title">B</Text>
+          <Text variant="title">{(account?.fullName ?? 'B').charAt(0).toUpperCase()}</Text>
         </View>
-        <Text variant="heading">Bạn trải nghiệm</Text>
-        <Text muted>{DEMO_EMAIL}</Text>
+        <Text variant="heading">
+          {account?.fullName || (account ? 'Người tập huấn' : 'Bạn trải nghiệm')}
+        </Text>
+        <Text muted>{account?.email ?? DEMO_EMAIL}</Text>
         <View style={styles.pill}>
           <Text variant="small" style={{ color: colors.green }}>
-            Người tập huấn · Tài khoản mẫu
+            {account ? account.role : 'Tài khoản mẫu'}
           </Text>
         </View>
       </View>
@@ -60,11 +62,18 @@ export default function ProfileScreen() {
           onPress={() => setConfirm(true)}
         />
       </View>
-      <Notice>
-        Đây là bản trải nghiệm giao diện. Tài khoản, tòa nhà và bài tập đều là dữ liệu mẫu; không có
-        dữ liệu tài khoản thật.
-      </Notice>
-      <Button title="Đăng xuất" icon="log-out-outline" variant="secondary" onPress={signOut} />
+      {!account && (
+        <Notice>
+          Đây là bản trải nghiệm giao diện. Tài khoản, tòa nhà và bài tập đều là dữ liệu mẫu; không
+          có dữ liệu tài khoản thật.
+        </Notice>
+      )}
+      <Button
+        title="Đăng xuất"
+        icon="log-out-outline"
+        variant="secondary"
+        onPress={() => void signOut()}
+      />
       <Modal
         visible={confirm}
         transparent

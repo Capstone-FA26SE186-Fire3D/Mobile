@@ -8,6 +8,9 @@ import {
 
 function buildUrl(path: string, query?: ApiQueryParams): string {
   const baseUrl = env.apiBaseUrl.replace(/\/+$/, '');
+  if (!baseUrl) {
+    throw new Error('Chưa cấu hình EXPO_PUBLIC_API_BASE_URL để kết nối Fire3D API.');
+  }
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const [pathname, existingQuery = ''] = `${baseUrl}${normalizedPath}`.split('?', 2);
   const searchParams = new URLSearchParams(existingQuery);
@@ -48,6 +51,10 @@ function errorMessage(payload: unknown, fallback: string): string {
     return payload.message;
   }
 
+  if (typeof payload.title === 'string') {
+    return payload.title;
+  }
+
   return typeof payload.detail === 'string' ? payload.detail : fallback;
 }
 
@@ -59,6 +66,7 @@ export const apiClient = {
 
     const headers = new Headers(options.headers);
     headers.set('Accept', headers.get('Accept') ?? 'application/json');
+    if (options.accessToken) headers.set('Authorization', `Bearer ${options.accessToken}`);
 
     const hasJsonBody = options.json !== undefined;
     if (hasJsonBody) {
