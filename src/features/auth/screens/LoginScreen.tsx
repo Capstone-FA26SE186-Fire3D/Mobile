@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -24,9 +25,23 @@ import { colors, fonts } from '@/theme/tokens';
 import { BuildingArt } from '@/features/buildings/components/BuildingArt';
 import { useDemo } from '@/store/DemoProvider';
 import { DEMO_EMAIL, DEMO_PASSWORD, validateDemoLogin } from '@/store/demo.model';
+import { ApiError } from '@/api';
+
+function loginError(issue: unknown): string {
+  if (issue instanceof ApiError) {
+    if (issue.status === 401) return 'Email hoặc mật khẩu không đúng.';
+    if (issue.status === 403) return 'Tài khoản hiện không thể đăng nhập.';
+    if (issue.status === 429) return 'Bạn thử quá nhiều lần. Vui lòng đợi rồi thử lại.';
+    const trace =
+      typeof issue.payload?.traceId === 'string' ? ` Mã tra cứu: ${issue.payload.traceId}.` : '';
+    return `Không đăng nhập được (HTTP ${issue.status}).${trace}`;
+  }
+  return issue instanceof Error ? issue.message : 'Không kết nối được Fire3D API.';
+}
 
 export default function LoginScreen() {
-  const { signIn, reduceMotion } = useDemo();
+  const router = useRouter();
+  const { signIn, signInWithPassword, reduceMotion } = useDemo();
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [show, setShow] = useState(false),
@@ -51,9 +66,17 @@ export default function LoginScreen() {
   const artStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - progress.value * 0.18 }, { translateY: -progress.value * 24 }],
   }));
-  function login(demo = false) {
+  async function login(demo = false) {
     if (busy) return;
-    const issue = validateDemoLogin(demo ? DEMO_EMAIL : email, demo ? DEMO_PASSWORD : password);
+    const localDemo =
+      demo || (email.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD);
+    const issue = localDemo
+      ? validateDemoLogin(DEMO_EMAIL, DEMO_PASSWORD)
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+        ? 'Vui lòng nhập địa chỉ email hợp lệ.'
+        : password.length === 0
+          ? 'Vui lòng nhập mật khẩu.'
+          : null;
     if (issue) {
       setError(issue);
       return;
@@ -65,7 +88,18 @@ export default function LoginScreen() {
       duration: reduceMotion ? 0 : 450,
       easing: Easing.out(Easing.cubic),
     });
-    timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
+    if (localDemo) {
+      timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
+      return;
+    }
+    try {
+      await signInWithPassword(email.trim(), password);
+      timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
+    } catch (issue) {
+      progress.value = withTiming(0, { duration: reduceMotion ? 0 : 180 });
+      setBusy(false);
+      setError(loginError(issue));
+    }
   }
   return (
     <SafeAreaView style={styles.safe}>
@@ -141,6 +175,18 @@ export default function LoginScreen() {
             </View>
             {!!error && <Notice error>{error}</Notice>}
             <Button title="Đăng nhập" loading={busy} onPress={() => login()} />
+            <Button
+              title="Quên mật khẩu?"
+              variant="ghost"
+              disabled={busy}
+              onPress={() => router.push('/forgot-password')}
+            />
+            <Button
+              title="Chưa có tài khoản? Đăng ký"
+              variant="ghost"
+              disabled={busy}
+              onPress={() => router.push('/register')}
+            />
             <View style={styles.divider}>
               <View style={styles.line} />
               <Text variant="small" muted>

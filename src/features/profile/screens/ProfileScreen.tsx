@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Switch, View } from 'react-native';
-import { router } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Image, Modal, StyleSheet, Switch, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Screen, Notice } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
@@ -8,25 +8,72 @@ import { Button } from '@/components/ui/Button';
 import { colors } from '@/theme/tokens';
 import { useDemo } from '@/store/DemoProvider';
 import { DEMO_EMAIL } from '@/store/demo.model';
+import { getCurrentAvatar } from '@/api/auth';
 export default function ProfileScreen() {
-  const { state, signOut, loadExamples, clearBuildings, setReducedMotion, reduceMotion } =
+  const { state, account, signOut, loadExamples, clearBuildings, setReducedMotion, reduceMotion } =
     useDemo();
   const [confirm, setConfirm] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      if (!account) {
+        setAvatarUrl(null);
+        return;
+      }
+      let active = true;
+      getCurrentAvatar()
+        .then((avatar) => {
+          if (active) setAvatarUrl(avatar?.url ?? account.avatarUrl ?? null);
+        })
+        .catch(() => {
+          if (active) setAvatarUrl(account.avatarUrl ?? null);
+        });
+      return () => {
+        active = false;
+      };
+    }, [account?.id, account?.avatarUrl]),
+  );
   return (
     <Screen>
       <Text variant="title">Tài khoản</Text>
       <View style={styles.profile}>
         <View style={styles.avatar}>
-          <Text variant="title">B</Text>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatarImage}
+              accessibilityLabel="Ảnh đại diện"
+            />
+          ) : (
+            <Text variant="title">{(account?.fullName ?? 'B').charAt(0).toUpperCase()}</Text>
+          )}
         </View>
-        <Text variant="heading">Bạn trải nghiệm</Text>
-        <Text muted>{DEMO_EMAIL}</Text>
+        <Text variant="heading">
+          {account?.fullName || (account ? 'Người tập huấn' : 'Bạn trải nghiệm')}
+        </Text>
+        <Text muted>{account?.email ?? DEMO_EMAIL}</Text>
         <View style={styles.pill}>
           <Text variant="small" style={{ color: colors.green }}>
-            Người tập huấn · Tài khoản mẫu
+            {account ? 'Học viên' : 'Tài khoản mẫu'}
           </Text>
         </View>
       </View>
+      {!!account && (
+        <>
+          <Button
+            title="Cài đặt tài khoản"
+            icon="person-outline"
+            variant="secondary"
+            onPress={() => router.push('/account-settings')}
+          />
+          <Button
+            title="Phản hồi và hỗ trợ"
+            icon="chatbubble-outline"
+            variant="secondary"
+            onPress={() => router.push('/support')}
+          />
+        </>
+      )}
       <View style={styles.row}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text variant="label">Giảm chuyển động</Text>
@@ -60,11 +107,18 @@ export default function ProfileScreen() {
           onPress={() => setConfirm(true)}
         />
       </View>
-      <Notice>
-        Đây là bản trải nghiệm giao diện. Tài khoản, tòa nhà và bài tập đều là dữ liệu mẫu; không có
-        dữ liệu tài khoản thật.
-      </Notice>
-      <Button title="Đăng xuất" icon="log-out-outline" variant="secondary" onPress={signOut} />
+      {!account && (
+        <Notice>
+          Đây là bản trải nghiệm giao diện. Tài khoản, tòa nhà và bài tập đều là dữ liệu mẫu; không
+          có dữ liệu tài khoản thật.
+        </Notice>
+      )}
+      <Button
+        title="Đăng xuất"
+        icon="log-out-outline"
+        variant="secondary"
+        onPress={() => void signOut()}
+      />
       <Modal
         visible={confirm}
         transparent
@@ -102,7 +156,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
+    overflow: 'hidden',
   },
+  avatarImage: { width: 82, height: 82 },
   pill: {
     borderRadius: 18,
     paddingHorizontal: 13,
