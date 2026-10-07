@@ -12,6 +12,7 @@ import { colors } from '@/theme/tokens';
 import { FontsReady } from '@/components/ui/Text';
 import { Brand } from '@/components/ui/Button';
 import { Notice } from '@/components/ui/Screen';
+
 function Navigation() {
   const { state, ready, reduceMotion, storageError } = useDemo();
   if (!ready)
@@ -33,8 +34,12 @@ function Navigation() {
         }}
       >
         <Stack.Screen name="index" />
+        <Stack.Screen name="verify-email" />
+        <Stack.Screen name="reset-password" />
         <Stack.Protected guard={!state.signedIn}>
           <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="forgot-password" />
         </Stack.Protected>
         <Stack.Protected guard={state.signedIn}>
           <Stack.Screen name="(tabs)" />
@@ -45,11 +50,14 @@ function Navigation() {
           <Stack.Screen name="buildings" />
           <Stack.Screen name="training/[id]" />
           <Stack.Screen name="chat" />
+          <Stack.Screen name="account-settings" />
+          <Stack.Screen name="support" />
         </Stack.Protected>
       </Stack>
     </View>
   );
 }
+
 export default function Layout() {
   const [loaded, error] = useFonts({
     BeVietnamPro_400Regular,
@@ -75,6 +83,7 @@ export default function Layout() {
     </SafeAreaProvider>
   );
 }
+
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: colors.background },
   loading: {

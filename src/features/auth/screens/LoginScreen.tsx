@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -24,8 +25,22 @@ import { colors, fonts } from '@/theme/tokens';
 import { BuildingArt } from '@/features/buildings/components/BuildingArt';
 import { useDemo } from '@/store/DemoProvider';
 import { DEMO_EMAIL, DEMO_PASSWORD, validateDemoLogin } from '@/store/demo.model';
+import { ApiError } from '@/api';
+
+function loginError(issue: unknown): string {
+  if (issue instanceof ApiError) {
+    if (issue.status === 401) return 'Email hoặc mật khẩu không đúng.';
+    if (issue.status === 403) return 'Tài khoản hiện không thể đăng nhập.';
+    if (issue.status === 429) return 'Bạn thử quá nhiều lần. Vui lòng đợi rồi thử lại.';
+    const trace =
+      typeof issue.payload?.traceId === 'string' ? ` Mã tra cứu: ${issue.payload.traceId}.` : '';
+    return `Không đăng nhập được (HTTP ${issue.status}).${trace}`;
+  }
+  return issue instanceof Error ? issue.message : 'Không kết nối được Fire3D API.';
+}
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { signIn, signInWithPassword, reduceMotion } = useDemo();
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
@@ -53,7 +68,9 @@ export default function LoginScreen() {
   }));
   async function login(demo = false) {
     if (busy) return;
-    const issue = demo
+    const localDemo =
+      demo || (email.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD);
+    const issue = localDemo
       ? validateDemoLogin(DEMO_EMAIL, DEMO_PASSWORD)
       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
         ? 'Vui lòng nhập địa chỉ email hợp lệ.'
@@ -71,7 +88,7 @@ export default function LoginScreen() {
       duration: reduceMotion ? 0 : 450,
       easing: Easing.out(Easing.cubic),
     });
-    if (demo) {
+    if (localDemo) {
       timer.current = setTimeout(signIn, reduceMotion ? 0 : 460);
       return;
     }
@@ -81,7 +98,7 @@ export default function LoginScreen() {
     } catch (issue) {
       progress.value = withTiming(0, { duration: reduceMotion ? 0 : 180 });
       setBusy(false);
-      setError(issue instanceof Error ? issue.message : 'Không đăng nhập được. Vui lòng thử lại.');
+      setError(loginError(issue));
     }
   }
   return (
@@ -158,6 +175,18 @@ export default function LoginScreen() {
             </View>
             {!!error && <Notice error>{error}</Notice>}
             <Button title="Đăng nhập" loading={busy} onPress={() => login()} />
+            <Button
+              title="Quên mật khẩu?"
+              variant="ghost"
+              disabled={busy}
+              onPress={() => router.push('/forgot-password')}
+            />
+            <Button
+              title="Chưa có tài khoản? Đăng ký"
+              variant="ghost"
+              disabled={busy}
+              onPress={() => router.push('/register')}
+            />
             <View style={styles.divider}>
               <View style={styles.line} />
               <Text variant="small" muted>

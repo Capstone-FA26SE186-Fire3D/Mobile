@@ -8,7 +8,15 @@ import {
 } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { restoreSession, loginWithPassword, logoutSession, type Account } from '@/api/auth';
+import {
+  restoreSession,
+  loginWithPassword,
+  logoutSession,
+  getCurrentAccount,
+  updateCurrentProfile,
+  type Account,
+  type ProfileUpdate,
+} from '@/api/auth';
 import { initialState, parseDemoState, type DemoState } from './demo.model';
 import { buildings, saveBuilding, type Building } from '@/features/buildings/buildings.model';
 type Store = {
@@ -19,6 +27,8 @@ type Store = {
   account: Account | null;
   signIn: () => void;
   signInWithPassword: (email: string, password: string) => Promise<void>;
+  refreshAccount: () => Promise<void>;
+  updateProfile: (input: ProfileUpdate) => Promise<void>;
   signOut: () => Promise<void>;
   addBuilding: (b: Building) => void;
   loadExamples: () => void;
@@ -38,14 +48,22 @@ export function DemoProvider({ children }: PropsWithChildren) {
     Promise.all([
       AsyncStorage.getItem('fire3d.demo.v1').catch(() => {
         if (active)
-          setStorageError('Không đọc được dữ liệu mẫu đã lưu. Bạn có thể tiếp tục trong phiên này.');
+          setStorageError(
+            'Không đọc được dữ liệu mẫu đã lưu. Bạn có thể tiếp tục trong phiên này.',
+          );
         return null;
       }),
-      restoreSession().catch(() => {
-        if (active)
-          setStorageError('Không thể kiểm tra phiên đăng nhập. Hãy kiểm tra kết nối Fire3D API.');
-        return null;
-      }),
+      restoreSession()
+        .then(async (restored) => {
+          if (restored?.role === 'Trainee') return restored;
+          if (restored) await logoutSession();
+          return null;
+        })
+        .catch(() => {
+          if (active)
+            setStorageError('Không thể kiểm tra phiên đăng nhập. Hãy kiểm tra kết nối Fire3D API.');
+          return null;
+        }),
     ])
       .then(([raw, restoredAccount]) => {
         if (active) {
@@ -102,9 +120,15 @@ export function DemoProvider({ children }: PropsWithChildren) {
         signIn: () => setState((s) => ({ ...s, signedIn: true })),
         signInWithPassword: async (email, password) => {
           const signedInAccount = await loginWithPassword(email, password);
+          if (signedInAccount.role !== 'Trainee') {
+            await logoutSession();
+            throw new Error('Ứng dụng Mobile hiện chỉ dành cho tài khoản Trainee.');
+          }
           setAccount(signedInAccount);
           setState((s) => ({ ...s, signedIn: true }));
         },
+        refreshAccount: async () => setAccount(await getCurrentAccount()),
+        updateProfile: async (input) => setAccount(await updateCurrentProfile(input)),
         signOut: async () => {
           try {
             await logoutSession();

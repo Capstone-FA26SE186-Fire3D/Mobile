@@ -39,7 +39,9 @@ async function readResponseBody(response: Response): Promise<unknown> {
   }
 
   const contentType = response.headers.get('content-type') ?? '';
-  return contentType.includes('application/json') ? response.json() : response.text();
+  return /(?:^|\s|;)application\/(?:[\w.-]+\+)?json(?:\s*;|\s*$)/i.test(contentType)
+    ? response.json()
+    : response.text();
 }
 
 function errorMessage(payload: unknown, fallback: string): string {
@@ -60,6 +62,13 @@ function errorMessage(payload: unknown, fallback: string): string {
 
 export const apiClient = {
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const response = await this.requestWithMeta<T>(path, options);
+    return response.data;
+  },
+  async requestWithMeta<T>(
+    path: string,
+    options: ApiRequestOptions = {},
+  ): Promise<{ data: T; etag: string | null }> {
     if (options.body !== undefined && options.json !== undefined) {
       throw new TypeError('apiClient.request accepts either body or json, not both.');
     }
@@ -90,6 +99,6 @@ export const apiClient = {
       );
     }
 
-    return payload as T;
+    return { data: payload as T, etag: response.headers.get('etag') };
   },
 };

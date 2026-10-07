@@ -19,8 +19,18 @@ không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bu
 
 - Sao chép `.env.example` thành `.env`, cấu hình `EXPO_PUBLIC_API_BASE_URL`, rồi chạy lại Expo.
   Android emulator dùng `http://10.0.2.2:5173`; điện thoại thật cần IP LAN của máy chạy BE.
-- Đăng nhập bằng tài khoản Fire3D do BE cấp. Phiên được lưu bằng SecureStore trên thiết bị,
+- Chọn **Chưa có tài khoản? Đăng ký** để tạo tài khoản Trainee. Nhập form gồm username,
+  email, mật khẩu và thông tin hồ sơ; Mobile gọi `request-otp`, xác minh mã 6 chữ số,
+  rồi gửi proof một lần tới `register/trainee`. Mã có hạn 10 phút; gửi lại tuân cooldown
+  và giới hạn của BE. Đăng ký thành công chưa tạo phiên; quay về màn đăng nhập.
+  Ảnh đại diện được chọn/tải lên sau khi đăng nhập, không nhập URL ngoài vào form.
+- Đăng nhập bằng tài khoản Fire3D. Phiên được lưu bằng SecureStore trên thiết bị,
   khôi phục qua `/api/auth/me` và `/api/auth/refresh`, thu hồi khi gọi `/api/auth/logout`.
+- Nếu quên mật khẩu, dùng **Quên mật khẩu?** để gửi yêu cầu. Mobile có màn
+  `/reset-password?token=...` và `/verify-email?token=...` cho liên kết mở trong app.
+  BE hiện tạo liên kết theo `AuthEmail:FrontendUrl` (FE web); để email mở Mobile trực tiếp,
+  cấu hình URL chuyển tiếp/deep link cho hai đường dẫn này. FE hiện có trang đặt lại mật khẩu
+  nhưng chưa có trang xác minh email.
 - Bấm **Khám phá bản trải nghiệm**, hoặc dùng `demo@fire3d.vn` / `Fire3D123!` để vào demo cục bộ.
 - Tài khoản mới có sảnh trống. Bấm **Xem sảnh với 3 tòa nhà mẫu**, hoặc nhập mã
   `F3D-ANBINH`, `F3D-HOASEN`, `F3D-MINHKHAI` ở màn quét QR.
@@ -31,8 +41,21 @@ không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bu
   tải package, tạo session, kết quả hay mở Unity.
 - Tài khoản Fire3D hiển thị hồ sơ từ `/api/auth/me`; dữ liệu mẫu tòa nhà vẫn lưu cục bộ.
   Phiên demo và danh sách nhà mẫu được lưu cục bộ; mật khẩu không được lưu.
+- **Cài đặt tài khoản** cho Trainee dùng ETag từ `GET /api/auth/me` khi sửa họ tên,
+  username, ngày sinh, giới tính, số điện thoại hoặc hoàn tất/xóa avatar.
+  `/api/auth/change-password` thu hồi phiên; `/api/auth/logout-all` đăng xuất mọi thiết bị.
+  Ảnh JPEG/PNG/WebP tối đa 5 MB được tải qua URL ký sẵn. `resend-verification`
+  chỉ dùng để gửi lại OTP trong lúc đăng ký; `/verify-email` chỉ còn cho link cũ.
+- **Phản hồi và hỗ trợ** gọi `GET/POST /api/feedback` và `GET/POST /api/support/tickets`,
+  cùng route xem ticket và gửi tin nhắn. Chỉ hiện cho tài khoản Trainee thật.
+- Lỗi đăng ký hiển thị mã HTTP và `traceId` của BE nếu có. API trả
+  `application/problem+json` được đọc như JSON; mã này giúp tra log BE khi có lỗi 5xx.
 - BE hiện chưa có API Trainee để resolve QR/tìm tòa nhà, liệt kê bài tập, tạo session,
-  lưu kết quả hoặc hỏi AI. Không dùng endpoint Building/Training quản trị cho Trainee.
+  lưu kết quả hoặc hỏi AI. `GET /api/buildings/{id}/trainings` hiện đi qua `IfcAccess`
+  và từ chối Trainee; không dùng endpoint quản trị này để mở nội dung người học.
+- Google Sign-In cần Firebase project và Google OAuth client ID cho Mobile; hiện chưa có
+  cấu hình, nên app chỉ dùng email/password. FCM cần cấu hình push trước khi đăng ký
+  `PUT /api/auth/devices`; không gửi token giả hoặc tạo installation key yếu.
 - Trợ lý tài liệu giữ API `POST /chat` hiện có. Copy `.env.example` sang `.env` rồi
   cấu hình `EXPO_PUBLIC_RAG_API_URL` để dùng. Android emulator dùng `10.0.2.2` để
   kết nối host; điện thoại thật cần địa chỉ mạng phù hợp. Không có key bí mật trong app.

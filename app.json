@@ -6,10 +6,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F7F3EA",
+    "android": {
+      "package": "com.fet3d.app",
+      "googleServicesFile": "./google-services.json"
+    },
     "web": { "bundler": "metro", "output": "single", "name": "Fire3D" },
     "plugins": [
       "expo-router",
       "expo-font",
+      [
+        "expo-image-picker",
+        { "photosPermission": "Cho phép Fire3D chọn ảnh đại diện từ thư viện." }
+      ],
       [
         "expo-camera",
         {

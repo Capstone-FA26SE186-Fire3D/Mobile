@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1017511681658",
+    "project_id": "fire3d-e6b00",
+    "storage_bucket": "fire3d-e6b00.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1017511681658:android:27e145dd886b4f70c425c3",
+        "android_client_info": {
+          "package_name": "com.fet3d.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1017511681658-q3vug8ikr9jgd1dqmnba0g7qqo7387ap.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZuH0TLJWrOL18Q5xebkReLAmh0p4iGgs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1017511681658-q3vug8ikr9jgd1dqmnba0g7qqo7387ap.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
