@@ -2,15 +2,17 @@
 
 ## Phạm vi và trải nghiệm
 
-Prototype dành cho Trainee, tiếng Việt, dọc. Login → sảnh → quét/chọn nhà → thông tin
-bài → chuẩn bị mẫu. Không có guest training, auth production, QR production hay Unity
-trong implementation này. Nút trải nghiệm dùng một hồ sơ mẫu được nhận diện rõ.
+Prototype dành cho Trainee, tiếng Việt, dọc. Login → sảnh → quét/chọn nhà → chọn bài
+và mode → chuẩn bị mẫu → gameplay POV 2.5D → debrief/lịch sử local. Không có guest
+training, auth production, QR production hay Unity trong implementation này. Nút trải
+nghiệm dùng một hồ sơ mẫu được nhận diện rõ.
 
 Sảnh là bộ sưu tập tòa nhà trên cảnh minh họa isometric, **không phải bản đồ địa lý**.
 Chỉ nhà đã lưu mới xuất hiện; có danh sách tìm theo tên không dấu. Quét lại cập nhật
 thời gian trên một mục. Các hình tòa nhà là PNG trong suốt, không phải mesh 3D hoặc
 nội dung BIM thực. Bản đồ dùng các sprite này trên nền native, tránh tải runtime 3D
-cho màn chọn nhà. Gameplay tương lai vẫn thuộc Unity theo kiến trúc dự án.
+cho màn chọn nhà. Gameplay production vẫn thuộc Unity theo kiến trúc dự án; scene Expo
+chỉ là mock UI tương tác để review luồng Learn, Guided Drill và Assessment.
 
 ## Tokens
 
@@ -38,14 +40,16 @@ Safe area qua react-native-safe-area-context. Camera tối để nhìn QR; phầ
 4. Người có phiên demo đã lưu vào sảnh trực tiếp. Sheet dùng slide native; bật giảm
    chuyển động thì bỏ slide/fade entrance. Tôn trọng cài đặt hệ thống và tùy chọn app.
 
-Remotion chỉ được dùng làm hướng dẫn storyboard; không thêm runtime/video Remotion
-vì user chọn bộ mockup và sau đó yêu cầu dựng giao diện Expo. Thời gian chuẩn bị
-1.2 giây là **minh họa UI**, ghi rõ không tải dữ liệu và kết thúc ở thông báo chưa có Unity.
+Remotion chỉ được dùng làm hướng dẫn storyboard; không thêm runtime/video Remotion.
+Thời gian chuẩn bị ngắn là **minh họa UI**, ghi rõ không tải package hoặc kiểm tra
+entitlement. Gameplay dùng bốn ảnh POV low-poly tĩnh, overlay native và scene engine
+thuần; Reduce Motion bỏ hiệu ứng vào cảnh nhưng không bỏ trạng thái hay lựa chọn.
 
 ## Ranh giới tích hợp
 
 - `buildings.model.ts` chứa danh mục demo, kiểm tra code, search và upsert id.
-- `DemoProvider` lưu đúng dữ liệu mẫu với version và kiểm tra hình dạng khi khôi phục.
+- `DemoProvider` lưu dữ liệu mẫu version 2, migrate version 1, kiểm tra hình dạng khi
+  khôi phục và giữ checkpoint/result `local-only`.
   Không chứa token hay mật khẩu; không được tái sử dụng như auth provider production.
 - QR dùng exact allowlist và khóa một lần nhận để tránh scanner callback lặp.
   Camera chỉ hoạt động khi screen focus và app foreground.
@@ -55,8 +59,9 @@ vì user chọn bộ mockup và sau đó yêu cầu dựng giao diện Expo. Th�
 
 ## Bộ ảnh bàn giao
 
-`pnpm test:e2e` tạo 8 screenshot ở `.codex/local/design/mobile-lowpoly-v1/`:
-login, sảnh trống, bản đồ, danh sách, sheet, QR, chuẩn bị và bài không khả dụng.
+`pnpm test:e2e` tạo screenshot ở `.codex/local/design/mobile-lowpoly-v1/` cho login,
+sảnh, danh sách, sheet, QR, chuẩn bị và bài không khả dụng; test bổ sung kiểm tra ba
+mode, checkpoint/resume, debrief và lịch sử local.
 Đây là ảnh của UI chạy thật trên trình duyệt ở 390 × 844; không chứng minh native
 Android đã được nghiệm thu. Gallery local có palette và storyboard, không được track.
 

@@ -1,8 +1,8 @@
 # Fire3D Mobile
 
 Ứng dụng React Native / Expo cho người tập huấn, phong cách low-poly với nền kem,
-điểm nhấn cam và font Be Vietnam Pro. Đăng nhập Fire3D dùng API .NET; danh sách
-tòa nhà mẫu, quét QR mẫu và màn tập huấn vẫn là prototype, chưa nối Unity.
+điểm nhấn cam và font Be Vietnam Pro. Đăng nhập Trainee dùng API .NET;
+gameplay POV 2.5D, tòa nhà và QR mẫu vẫn dùng dữ liệu cục bộ, chưa nối Unity.
 
 ## Chạy và trải nghiệm
 
@@ -37,10 +37,13 @@ không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bu
 - Camera đọc QR chứa chính xác một mã mẫu hoặc deep link `fire3d://demo/an-binh`
   (tương tự `hoa-sen`, `minh-khai`). Không mở URL tùy ý từ QR.
 - Quét lại cập nhật tòa nhà đã lưu, không nhân đôi. Minh Khai minh họa bài đã đóng.
-- Chạm tòa nhà → xem bài → vào tập huấn. Màn chuẩn bị ghi rõ chỉ là demo, không giả
-  tải package, tạo session, kết quả hay mở Unity.
-- Tài khoản Fire3D hiển thị hồ sơ từ `/api/auth/me`; dữ liệu mẫu tòa nhà vẫn lưu cục bộ.
-  Phiên demo và danh sách nhà mẫu được lưu cục bộ; mật khẩu không được lưu.
+- Chạm tòa nhà → chọn bài → chọn Learn, Guided Drill hoặc Assessment → chạy cảnh
+  POV 2.5D → xem debrief. Màn chuẩn bị ghi rõ chỉ dùng dữ liệu local, không giả tải
+  package, kiểm tra entitlement hoặc mở Unity.
+- Có thể tạm dừng, lưu checkpoint, tiếp tục sau khi reload và xem lịch sử kết quả.
+  Session/result mang trạng thái `local-only`, không được trình bày như đã sync backend.
+- Tài khoản Fire3D hiển thị hồ sơ từ `/api/auth/me`; dữ liệu mẫu tòa nhà, phiên demo
+  và kết quả vẫn lưu cục bộ. Mật khẩu không được lưu.
 - **Cài đặt tài khoản** cho Trainee dùng ETag từ `GET /api/auth/me` khi sửa họ tên,
   username, ngày sinh, giới tính, số điện thoại hoặc hoàn tất/xóa avatar.
   `/api/auth/change-password` thu hồi phiên; `/api/auth/logout-all` đăng xuất mọi thiết bị.
@@ -53,9 +56,10 @@ không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bu
 - BE hiện chưa có API Trainee để resolve QR/tìm tòa nhà, liệt kê bài tập, tạo session,
   lưu kết quả hoặc hỏi AI. `GET /api/buildings/{id}/trainings` hiện đi qua `IfcAccess`
   và từ chối Trainee; không dùng endpoint quản trị này để mở nội dung người học.
-- Google Sign-In cần Firebase project và Google OAuth client ID cho Mobile; hiện chưa có
-  cấu hình, nên app chỉ dùng email/password. FCM cần cấu hình push trước khi đăng ký
+- Đã thêm Firebase Android config; Google Sign-In vẫn chưa nối vào app và file
+  `google-services.json` chưa có Android SHA-1. FCM cần cấu hình push trước khi đăng ký
   `PUT /api/auth/devices`; không gửi token giả hoặc tạo installation key yếu.
+- Tài khoản có giảm chuyển động, nạp/xóa dữ liệu mẫu (có xác nhận) và đăng xuất.
 - Trợ lý tài liệu giữ API `POST /chat` hiện có. Copy `.env.example` sang `.env` rồi
   cấu hình `EXPO_PUBLIC_RAG_API_URL` để dùng. Android emulator dùng `10.0.2.2` để
   kết nối host; điện thoại thật cần địa chỉ mạng phù hợp. Không có key bí mật trong app.
@@ -73,8 +77,9 @@ src/
     auth/screens/          # Login và chuyển cảnh
     buildings/             # Model, bản đồ, bảng thông tin, sảnh, danh sách
     qr/screens/            # Camera, quyền, nhập/kiểm tra mã
-    training/screens/      # Chi tiết và trạng thái chuẩn bị mẫu
-    results/screens/       # Trạng thái chưa có kết quả
+    training/screens/      # Chọn bài, mode và trạng thái chuẩn bị mẫu
+    game/                  # Scene engine thuần và màn gameplay POV 2.5D
+    results/screens/       # Lịch sử local và debrief cá nhân
     profile/screens/       # Tài khoản demo và tùy chọn
     chat/                  # Màn RAG cũ, API tách riêng trong services/
   store/                   # Context và validation dữ liệu demo cục bộ
@@ -103,7 +108,8 @@ pnpm exec expo export --platform android --output-dir .expo/export-check
 Model tests dùng Node 24 (chạy TypeScript trực tiếp). Browser tests dùng Chrome cài sẵn,
 tự chạy/reuse server 8085 và lưu screenshot/trace trong `.codex/local/` được ignore.
 Chúng kiểm tra UX web của code React Native; camera trên thiết bị, Android Back,
-TalkBack, bàn phím thật và Unity cần kiểm chứng riêng trên Android.
+TalkBack, bàn phím thật và Unity cần kiểm chứng riêng trên Android. Gameplay Expo là
+mock giao diện có tương tác, không phải bằng chứng cho hiệu năng hoặc bridge Unity.
 
 Chi tiết thiết kế và trạng thái bàn giao: [DESIGN.md](DESIGN.md).
 

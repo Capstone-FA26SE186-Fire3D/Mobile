@@ -18,7 +18,14 @@ import {
   type ProfileUpdate,
 } from '@/api/auth';
 import { initialState, parseDemoState, type DemoState } from './demo.model';
-import { buildings, saveBuilding, type Building } from '@/features/buildings/buildings.model';
+import {
+  buildings,
+  findTraining,
+  saveBuilding,
+  type Building,
+  type TrainingMode,
+} from '@/features/buildings/buildings.model';
+import { advanceSession, createDemoSession, restartSession } from '@/features/game/game.model';
 type Store = {
   state: DemoState;
   ready: boolean;
@@ -34,6 +41,11 @@ type Store = {
   loadExamples: () => void;
   clearBuildings: () => void;
   setReducedMotion: (value: boolean) => void;
+  startSession: (trainingId: string, mode: TrainingMode) => string;
+  chooseScene: (sessionId: string, choiceId: string) => void;
+  pauseSession: (sessionId: string) => void;
+  resumeSession: (sessionId: string) => void;
+  restartSession: (sessionId: string) => void;
 };
 const Context = createContext<Store | null>(null);
 export function DemoProvider({ children }: PropsWithChildren) {
@@ -46,13 +58,15 @@ export function DemoProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let active = true;
     Promise.all([
-      AsyncStorage.getItem('fire3d.demo.v1').catch(() => {
-        if (active)
-          setStorageError(
-            'Không đọc được dữ liệu mẫu đã lưu. Bạn có thể tiếp tục trong phiên này.',
-          );
-        return null;
-      }),
+      Promise.all([AsyncStorage.getItem('fire3d.demo.v2'), AsyncStorage.getItem('fire3d.demo.v1')])
+        .then(([current, legacy]) => current ?? legacy)
+        .catch(() => {
+          if (active)
+            setStorageError(
+              'Không đọc được dữ liệu mẫu đã lưu. Bạn có thể tiếp tục trong phiên này.',
+            );
+          return null;
+        }),
       restoreSession()
         .then(async (restored) => {
           if (restored?.role === 'Trainee') return restored;
@@ -92,10 +106,11 @@ export function DemoProvider({ children }: PropsWithChildren) {
     writes.current = writes.current
       .then(() =>
         AsyncStorage.setItem(
-          'fire3d.demo.v1',
+          'fire3d.demo.v2',
           JSON.stringify({ ...state, signedIn: account === null && state.signedIn }),
         ),
       )
+      .then(() => AsyncStorage.removeItem('fire3d.demo.v1'))
       .then(() => {
         if (active) setStorageError('');
       })
@@ -145,6 +160,61 @@ export function DemoProvider({ children }: PropsWithChildren) {
           })),
         clearBuildings: () => setState((s) => ({ ...s, saved: [] })),
         setReducedMotion: (value) => setState((s) => ({ ...s, reducedMotion: value })),
+        startSession: (trainingId, mode) => {
+          const match = findTraining(trainingId);
+          if (!match || match.training.status !== 'active')
+            throw new Error('Bài tập không khả dụng.');
+          const id = `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          const session = createDemoSession({
+            id,
+            trainingId,
+            buildingId: match.building.id,
+            mode,
+          });
+          setState((s) => ({ ...s, sessions: [session, ...s.sessions] }));
+          return id;
+        },
+        chooseScene: (sessionId, choiceId) =>
+          setState((s) => {
+            const current = s.sessions.find((session) => session.id === sessionId);
+            if (!current) return s;
+            const next = advanceSession(current, choiceId);
+            return {
+              ...s,
+              sessions: s.sessions.map((session) =>
+                session.id === sessionId ? next.session : session,
+              ),
+              results: next.result
+                ? [next.result, ...s.results.filter((result) => result.sessionId !== sessionId)]
+                : s.results,
+            };
+          }),
+        pauseSession: (sessionId) =>
+          setState((s) => ({
+            ...s,
+            sessions: s.sessions.map((session) =>
+              session.id === sessionId && session.status !== 'completed'
+                ? { ...session, status: 'paused' }
+                : session,
+            ),
+          })),
+        resumeSession: (sessionId) =>
+          setState((s) => ({
+            ...s,
+            sessions: s.sessions.map((session) =>
+              session.id === sessionId && session.status === 'paused'
+                ? { ...session, status: 'active' }
+                : session,
+            ),
+          })),
+        restartSession: (sessionId) =>
+          setState((s) => ({
+            ...s,
+            sessions: s.sessions.map((session) =>
+              session.id === sessionId ? restartSession(session) : session,
+            ),
+            results: s.results.filter((result) => result.sessionId !== sessionId),
+          })),
       }}
     >
       {children}
