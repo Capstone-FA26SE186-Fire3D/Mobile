@@ -1,9 +1,8 @@
 # Fire3D Mobile
 
 Ứng dụng React Native / Expo cho người tập huấn, phong cách low-poly với nền kem,
-điểm nhấn cam và font Be Vietnam Pro. Hiện là **prototype tương tác** có gameplay
-POV 2.5D bằng dữ liệu cục bộ; chưa kết nối đăng nhập backend, QR production hoặc
-Unity. Không dùng tài khoản/mật khẩu thật.
+điểm nhấn cam và font Be Vietnam Pro. Đăng nhập Trainee dùng API .NET;
+gameplay POV 2.5D, tòa nhà và QR mẫu vẫn dùng dữ liệu cục bộ, chưa nối Unity.
 
 ## Chạy và trải nghiệm
 
@@ -18,7 +17,21 @@ pnpm web
 Web preview chạy ở `http://localhost:8085`. Expo Go/dev build phải tương thích SDK 57;
 không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bundle export.
 
-- Bấm **Khám phá bản trải nghiệm**, hoặc dùng `demo@fire3d.vn` / `Fire3D123!`.
+- Sao chép `.env.example` thành `.env`, cấu hình `EXPO_PUBLIC_API_BASE_URL`, rồi chạy lại Expo.
+  Android emulator dùng `http://10.0.2.2:5173`; điện thoại thật cần IP LAN của máy chạy BE.
+- Chọn **Chưa có tài khoản? Đăng ký** để tạo tài khoản Trainee. Nhập form gồm username,
+  email, mật khẩu và thông tin hồ sơ; Mobile gọi `request-otp`, xác minh mã 6 chữ số,
+  rồi gửi proof một lần tới `register/trainee`. Mã có hạn 10 phút; gửi lại tuân cooldown
+  và giới hạn của BE. Đăng ký thành công chưa tạo phiên; quay về màn đăng nhập.
+  Ảnh đại diện được chọn/tải lên sau khi đăng nhập, không nhập URL ngoài vào form.
+- Đăng nhập bằng tài khoản Fire3D. Phiên được lưu bằng SecureStore trên thiết bị,
+  khôi phục qua `/api/auth/me` và `/api/auth/refresh`, thu hồi khi gọi `/api/auth/logout`.
+- Nếu quên mật khẩu, dùng **Quên mật khẩu?** để gửi yêu cầu. Mobile có màn
+  `/reset-password?token=...` và `/verify-email?token=...` cho liên kết mở trong app.
+  BE hiện tạo liên kết theo `AuthEmail:FrontendUrl` (FE web); để email mở Mobile trực tiếp,
+  cấu hình URL chuyển tiếp/deep link cho hai đường dẫn này. FE hiện có trang đặt lại mật khẩu
+  nhưng chưa có trang xác minh email.
+- Bấm **Khám phá bản trải nghiệm**, hoặc dùng `demo@fire3d.vn` / `Fire3D123!` để vào demo cục bộ.
 - Tài khoản mới có sảnh trống. Bấm **Xem sảnh với 3 tòa nhà mẫu**, hoặc nhập mã
   `F3D-ANBINH`, `F3D-HOASEN`, `F3D-MINHKHAI` ở màn quét QR.
 - Camera đọc QR chứa chính xác một mã mẫu hoặc deep link `fire3d://demo/an-binh`
@@ -29,8 +42,24 @@ không thể suy ra chạy trên thiết bị chỉ từ bản xem web hoặc bu
   package, kiểm tra entitlement hoặc mở Unity.
 - Có thể tạm dừng, lưu checkpoint, tiếp tục sau khi reload và xem lịch sử kết quả.
   Session/result mang trạng thái `local-only`, không được trình bày như đã sync backend.
+- Tài khoản Fire3D hiển thị hồ sơ từ `/api/auth/me`; dữ liệu mẫu tòa nhà, phiên demo
+  và kết quả vẫn lưu cục bộ. Mật khẩu không được lưu.
+- **Cài đặt tài khoản** cho Trainee dùng ETag từ `GET /api/auth/me` khi sửa họ tên,
+  username, ngày sinh, giới tính, số điện thoại hoặc hoàn tất/xóa avatar.
+  `/api/auth/change-password` thu hồi phiên; `/api/auth/logout-all` đăng xuất mọi thiết bị.
+  Ảnh JPEG/PNG/WebP tối đa 5 MB được tải qua URL ký sẵn. `resend-verification`
+  chỉ dùng để gửi lại OTP trong lúc đăng ký; `/verify-email` chỉ còn cho link cũ.
+- **Phản hồi và hỗ trợ** gọi `GET/POST /api/feedback` và `GET/POST /api/support/tickets`,
+  cùng route xem ticket và gửi tin nhắn. Chỉ hiện cho tài khoản Trainee thật.
+- Lỗi đăng ký hiển thị mã HTTP và `traceId` của BE nếu có. API trả
+  `application/problem+json` được đọc như JSON; mã này giúp tra log BE khi có lỗi 5xx.
+- BE hiện chưa có API Trainee để resolve QR/tìm tòa nhà, liệt kê bài tập, tạo session,
+  lưu kết quả hoặc hỏi AI. `GET /api/buildings/{id}/trainings` hiện đi qua `IfcAccess`
+  và từ chối Trainee; không dùng endpoint quản trị này để mở nội dung người học.
+- Đã thêm Firebase Android config; Google Sign-In vẫn chưa nối vào app và file
+  `google-services.json` chưa có Android SHA-1. FCM cần cấu hình push trước khi đăng ký
+  `PUT /api/auth/devices`; không gửi token giả hoặc tạo installation key yếu.
 - Tài khoản có giảm chuyển động, nạp/xóa dữ liệu mẫu (có xác nhận) và đăng xuất.
-  Phiên demo cùng danh sách nhà được lưu cục bộ; không lưu mật khẩu.
 - Trợ lý tài liệu giữ API `POST /chat` hiện có. Copy `.env.example` sang `.env` rồi
   cấu hình `EXPO_PUBLIC_RAG_API_URL` để dùng. Android emulator dùng `10.0.2.2` để
   kết nối host; điện thoại thật cần địa chỉ mạng phù hợp. Không có key bí mật trong app.
