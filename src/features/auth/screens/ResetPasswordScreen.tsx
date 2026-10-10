@@ -7,11 +7,11 @@ import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { colors, fonts } from '@/theme/tokens';
-import { useDemo } from '@/store/DemoProvider';
+import { useSession } from '@/store/SessionProvider';
 
 export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ token?: string }>();
-  const { signOut } = useDemo();
+  const { clearLocal } = useSession();
   const token = typeof params.token === 'string' ? params.token : '';
   const [password, setPassword] = useState('');
   const [confirmed, setConfirmed] = useState('');
@@ -35,7 +35,7 @@ export default function ResetPasswordScreen() {
     Keyboard.dismiss();
     try {
       await resetPassword(token, password);
-      await signOut();
+      await clearLocal();
       setPassword('');
       setConfirmed('');
       setDone(true);
