@@ -19,7 +19,8 @@ export default defineConfig({
     command: 'node node_modules/expo/bin/cli start --web --port 8085 --localhost',
     env: { EXPO_PUBLIC_API_BASE_URL: 'http://localhost:8085' },
     url: 'http://localhost:8085',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
+    gracefulShutdown: { signal: 'SIGINT', timeout: 1000 },
     timeout: 120000,
   },
 });

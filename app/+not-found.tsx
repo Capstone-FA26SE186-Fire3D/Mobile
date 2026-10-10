@@ -1,7 +1,8 @@
 import { Redirect } from 'expo-router';
 import { useSession } from '@/store/SessionProvider';
-export default function Index() {
-  const { ready, account } = useSession();
+
+export default function NotFound() {
+  const { account, ready } = useSession();
   if (!ready) return null;
   return <Redirect href={account ? '/(tabs)' : '/login'} />;
 }

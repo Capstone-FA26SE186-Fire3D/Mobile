@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, fonts } from '@/theme/tokens';
+
 export default function TabsLayout() {
   return (
     <Tabs
@@ -16,29 +17,15 @@ export default function TabsLayout() {
           paddingBottom: 12,
         },
         tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11, marginTop: 4 },
-        tabBarActiveBackgroundColor: colors.primarySoft,
-        tabBarItemStyle: { borderRadius: 16, marginHorizontal: 12 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tòa nhà',
+          title: 'Trang chủ',
+          tabBarAccessibilityLabel: 'Mở trang chủ',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'map' : 'map-outline'} size={23} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="results"
-        options={{
-          title: 'Kết quả',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'stats-chart' : 'stats-chart-outline'}
-              size={23}
-              color={color}
-            />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={23} color={color} />
           ),
         }}
       />
@@ -46,6 +33,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Tài khoản',
+          tabBarAccessibilityLabel: 'Mở tài khoản',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={23} color={color} />
           ),

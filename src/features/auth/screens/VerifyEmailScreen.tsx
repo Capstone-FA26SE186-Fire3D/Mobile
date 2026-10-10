@@ -5,11 +5,11 @@ import { ApiError } from '@/api';
 import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { useDemo } from '@/store/DemoProvider';
+import { useSession } from '@/store/SessionProvider';
 
 export default function VerifyEmailScreen() {
   const params = useLocalSearchParams<{ token?: string }>();
-  const { account, refreshAccount } = useDemo();
+  const { account, refreshAccount } = useSession();
   const token = typeof params.token === 'string' ? params.token : '';
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
