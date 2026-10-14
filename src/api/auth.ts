@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { apiClient } from './client';
 import { ApiError } from './types/common';
 import type { ApiRequestOptions } from './types/common';
+import { completeGoogleTrainee, exchangeFirebaseToken, linkGoogleAccount } from './google.contract';
 
 export type Account = {
   id: string;
@@ -22,6 +23,13 @@ export type Account = {
 export type UserGender = 'Male' | 'Female' | 'Other' | 'PreferNotToSay';
 
 type LoginResponse = { accessToken: string; refreshToken: string; user: Account };
+export type GoogleExchangeResponse = {
+  status: 'Authenticated' | 'OnboardingRequired';
+  authentication?: LoginResponse | null;
+  onboardingToken?: string | null;
+  expiresAt?: string | null;
+  onboarding?: { email?: string | null; fullName?: string | null } | null;
+};
 type StoredSession = { accessToken: string; refreshToken: string };
 
 const SESSION_KEY = 'fire3d.auth.session.v1';
@@ -58,6 +66,20 @@ async function saveSession(session: StoredSession): Promise<void> {
   currentSession = session;
 }
 
+async function acceptAuthentication(response: LoginResponse): Promise<Account> {
+  if (
+    !response ||
+    typeof response.accessToken !== 'string' ||
+    typeof response.refreshToken !== 'string' ||
+    !response.user ||
+    response.user.role !== 'Trainee'
+  ) {
+    throw new Error('Phiên Fire3D không hợp lệ hoặc tài khoản không thuộc vai trò Trainee.');
+  }
+  await saveSession(response);
+  return response.user;
+}
+
 export async function clearSession(): Promise<void> {
   currentSession = null;
   if (Platform.OS !== 'web') await SecureStore.deleteItemAsync(SESSION_KEY);
@@ -77,8 +99,43 @@ export async function loginWithPassword(email: string, password: string): Promis
   ) {
     throw new Error('Fire3D API trả dữ liệu đăng nhập không hợp lệ. Hãy kiểm tra địa chỉ API.');
   }
-  await saveSession(response);
-  return response.user;
+  return acceptAuthentication(response);
+}
+
+export async function loginWithFirebase(idToken: string): Promise<GoogleExchangeResponse> {
+  const result = await exchangeFirebaseToken(
+    (path, options) => apiClient.request(path, options),
+    idToken,
+  );
+  if (result.status === 'Authenticated')
+    await acceptAuthentication(result.authentication as LoginResponse);
+  return result as GoogleExchangeResponse;
+}
+
+export async function completeGoogleOnboarding(
+  onboardingToken: string,
+  username: string,
+): Promise<Account> {
+  const parsed = await completeGoogleTrainee(
+    (path, options) => apiClient.request(path, options),
+    onboardingToken,
+    username,
+  );
+  if (parsed.status !== 'Authenticated')
+    throw new Error('Fire3D API chưa tạo phiên Trainee sau khi hoàn tất Google.');
+  return acceptAuthentication(parsed.authentication as LoginResponse);
+}
+
+export type GoogleLinkResponse = { user: Account; alreadyLinked: boolean; requiresLogin: boolean };
+export function linkCurrentGoogle(
+  idToken: string,
+  currentPassword: string,
+): Promise<GoogleLinkResponse> {
+  return linkGoogleAccount(
+    requestWithSession,
+    idToken,
+    currentPassword,
+  ) as Promise<GoogleLinkResponse>;
 }
 
 export type RegisterTraineeInput = {
@@ -120,8 +177,12 @@ async function refreshSession(session: StoredSession): Promise<Account> {
     const response = await apiClient.request<LoginResponse>('/api/auth/refresh', {
       json: { refreshToken: session.refreshToken },
     });
-    await saveSession(response);
-    return response.user;
+    try {
+      return await acceptAuthentication(response);
+    } catch (issue) {
+      await clearSession();
+      throw issue;
+    }
   })();
   try {
     return await refreshPromise;

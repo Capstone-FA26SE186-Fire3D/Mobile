@@ -1,7 +1,7 @@
 import { Redirect } from 'expo-router';
-import { useDemo } from '@/store/DemoProvider';
+import { useSession } from '@/store/SessionProvider';
 export default function Index() {
-  const { ready, state } = useDemo();
+  const { ready, account } = useSession();
   if (!ready) return null;
-  return <Redirect href={state.signedIn ? '/(tabs)' : '/login'} />;
+  return <Redirect href={account ? '/(tabs)' : '/login'} />;
 }

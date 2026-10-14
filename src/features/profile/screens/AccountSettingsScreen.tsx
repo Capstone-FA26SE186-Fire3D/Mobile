@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
   changeCurrentPassword,
   deleteCurrentAvatar,
   getCurrentAvatar,
-  logoutAllSessions,
   uploadCurrentAvatar,
   type UserGender,
 } from '@/api/auth';
@@ -14,7 +13,7 @@ import { ApiError } from '@/api';
 import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { useDemo } from '@/store/DemoProvider';
+import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
 const genderLabels: Record<UserGender, string> = {
@@ -37,7 +36,16 @@ function accountError(error: unknown): string {
 }
 
 export default function AccountSettingsScreen() {
-  const { account, refreshAccount, updateProfile, signOut } = useDemo();
+  const {
+    account,
+    refreshAccount,
+    updateProfile,
+    clearLocal,
+    logoutEverywhere,
+    linkGoogle,
+    retryDeviceBinding,
+    revokeCurrentDevice,
+  } = useSession();
   const [fullName, setFullName] = useState(account?.fullName ?? '');
   const [username, setUsername] = useState(account?.username ?? '');
   const [dob, setDob] = useState(account?.dob ?? '');
@@ -48,6 +56,7 @@ export default function AccountSettingsScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [linkPassword, setLinkPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -186,11 +195,17 @@ export default function AccountSettingsScreen() {
       return;
     }
     void run(async () => {
-      await changeCurrentPassword(currentPassword, newPassword);
+      await revokeCurrentDevice();
+      try {
+        await changeCurrentPassword(currentPassword, newPassword);
+      } catch (issue) {
+        await retryDeviceBinding().catch(() => {});
+        throw issue;
+      }
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      await signOut();
+      await clearLocal();
       router.replace('/login');
     }, 'Mật khẩu đã thay đổi. Hãy đăng nhập lại.');
   }
@@ -331,13 +346,59 @@ export default function AccountSettingsScreen() {
           disabled={busy}
           onPress={() =>
             void run(async () => {
-              await logoutAllSessions();
-              await signOut();
+              await logoutEverywhere();
               router.replace('/login');
             }, 'Đã thu hồi mọi phiên đăng nhập.')
           }
         />
       </View>
+      {Platform.OS === 'android' && (
+        <View style={styles.section}>
+          <Text variant="heading">Google</Text>
+          <Text muted>
+            Liên kết Google với tài khoản Fire3D hiện tại. Sau lần liên kết đầu tiên, bạn cần đăng
+            nhập lại.
+          </Text>
+          <TextInput
+            accessibilityLabel="Mật khẩu để liên kết Google"
+            value={linkPassword}
+            onChangeText={setLinkPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            placeholder="Mật khẩu Fire3D hiện tại"
+            style={styles.input}
+          />
+          <Button
+            title="Liên kết Google"
+            variant="secondary"
+            disabled={busy || !linkPassword}
+            onPress={() =>
+              void run(async () => {
+                const requiresLogin = await linkGoogle(linkPassword);
+                setLinkPassword('');
+                if (requiresLogin) router.replace('/login');
+              }, 'Đã liên kết Google.')
+            }
+          />
+        </View>
+      )}
+      {Platform.OS === 'android' && (
+        <View style={styles.section}>
+          <Text variant="heading">Thông báo</Text>
+          <Text muted>Cho phép thông báo để đăng ký FCM trên thiết bị này.</Text>
+          <Button
+            title="Bật hoặc cập nhật thông báo"
+            variant="secondary"
+            disabled={busy}
+            onPress={() =>
+              void run(async () => {
+                const enabled = await retryDeviceBinding();
+                if (!enabled) throw new Error('Chưa cấp quyền thông báo cho ứng dụng.');
+              }, 'Đã đăng ký thiết bị nhận thông báo.')
+            }
+          />
+        </View>
+      )}
       {!!error && <Notice error>{error}</Notice>}
       {!!message && <Notice>{message}</Notice>}
     </Screen>

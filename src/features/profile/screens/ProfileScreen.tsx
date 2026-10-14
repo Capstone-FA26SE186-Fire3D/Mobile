@@ -1,19 +1,18 @@
 import { useCallback, useState } from 'react';
-import { Image, Modal, StyleSheet, Switch, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Screen, Notice } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { colors } from '@/theme/tokens';
-import { useDemo } from '@/store/DemoProvider';
-import { DEMO_EMAIL } from '@/store/demo.model';
+import { useSession } from '@/store/SessionProvider';
 import { getCurrentAvatar } from '@/api/auth';
+
 export default function ProfileScreen() {
-  const { state, account, signOut, loadExamples, clearBuildings, setReducedMotion, reduceMotion } =
-    useDemo();
-  const [confirm, setConfirm] = useState(false);
+  const { account, signOut } = useSession();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   useFocusEffect(
     useCallback(() => {
       if (!account) {
@@ -33,6 +32,19 @@ export default function ProfileScreen() {
       };
     }, [account?.id, account?.avatarUrl]),
   );
+  async function logout() {
+    setBusy(true);
+    setError('');
+    try {
+      await signOut();
+    } catch (issue) {
+      setError(
+        `Chưa thu hồi được thiết bị. Phiên vẫn còn: ${issue instanceof Error ? issue.message : String(issue)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Screen>
       <Text variant="title">Tài khoản</Text>
@@ -45,109 +57,42 @@ export default function ProfileScreen() {
               accessibilityLabel="Ảnh đại diện"
             />
           ) : (
-            <Text variant="title">{(account?.fullName ?? 'B').charAt(0).toUpperCase()}</Text>
+            <Text variant="title">
+              {(account?.fullName || account?.username || 'T').charAt(0).toUpperCase()}
+            </Text>
           )}
         </View>
-        <Text variant="heading">
-          {account?.fullName || (account ? 'Người tập huấn' : 'Bạn trải nghiệm')}
+        <Text variant="heading">{account?.fullName || account?.username}</Text>
+        <Text muted>{account?.email}</Text>
+        <Text variant="small" style={{ color: colors.green }}>
+          Trainee
         </Text>
-        <Text muted>{account?.email ?? DEMO_EMAIL}</Text>
-        <View style={styles.pill}>
-          <Text variant="small" style={{ color: colors.green }}>
-            {account ? 'Học viên' : 'Tài khoản mẫu'}
-          </Text>
-        </View>
       </View>
-      {!!account && (
-        <>
-          <Button
-            title="Cài đặt tài khoản"
-            icon="person-outline"
-            variant="secondary"
-            onPress={() => router.push('/account-settings')}
-          />
-          <Button
-            title="Phản hồi và hỗ trợ"
-            icon="chatbubble-outline"
-            variant="secondary"
-            onPress={() => router.push('/support')}
-          />
-        </>
-      )}
-      <View style={styles.row}>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text variant="label">Giảm chuyển động</Text>
-          <Text variant="small" muted>
-            Tắt chuyển cảnh và chuyển động trang trí
-          </Text>
-        </View>
-        <Switch
-          accessibilityLabel="Giảm chuyển động"
-          value={state.reducedMotion}
-          onValueChange={setReducedMotion}
-          trackColor={{ false: '#D9DDCF', true: colors.green }}
-        />
-      </View>
-      <View style={styles.section}>
-        <Text variant="heading">Không gian trải nghiệm</Text>
-        <Text muted>{state.saved.length} tòa nhà đã lưu trên thiết bị này.</Text>
-        <Button
-          title="Nạp 3 tòa nhà mẫu"
-          icon="cube-outline"
-          variant="secondary"
-          onPress={() => {
-            loadExamples();
-            router.push('/(tabs)');
-          }}
-        />
-        <Button
-          title="Xóa danh sách tòa nhà mẫu"
-          variant="ghost"
-          disabled={!state.saved.length}
-          onPress={() => setConfirm(true)}
-        />
-      </View>
-      {!account && (
-        <Notice>
-          Đây là bản trải nghiệm giao diện. Tài khoản, tòa nhà và bài tập đều là dữ liệu mẫu; không
-          có dữ liệu tài khoản thật.
-        </Notice>
-      )}
+      <Button
+        title="Cài đặt tài khoản"
+        icon="person-outline"
+        variant="secondary"
+        onPress={() => router.push('/account-settings')}
+      />
+      <Button
+        title="Phản hồi và hỗ trợ"
+        icon="chatbubble-outline"
+        variant="secondary"
+        onPress={() => router.push('/support')}
+      />
+      {!!error && <Notice error>{error}</Notice>}
       <Button
         title="Đăng xuất"
         icon="log-out-outline"
         variant="secondary"
-        onPress={() => void signOut()}
+        loading={busy}
+        onPress={() => void logout()}
       />
-      <Modal
-        visible={confirm}
-        transparent
-        animationType={reduceMotion ? 'none' : 'fade'}
-        onRequestClose={() => setConfirm(false)}
-      >
-        <View style={styles.overlay}>
-          <View style={styles.dialog}>
-            <Ionicons name="trash-outline" size={32} color={colors.red} />
-            <Text variant="heading">Xóa danh sách mẫu?</Text>
-            <Text muted>
-              Các tòa nhà mẫu đã lưu sẽ được xóa khỏi thiết bị. Bạn có thể nạp lại bất cứ lúc nào.
-            </Text>
-            <Button
-              title="Xóa danh sách"
-              onPress={() => {
-                clearBuildings();
-                setConfirm(false);
-              }}
-            />
-            <Button title="Giữ lại" variant="secondary" onPress={() => setConfirm(false)} />
-          </View>
-        </View>
-      </Modal>
     </Screen>
   );
 }
 const styles = StyleSheet.create({
-  profile: { alignItems: 'center', gap: 10, paddingVertical: 12 },
+  profile: { alignItems: 'center', gap: 10, paddingVertical: 18 },
   avatar: {
     width: 82,
     height: 82,
@@ -159,34 +104,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImage: { width: 82, height: 82 },
-  pill: {
-    borderRadius: 18,
-    paddingHorizontal: 13,
-    paddingVertical: 6,
-    backgroundColor: colors.greenSoft,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    padding: 18,
-  },
-  section: { gap: 14 },
-  overlay: {
-    flex: 1,
-    backgroundColor: '#252B2D77',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 25,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 420,
-    padding: 25,
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    gap: 18,
-  },
 });

@@ -1,73 +1,7 @@
-# Mobile low-poly UI
+# Fire3D Mobile UI
 
-## Phạm vi và trải nghiệm
+Mobile hiện chỉ hiển thị các chức năng Trainee có API production: đăng nhập, đăng ký OTP, hồ sơ, avatar, cài đặt tài khoản, phản hồi và hỗ trợ. Home dẫn tới tài khoản và hỗ trợ; các route demo cũ chuyển về màn hợp lệ. Không có nút mở bài tập hoặc báo kết quả khi BE chưa cấp phiên thật.
 
-Prototype dành cho Trainee, tiếng Việt, dọc. Login → sảnh → quét/chọn nhà → chọn bài
-và mode → chuẩn bị mẫu → gameplay POV 2.5D → debrief/lịch sử local. Không có guest
-training, auth production, QR production hay Unity trong implementation này. Nút trải
-nghiệm dùng một hồ sơ mẫu được nhận diện rõ.
+Màu nền `#F7F3EA`, bề mặt `#FFFCF7`, màu nhấn `#EE8654`, font Be Vietnam Pro. Form dùng nhãn rõ, nút chính cao tối thiểu 54 px. Chuyển cảnh tôn trọng cài đặt giảm chuyển động của hệ thống.
 
-Sảnh là bộ sưu tập tòa nhà trên cảnh minh họa isometric, **không phải bản đồ địa lý**.
-Chỉ nhà đã lưu mới xuất hiện; có danh sách tìm theo tên không dấu. Quét lại cập nhật
-thời gian trên một mục. Các hình tòa nhà là PNG trong suốt, không phải mesh 3D hoặc
-nội dung BIM thực. Bản đồ dùng các sprite này trên nền native, tránh tải runtime 3D
-cho màn chọn nhà. Gameplay production vẫn thuộc Unity theo kiến trúc dự án; scene Expo
-chỉ là mock UI tương tác để review luồng Learn, Guided Drill và Assessment.
-
-## Tokens
-
-| Vai trò | Giá trị |
-| --- | --- |
-| Nền | `#F7F3EA` |
-| Bề mặt | `#FFFCF7` |
-| Chữ chính / phụ | `#252B2D` / `#626B6B` |
-| CTA, chữ than | `#EE8654` |
-| Thành công | `#28745C` |
-| Lỗi | `#B64035` |
-| Font | Be Vietnam Pro, local bundled TTF, 400/500/600/700 |
-
-Nút chính min-height 54; icon button 48; form 56. Tiêu đề 29/39, mục 20/29,
-nội dung 15/23, nhãn 14/21. Nhãn phụ 12/19, không dùng cho đoạn đọc chính.
-Safe area qua react-native-safe-area-context. Camera tối để nhìn QR; phần UI còn lại sáng.
-
-## Motion storyboard
-
-1. Login ổn định: mô hình minh họa nằm trên form.
-2. Sau xác thực **demo** hợp lệ: đóng bàn phím; form fade + dịch 18 px, mô hình thu
-   tối đa 18% và nâng 24 px trong 450 ms, easing out cubic.
-3. Route đổi với fade 280 ms; tiêu đề sảnh vào nhẹ 350 ms. Không có shared-element
-   camera 3D liên tục giữa các screen; tài khoản mới nhận sảnh trống.
-4. Người có phiên demo đã lưu vào sảnh trực tiếp. Sheet dùng slide native; bật giảm
-   chuyển động thì bỏ slide/fade entrance. Tôn trọng cài đặt hệ thống và tùy chọn app.
-
-Remotion chỉ được dùng làm hướng dẫn storyboard; không thêm runtime/video Remotion.
-Thời gian chuẩn bị ngắn là **minh họa UI**, ghi rõ không tải package hoặc kiểm tra
-entitlement. Gameplay dùng bốn ảnh POV low-poly tĩnh, overlay native và scene engine
-thuần; Reduce Motion bỏ hiệu ứng vào cảnh nhưng không bỏ trạng thái hay lựa chọn.
-
-## Ranh giới tích hợp
-
-- `buildings.model.ts` chứa danh mục demo, kiểm tra code, search và upsert id.
-- `DemoProvider` lưu dữ liệu mẫu version 2, migrate version 1, kiểm tra hình dạng khi
-  khôi phục và giữ checkpoint/result `local-only`.
-  Không chứa token hay mật khẩu; không được tái sử dụng như auth provider production.
-- QR dùng exact allowlist và khóa một lần nhận để tránh scanner callback lặp.
-  Camera chỉ hoạt động khi screen focus và app foreground.
-- Trước launch thật, backend phải kiểm tra QR/training/release còn active, pin session,
-  cấp grant và xác minh package. Không suy ra eligibility từ AsyncStorage hoặc card.
-- Trợ lý giữ contract POST /chat; có timeout, abort, validation response và UI lỗi.
-
-## Bộ ảnh bàn giao
-
-`pnpm test:e2e` tạo screenshot ở `.codex/local/design/mobile-lowpoly-v1/` cho login,
-sảnh, danh sách, sheet, QR, chuẩn bị và bài không khả dụng; test bổ sung kiểm tra ba
-mode, checkpoint/resume, debrief và lịch sử local.
-Đây là ảnh của UI chạy thật trên trình duyệt ở 390 × 844; không chứng minh native
-Android đã được nghiệm thu. Gallery local có palette và storyboard, không được track.
-
-## Kiểm tra thiết bị còn cần
-
-- Camera permission lần đầu/bị từ chối/vĩnh viễn; đọc QR thật và background/foreground.
-- Keyboard che form, safe area navigation Android, Back đóng sheet, cỡ chữ lớn/TalkBack.
-- Haptic và chuyển cảnh trên điện thoại; auth backend, gói Unity và đồng bộ kết quả
-  chỉ kiểm tra sau khi tích hợp thật.
+Các asset low-poly của prototype đã được gỡ cùng dữ liệu tòa nhà/game mẫu. Kiểm tra Android cần bao gồm bàn phím, safe area, TalkBack, picker avatar, Google Sign-In, thông báo FCM và link reset.

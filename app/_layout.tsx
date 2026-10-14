@@ -7,14 +7,14 @@ import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600S
 import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { DemoProvider, useDemo } from '@/store/DemoProvider';
+import { SessionProvider, useSession } from '@/store/SessionProvider';
 import { colors } from '@/theme/tokens';
 import { FontsReady } from '@/components/ui/Text';
 import { Brand } from '@/components/ui/Button';
 import { Notice } from '@/components/ui/Screen';
 
 function Navigation() {
-  const { state, ready, reduceMotion, storageError } = useDemo();
+  const { account, ready, reduceMotion, error } = useSession();
   if (!ready)
     return (
       <View style={styles.loading}>
@@ -24,7 +24,7 @@ function Navigation() {
     );
   return (
     <View style={styles.app}>
-      {!!storageError && <Notice error>{storageError}</Notice>}
+      {!!error && <Notice error>{error}</Notice>}
       <Stack
         screenOptions={{
           headerShown: false,
@@ -36,22 +36,14 @@ function Navigation() {
         <Stack.Screen name="index" />
         <Stack.Screen name="verify-email" />
         <Stack.Screen name="reset-password" />
-        <Stack.Protected guard={!state.signedIn}>
+        <Stack.Protected guard={!account}>
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="google-onboarding" />
         </Stack.Protected>
-        <Stack.Protected guard={state.signedIn}>
+        <Stack.Protected guard={!!account}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="scan"
-            options={{ animation: reduceMotion ? 'none' : 'slide_from_bottom' }}
-          />
-          <Stack.Screen name="buildings" />
-          <Stack.Screen name="training/[id]" />
-          <Stack.Screen name="game/[sessionId]" options={{ animation: 'fade' }} />
-          <Stack.Screen name="results/[sessionId]" />
-          <Stack.Screen name="chat" />
           <Stack.Screen name="account-settings" />
           <Stack.Screen name="support" />
         </Stack.Protected>
@@ -72,7 +64,7 @@ export default function Layout() {
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
       <FontsReady.Provider value={loaded}>
-        <DemoProvider>
+        <SessionProvider>
           {!loaded && !error ? (
             <View style={styles.loading}>
               <ActivityIndicator color={colors.primary} />
@@ -80,7 +72,7 @@ export default function Layout() {
           ) : (
             <Navigation />
           )}
-        </DemoProvider>
+        </SessionProvider>
       </FontsReady.Provider>
     </SafeAreaProvider>
   );
