@@ -20,7 +20,7 @@ Nguồn chuẩn: [v7 contract](../../Docs/schema_v7_contract.md) và [requiremen
 - Chat cũ được giữ tại `src/features/chat/`, gọi `POST /chat` qua `EXPO_PUBLIC_RAG_API_URL`; không có xác thực backend mới.
 - Scripts có `start`, `android`, `web`, `typecheck`, `test`, `test:e2e`, `format:check`. Tests browser không thay kiểm chứng thiết bị Android.
 - Stack đã chốt trong Docs là React Native/Expo với native Android Unity bridge. Prototype hiện **chưa** có bridge, runtime hoặc auth/QR backend; hình low-poly chỉ là PNG sprite minh họa.
-- Đã có [repo Unity](../../Unity/.codex/context.md) trong workspace; scaffold không chứng minh native bridge/gameplay đã tích hợp. BIM 3D với camera cố định cho trải nghiệm 2.5D là hướng thiết kế.
+- Đã có [repo Unity](../../Unity/.codex/context.md) trong workspace; scaffold không chứng minh native bridge/gameplay đã tích hợp. Gameplay BIM 3D dùng camera góc nhìn thứ ba (third-person) theo [Docs technology mục 1.2](../../Docs/fire-evacuation-training-technology.md#12-gameplay-third-person-và-biểu-diễn-bim). Unity sở hữu input gameplay và camera; Mobile sở hữu launch/native lifecycle. Không thêm cameraMode hoặc đổi protocolVersion chỉ vì đổi góc nhìn.
 
 ## Kiến trúc tích hợp đích — 2026-09-17
 
