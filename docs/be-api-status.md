@@ -15,4 +15,6 @@ Mobile hiện chỉ phục vụ `Trainee`. Ma trận đối chiếu với OpenAP
 | Building | `POST /api/buildings/{id}/participation/verify`, `GET /api/buildings/{id}/trainings` | BE có một phần quyền Trainee; Mobile chưa mở vì thiếu QR resolve và session thật. |
 | Training/game/result/Learn/AI | Chưa có contract Trainee đầy đủ cho QR resolve, session/package/result và các luồng này | Ẩn route và nút; không dùng dữ liệu mẫu. |
 
+Thiết kế package/metadata cho Training (đề xuất Docs 15/10/2026, chưa có contract BE): package có thể chia theo tầng kèm `building_metadata.json` có `interactables`; Mobile tải và kiểm hash từng phần, không xử lý IFC; event tương tác mới đi qua queue sync hiện có. Xem [IFC ingestion, hiển thị và tương tác](../../Docs/ifc_ingestion_visual_interaction.md) mục 5.7 và 6.
+
 `google-services.json` hiện chưa có Android OAuth client. Cấu hình Firebase bên ngoài repo và thử trên emulator là điều kiện còn lại để xác nhận Google/FCM. Kết quả Playwright dùng API mock không được xem là nghiệm thu BE Azure.

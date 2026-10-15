@@ -90,3 +90,15 @@ Khi có Docs cạnh repo, đọc technology/workflows cho phần dự kiến. N�
 ## Recovery gate correction — 2026-09-19
 
 - After online start, Mobile retries events with stable event ID/sequence and sends one result idempotency key/hash to the backend completion gate. It never calls database functions directly or rechecks entitlement locally; a started playtest/session may finish and sync after expiry or account disablement.
+
+## IFC ingestion, hiển thị và tương tác — 2026-10-15
+
+Nguồn: [IFC ingestion, hiển thị và tương tác](../../Docs/ifc_ingestion_visual_interaction.md) (Docs PR #15/#16). Đây là **đề xuất thiết kế** có bằng chứng spike cục bộ trên 32 file IFC công khai; chưa có worker, API, migration hay code Unity tương ứng. Mục 4 (nhiều IFC cho một revision), ngân sách tam giác và preset vật liệu còn chờ team chốt.
+
+Quy tắc chung đã chốt với nhóm: chỉ nhận IFC (RVT tự xuất IFC ở ngoài); **IFC có thiết bị PCCC/nguồn nước thì pipeline tự tạo, không có thì OrganizationUser đặt trong editor**; mô hình 3D thiết bị luôn lấy từ thư viện dùng chung (có thể tạo bằng công cụ AI như Tripo rồi dọn lưới), không lấy từ IFC; IFC hầu như không mang màu/texture dùng được nên vật liệu lấy từ thư viện PBR CC0 theo preset.
+
+Phụ trách: Nguyễn Gia Kiệt (Mobile). Việc liên quan repo này:
+
+- Package có thể chia theo tầng (`storeys[].chunk` trong `building_metadata.json`, mục 5.7): tải, kiểm hash từng phần, báo dung lượng; không xử lý IFC trên thiết bị.
+- Truyền manifest/metadata (có `interactables`) cho Unity qua bridge như contract hiện có; không đổi `protocolVersion` chỉ vì thêm loại vật thể.
+- Event mới từ Unity (`alarm_raised`, `extinguisher_used`, `item_wetted`, `used_elevator`, `went_back_for_belongings`, `sprinkler_activated`…, mục 6) đi qua durable queue và sync idempotent như event khác.
