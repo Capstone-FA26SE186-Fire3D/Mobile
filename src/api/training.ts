@@ -103,7 +103,13 @@ export async function launchTrainingSession(
     started.session.runtimeVersion !== '2.0.0'
   )
     throw new Error('Grant hoặc runtime của phiên không hợp lệ.');
-  await saveLaunch(prepared.id, started.launch.generation, started.launch.expiresAt, manifestPath);
+  await saveLaunch(
+    prepared.id,
+    'Training',
+    started.launch.generation,
+    started.launch.expiresAt,
+    manifestPath,
+  );
   await unityBridge.launch({
     protocolVersion: '1',
     sessionId: prepared.id,
@@ -120,6 +126,7 @@ export async function reconcileUnityLaunched(): Promise<void> {
   await ingestUnityCallbacks();
   for (const signal of await pendingLaunchedSignals()) {
     const launch = await getLaunch(signal.session_id);
+    if (launch?.kind === 'Playtest') continue;
     if (!launch || new Date(launch.expires_at).getTime() <= Date.now()) {
       await unityBridge.abort('Launch grant expired');
       throw new Error('Unity đã mở sau khi grant hết hạn.');
@@ -148,7 +155,7 @@ async function syncRequest<T>(
 }
 
 export async function syncTrainingSession(id: string): Promise<CompleteResponse | null> {
-  await ingestUnityCallbacks();
+  await reconcileUnityLaunched();
   let stalled = 0;
   for (let cycle = 0; cycle < 100; cycle++) {
     const events = await pendingEvents(id);

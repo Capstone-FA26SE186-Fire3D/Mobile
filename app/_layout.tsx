@@ -36,16 +36,20 @@ function Navigation() {
         <Stack.Screen name="index" />
         <Stack.Screen name="verify-email" />
         <Stack.Screen name="reset-password" />
+        <Stack.Screen name="playtest/handoff" />
         <Stack.Protected guard={!account}>
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="forgot-password" />
           <Stack.Screen name="google-onboarding" />
         </Stack.Protected>
-        <Stack.Protected guard={!!account}>
+        <Stack.Protected guard={account?.role === 'Trainee'}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="account-settings" />
           <Stack.Screen name="support" />
+        </Stack.Protected>
+        <Stack.Protected guard={account?.role === 'OrganizationUser'}>
+          <Stack.Screen name="playtest/index" />
         </Stack.Protected>
       </Stack>
     </View>

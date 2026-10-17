@@ -2,7 +2,7 @@
   "expo": {
     "name": "FETD3D",
     "slug": "rag-assistant",
-    "scheme": "fire3d",
+    "scheme": ["fet3d", "fire3d"],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F7F3EA",
