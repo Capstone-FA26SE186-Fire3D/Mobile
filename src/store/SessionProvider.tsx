@@ -24,6 +24,7 @@ import {
 } from '@/api/auth';
 import { bindDevice, listenForDeviceTokenChange, revokeDevice } from '@/services/device';
 import { clearGoogleIdentity, firebaseIdTokenFromGoogle } from '@/services/google';
+import { readPendingHandoff, writePendingHandoff } from '@/features/playtest/pending-handoff';
 
 type SessionContextValue = {
   account: Account | null;
@@ -33,6 +34,8 @@ type SessionContextValue = {
   onboardingToken: string | null;
   pendingQrToken: string | null;
   setPendingQrToken: (token: string | null) => Promise<void>;
+  pendingHandoffCode: string | null;
+  setPendingHandoffCode: (code: string | null) => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<'authenticated' | 'onboarding'>;
   completeOnboarding: (username: string) => Promise<void>;
@@ -58,6 +61,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState('');
   const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
   const [pendingQrToken, setPendingQrTokenState] = useState<string | null>(null);
+  const [pendingHandoffCode, setPendingHandoffCodeState] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -67,11 +71,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
       }),
       restoreSession(),
       AsyncStorage.getItem(PENDING_QR_KEY),
+      readPendingHandoff(),
     ])
-      .then(async ([, restored, pending]) => {
+      .then(async ([, restored, pendingQr, pendingHandoff]) => {
         if (!active) return;
-        setPendingQrTokenState(pending);
-        if (restored?.role === 'Trainee') setAccount(restored);
+        setPendingQrTokenState(pendingQr);
+        setPendingHandoffCodeState(pendingHandoff);
+        if (restored?.role === 'Trainee' || restored?.role === 'OrganizationUser')
+          setAccount(restored);
         else if (restored) await logoutSession();
       })
       .catch((issue) => {
@@ -93,7 +100,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (!account) return;
+    if (account?.role !== 'Trainee') return;
     let active = true;
     void bindDevice(account.id).catch((issue) => {
       if (active) setError(`Không đăng ký được thông báo: ${message(issue)}`);
@@ -121,6 +128,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setPendingQrTokenState(token);
   }, []);
 
+  const setPendingHandoffCode = useCallback(async (code: string | null) => {
+    await writePendingHandoff(code);
+    setPendingHandoffCodeState(code);
+  }, []);
+
   return (
     <Context.Provider
       value={{
@@ -131,6 +143,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         onboardingToken,
         pendingQrToken,
         setPendingQrToken,
+        pendingHandoffCode,
+        setPendingHandoffCode,
         signInWithPassword: async (email, password) => {
           const user = await loginWithPassword(email, password);
           setError('');
@@ -187,21 +201,21 @@ export function SessionProvider({ children }: PropsWithChildren) {
         refreshAccount: async () => setAccount(await getCurrentAccount()),
         updateProfile: async (input) => setAccount(await updateCurrentProfile(input)),
         retryDeviceBinding: async () => {
-          if (!account) return false;
+          if (account?.role !== 'Trainee') return false;
           const bound = await bindDevice(account.id);
           setError('');
           return bound;
         },
         revokeCurrentDevice: async () => {
-          if (account) await revokeDevice(account.id);
+          if (account?.role === 'Trainee') await revokeDevice(account.id);
         },
         signOut: async () => {
-          if (account) await revokeDevice(account.id);
+          if (account?.role === 'Trainee') await revokeDevice(account.id);
           await logoutSession();
           await clearLocal();
         },
         logoutEverywhere: async () => {
-          if (account) await revokeDevice(account.id);
+          if (account?.role === 'Trainee') await revokeDevice(account.id);
           await logoutAllSessions();
           await clearLocal();
         },

@@ -14,7 +14,13 @@ type UnityEvent = {
 type BridgeMessage = { type: string; sessionId: string | null; payload: unknown };
 type EventRow = { event_id: string; sequence: number; json: string; state: string };
 type CompletionRow = { key: string; last_sequence: number; end_reason: string; state: string };
-type LaunchRow = { generation: number; expires_at: string; manifest_path: string; state: string };
+type LaunchRow = {
+  kind: 'Training' | 'Playtest';
+  generation: number;
+  expires_at: string;
+  manifest_path: string;
+  state: string;
+};
 type SignalRow = { native_id: number; session_id: string; payload_json: string };
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
@@ -35,7 +41,7 @@ async function database(): Promise<SQLiteDatabase> {
         end_reason TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending'
       );
       CREATE TABLE IF NOT EXISTS session_launches (
-        session_id TEXT PRIMARY KEY, generation INTEGER NOT NULL, expires_at TEXT NOT NULL,
+        session_id TEXT PRIMARY KEY, kind TEXT NOT NULL, generation INTEGER NOT NULL, expires_at TEXT NOT NULL,
         manifest_path TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending'
       );`);
     return db;
@@ -191,6 +197,16 @@ export async function completionFor(sessionId: string): Promise<CompletionRow | 
   );
 }
 
+export async function completionSummaryFor(sessionId: string): Promise<unknown | null> {
+  const row = await (
+    await database()
+  ).getFirstAsync<{ payload_json: string }>(
+    "SELECT payload_json FROM bridge_messages WHERE session_id=? AND type='Completed' ORDER BY native_id LIMIT 1",
+    sessionId,
+  );
+  return row ? (JSON.parse(row.payload_json) as BridgeMessage).payload : null;
+}
+
 export async function markCompletion(
   sessionId: string,
   state: 'awaiting_sync' | 'completed',
@@ -239,6 +255,7 @@ export async function requeueMissingRanges(
 
 export async function saveLaunch(
   sessionId: string,
+  kind: 'Training' | 'Playtest',
   generation: number,
   expiresAt: string,
   manifestPath: string,
@@ -246,8 +263,9 @@ export async function saveLaunch(
   await (
     await database()
   ).runAsync(
-    "INSERT INTO session_launches(session_id,generation,expires_at,manifest_path,state) VALUES (?,?,?,?,'pending') ON CONFLICT(session_id) DO UPDATE SET generation=excluded.generation,expires_at=excluded.expires_at,manifest_path=excluded.manifest_path,state='pending'",
+    "INSERT INTO session_launches(session_id,kind,generation,expires_at,manifest_path,state) VALUES (?,?,?,?,?,'pending') ON CONFLICT(session_id) DO UPDATE SET kind=excluded.kind,generation=excluded.generation,expires_at=excluded.expires_at,manifest_path=excluded.manifest_path,state='pending'",
     sessionId,
+    kind,
     generation,
     expiresAt,
     manifestPath,
@@ -262,7 +280,7 @@ export async function pendingLaunchedSignals(): Promise<SignalRow[]> {
 
 export async function getLaunch(sessionId: string): Promise<LaunchRow | null> {
   return (await database()).getFirstAsync<LaunchRow>(
-    'SELECT generation,expires_at,manifest_path,state FROM session_launches WHERE session_id=?',
+    'SELECT kind,generation,expires_at,manifest_path,state FROM session_launches WHERE session_id=?',
     sessionId,
   );
 }

@@ -72,9 +72,9 @@ async function acceptAuthentication(response: LoginResponse): Promise<Account> {
     typeof response.accessToken !== 'string' ||
     typeof response.refreshToken !== 'string' ||
     !response.user ||
-    response.user.role !== 'Trainee'
+    !['Trainee', 'OrganizationUser'].includes(response.user.role)
   ) {
-    throw new Error('Phiên Fire3D không hợp lệ hoặc tài khoản không thuộc vai trò Trainee.');
+    throw new Error('Phiên Fire3D không hợp lệ hoặc vai trò không được hỗ trợ trên Mobile.');
   }
   await saveSession(response);
   return response.user;
