@@ -9,6 +9,18 @@ import {
 } from '../src/api/google.contract.ts';
 import { base64Url } from '../src/services/device-identity.ts';
 import { putDeviceBinding, deleteDeviceBinding } from '../src/services/device-api.ts';
+import { parseQrToken } from '../src/features/qr/qr-token.ts';
+
+test('QR accepts only the published URL shape or a bare 43-character token', () => {
+  const token = 'a'.repeat(43);
+  assert.equal(parseQrToken(token), token);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}`), token);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}/`), token);
+  assert.equal(parseQrToken(`http://fet3d.io.vn/qr/${token}`), null);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}?redirect=other`), null);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/other/${token}`), null);
+  assert.equal(parseQrToken('a'.repeat(42)), null);
+});
 
 test('Google exchange accepts only an authenticated Trainee session', () => {
   const authentication = {
