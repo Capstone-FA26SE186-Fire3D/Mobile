@@ -2,6 +2,7 @@
   "expo": {
     "name": "FETD3D",
     "slug": "rag-assistant",
+    "version": "0.1.0",
     "scheme": "fire3d",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
