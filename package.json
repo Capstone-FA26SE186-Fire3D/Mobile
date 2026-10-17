@@ -6,6 +6,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
+    "unity:prepare": "node scripts/prepare-unity-library.mjs",
+    "android:prebuild": "pnpm unity:prepare && expo prebuild --clean --platform android",
     "web": "expo start --web --port 8085",
     "typecheck": "tsc --noEmit",
     "test": "node --test --test-isolation=none tests/contracts.test.mjs",
@@ -17,21 +19,25 @@
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
     "@expo/metro-runtime": "~57.0.16",
     "@expo/vector-icons": "^15.1.1",
+    "@noble/hashes": "^2.4.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^26.4.0",
     "@react-native-firebase/auth": "^26.4.0",
     "@react-native-google-signin/google-signin": "^16.1.5",
     "expo": "~57.0.27",
     "expo-application": "~57.0.3",
+    "expo-build-properties": "~57.0.22",
     "expo-camera": "~57.0.6",
     "expo-crypto": "~57.0.3",
     "expo-dev-client": "~57.0.19",
+    "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
     "expo-image-picker": "~57.0.20",
     "expo-linking": "~57.0.12",
     "expo-notifications": "~57.0.22",
     "expo-router": "~57.0.25",
     "expo-secure-store": "^57.0.4",
+    "expo-sqlite": "~57.0.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -43,8 +49,14 @@
     "@playwright/test": "^1.63.0",
     "@react-native/metro-config": "0.86.3",
     "@types/react": "~19.2.4",
+    "extract-zip": "^2.0.1",
     "prettier": "^3.9.7",
     "typescript": "~6.0.3"
   },
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.28.2",
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    }
+  }
 }
