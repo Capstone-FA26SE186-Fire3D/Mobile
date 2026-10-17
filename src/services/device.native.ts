@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
+import * as Application from 'expo-application';
 import { requestWithSession } from '@/api/auth';
 import { base64Url } from './device-identity';
 import { deleteDeviceBinding, putDeviceBinding } from './device-api';
@@ -57,6 +58,7 @@ async function bindDeviceNow(accountId: string): Promise<boolean> {
     { deviceUuid, installationKey },
     pushToken.data,
     String(Platform.Version),
+    Application.nativeApplicationVersion ?? '',
   );
   await SecureStore.setItemAsync(BOUND_KEY, accountId);
   return true;

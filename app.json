@@ -2,13 +2,22 @@
   "expo": {
     "name": "FETD3D",
     "slug": "rag-assistant",
-    "scheme": "fire3d",
+    "version": "0.1.0",
+    "scheme": ["fet3d", "fire3d"],
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F7F3EA",
     "android": {
       "package": "com.fet3d.app",
       "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "fet3d.io.vn", "pathPrefix": "/qr/" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "blockedPermissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
@@ -25,11 +34,18 @@
           "photosPermission": "Cho phép Fire3D chọn ảnh đại diện từ thư viện."
         }
       ],
+      ["expo-camera", { "cameraPermission": "Cho phép Fire3D quét mã QR của Building." }],
       "expo-dev-client",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        { "android": { "minSdkVersion": 29, "buildArchs": ["arm64-v8a"] } }
+      ],
+      "./plugins/withUnityLibrary"
     ]
   }
 }

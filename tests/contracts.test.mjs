@@ -9,6 +9,55 @@ import {
 } from '../src/api/google.contract.ts';
 import { base64Url } from '../src/services/device-identity.ts';
 import { putDeviceBinding, deleteDeviceBinding } from '../src/services/device-api.ts';
+import { parseQrToken } from '../src/features/qr/qr-token.ts';
+import { validatePackageManifest } from '../src/features/training/package-contract.ts';
+
+test('QR accepts only the published URL shape or a bare 43-character token', () => {
+  const token = 'a'.repeat(43);
+  assert.equal(parseQrToken(token), token);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}`), token);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}/`), token);
+  assert.equal(parseQrToken(`http://fet3d.io.vn/qr/${token}`), null);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}?redirect=other`), null);
+  assert.equal(parseQrToken(`https://fet3d.io.vn/other/${token}`), null);
+  assert.equal(parseQrToken('a'.repeat(42)), null);
+});
+
+test('Unity package manifest pins provenance and rejects path traversal', () => {
+  const pin = {
+    releaseId: 'release',
+    manifestHash: 'a'.repeat(64),
+    buildingId: 'building',
+    revisionId: 'revision',
+    runtimeVersion: '2.0.0',
+    materialLibraryVersion: '1',
+  };
+  const manifest = {
+    schemaVersion: 'fet3d.package/1',
+    runtimeVersion: '2.0.0',
+    buildTarget: 'Android',
+    unityVersion: '6000',
+    materialLibraryVersion: '1',
+    buildingId: 'building',
+    revisionId: 'revision',
+    metadata: 'metadata.json',
+    scenario: 'scenario.json',
+    floors: [{ floorId: 'L1', bundle: 'floor.bundle', scene: 'Scene' }],
+    files: [
+      { path: 'metadata.json', sha256: 'b'.repeat(64), size: 1 },
+      { path: 'scenario.json', sha256: 'c'.repeat(64), size: 1 },
+      { path: 'floor.bundle', sha256: 'd'.repeat(64), size: 1 },
+    ],
+  };
+  assert.equal(validatePackageManifest(manifest, pin), manifest);
+  assert.throws(() => validatePackageManifest({ ...manifest, runtimeVersion: '1.0.0' }, pin));
+  assert.throws(() =>
+    validatePackageManifest(
+      { ...manifest, files: [{ path: 'floor/..', sha256: 'b'.repeat(64), size: 1 }] },
+      pin,
+    ),
+  );
+});
 
 test('Google exchange accepts only an authenticated Trainee session', () => {
   const authentication = {
@@ -104,7 +153,7 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
   const request = async (path, options) => {
     calls.push({ path, options });
   };
-  await putDeviceBinding(request, installation, 'native-fcm-token', '35');
+  await putDeviceBinding(request, installation, 'native-fcm-token', '35', '1.2.3');
   await deleteDeviceBinding(request, installation);
   assert.deepEqual(calls, [
     {
@@ -116,7 +165,7 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
           deviceUuid: installation.deviceUuid,
           fcmToken: 'native-fcm-token',
           osVersion: '35',
-          appVersion: '0.1.0',
+          appVersion: '1.2.3',
         },
       },
     },
@@ -136,7 +185,7 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
     /offline/,
   );
   await assert.rejects(
-    () => putDeviceBinding(request, installation, 'not a token', '35'),
+    () => putDeviceBinding(request, installation, 'not a token', '35', '1.2.3'),
     /FCM device token/,
   );
 });

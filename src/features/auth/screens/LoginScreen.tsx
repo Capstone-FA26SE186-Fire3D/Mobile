@@ -63,7 +63,7 @@ export default function LoginScreen() {
         <Brand />
         <View style={styles.heading}>
           <Text variant="title">Đăng nhập Fire3D</Text>
-          <Text muted>Dành cho tài khoản Trainee.</Text>
+          <Text muted>Trainee hoặc OrganizationUser dùng cho playtest.</Text>
         </View>
         <Text variant="label">Email</Text>
         <TextInput
@@ -98,6 +98,12 @@ export default function LoginScreen() {
             onPress={() => void googleLogin()}
           />
         )}
+        <Button
+          title="Xem Learn không cần đăng nhập"
+          variant="secondary"
+          disabled={busy}
+          onPress={() => router.push('/learn')}
+        />
         <Button
           title="Quên mật khẩu?"
           variant="ghost"

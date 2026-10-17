@@ -8,12 +8,14 @@ export async function putDeviceBinding(
   installation: Installation,
   fcmToken: string,
   osVersion: string,
+  appVersion: string,
 ): Promise<void> {
   if (!fcmToken || /\s/.test(fcmToken)) throw new Error('FCM device token không hợp lệ.');
+  if (!appVersion) throw new Error('Không đọc được phiên bản ứng dụng.');
   await request('/api/auth/devices', {
     method: 'PUT',
     headers: { 'X-Installation-Key': installation.installationKey },
-    json: { deviceUuid: installation.deviceUuid, fcmToken, osVersion, appVersion: '0.1.0' },
+    json: { deviceUuid: installation.deviceUuid, fcmToken, osVersion, appVersion },
   });
 }
 

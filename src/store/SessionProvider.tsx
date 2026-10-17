@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 import { AccessibilityInfo } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -17,6 +24,7 @@ import {
 } from '@/api/auth';
 import { bindDevice, listenForDeviceTokenChange, revokeDevice } from '@/services/device';
 import { clearGoogleIdentity, firebaseIdTokenFromGoogle } from '@/services/google';
+import { readPendingHandoff, writePendingHandoff } from '@/features/playtest/pending-handoff';
 
 type SessionContextValue = {
   account: Account | null;
@@ -24,6 +32,10 @@ type SessionContextValue = {
   reduceMotion: boolean;
   error: string;
   onboardingToken: string | null;
+  pendingQrToken: string | null;
+  setPendingQrToken: (token: string | null) => Promise<void>;
+  pendingHandoffCode: string | null;
+  setPendingHandoffCode: (code: string | null) => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<'authenticated' | 'onboarding'>;
   completeOnboarding: (username: string) => Promise<void>;
@@ -38,6 +50,7 @@ type SessionContextValue = {
 };
 
 const Context = createContext<SessionContextValue | null>(null);
+const PENDING_QR_KEY = 'fire3d.pending-qr.v1';
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
 
@@ -47,6 +60,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [error, setError] = useState('');
   const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
+  const [pendingQrToken, setPendingQrTokenState] = useState<string | null>(null);
+  const [pendingHandoffCode, setPendingHandoffCodeState] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -55,10 +70,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (active) setError(`Không xóa được dữ liệu demo cũ: ${message(issue)}`);
       }),
       restoreSession(),
+      AsyncStorage.getItem(PENDING_QR_KEY),
+      readPendingHandoff(),
     ])
-      .then(async ([, restored]) => {
+      .then(async ([, restored, pendingQr, pendingHandoff]) => {
         if (!active) return;
-        if (restored?.role === 'Trainee') setAccount(restored);
+        setPendingQrTokenState(pendingQr);
+        setPendingHandoffCodeState(pendingHandoff);
+        if (restored?.role === 'Trainee' || restored?.role === 'OrganizationUser')
+          setAccount(restored);
         else if (restored) await logoutSession();
       })
       .catch((issue) => {
@@ -80,7 +100,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (!account) return;
+    if (account?.role !== 'Trainee') return;
     let active = true;
     void bindDevice(account.id).catch((issue) => {
       if (active) setError(`Không đăng ký được thông báo: ${message(issue)}`);
@@ -102,6 +122,17 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setError('');
   }
 
+  const setPendingQrToken = useCallback(async (token: string | null) => {
+    if (token) await AsyncStorage.setItem(PENDING_QR_KEY, token);
+    else await AsyncStorage.removeItem(PENDING_QR_KEY);
+    setPendingQrTokenState(token);
+  }, []);
+
+  const setPendingHandoffCode = useCallback(async (code: string | null) => {
+    await writePendingHandoff(code);
+    setPendingHandoffCodeState(code);
+  }, []);
+
   return (
     <Context.Provider
       value={{
@@ -110,6 +141,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
         reduceMotion,
         error,
         onboardingToken,
+        pendingQrToken,
+        setPendingQrToken,
+        pendingHandoffCode,
+        setPendingHandoffCode,
         signInWithPassword: async (email, password) => {
           const user = await loginWithPassword(email, password);
           setError('');
@@ -166,21 +201,21 @@ export function SessionProvider({ children }: PropsWithChildren) {
         refreshAccount: async () => setAccount(await getCurrentAccount()),
         updateProfile: async (input) => setAccount(await updateCurrentProfile(input)),
         retryDeviceBinding: async () => {
-          if (!account) return false;
+          if (account?.role !== 'Trainee') return false;
           const bound = await bindDevice(account.id);
           setError('');
           return bound;
         },
         revokeCurrentDevice: async () => {
-          if (account) await revokeDevice(account.id);
+          if (account?.role === 'Trainee') await revokeDevice(account.id);
         },
         signOut: async () => {
-          if (account) await revokeDevice(account.id);
+          if (account?.role === 'Trainee') await revokeDevice(account.id);
           await logoutSession();
           await clearLocal();
         },
         logoutEverywhere: async () => {
-          if (account) await revokeDevice(account.id);
+          if (account?.role === 'Trainee') await revokeDevice(account.id);
           await logoutAllSessions();
           await clearLocal();
         },
