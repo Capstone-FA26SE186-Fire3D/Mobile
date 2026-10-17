@@ -99,6 +99,12 @@ export default function LoginScreen() {
           />
         )}
         <Button
+          title="Xem Learn không cần đăng nhập"
+          variant="secondary"
+          disabled={busy}
+          onPress={() => router.push('/learn')}
+        />
+        <Button
           title="Quên mật khẩu?"
           variant="ghost"
           disabled={busy}

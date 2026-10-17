@@ -14,6 +14,19 @@ export default function HomeScreen() {
         <Text variant="title">Xin chào, {account?.fullName || account?.username || 'Trainee'}</Text>
         <Text muted>Quản lý tài khoản và gửi phản hồi cho đội Fire3D.</Text>
       </View>
+      <Button title="Khám phá Learn" icon="book-outline" onPress={() => router.push('/learn')} />
+      <Button
+        title="Trợ lý AI"
+        icon="sparkles-outline"
+        variant="secondary"
+        onPress={() => router.push('/ai')}
+      />
+      <Button
+        title="Lịch sử và kết quả"
+        icon="time-outline"
+        variant="secondary"
+        onPress={() => router.push('/history')}
+      />
       <Button
         title="Mở tài khoản"
         icon="person-outline"
