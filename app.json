@@ -29,7 +29,13 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        { "android": { "minSdkVersion": 29, "buildArchs": ["arm64-v8a"] } }
+      ],
+      "./plugins/withUnityLibrary"
     ]
   }
 }
