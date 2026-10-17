@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 import { AccessibilityInfo } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -24,6 +31,8 @@ type SessionContextValue = {
   reduceMotion: boolean;
   error: string;
   onboardingToken: string | null;
+  pendingQrToken: string | null;
+  setPendingQrToken: (token: string | null) => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<'authenticated' | 'onboarding'>;
   completeOnboarding: (username: string) => Promise<void>;
@@ -38,6 +47,7 @@ type SessionContextValue = {
 };
 
 const Context = createContext<SessionContextValue | null>(null);
+const PENDING_QR_KEY = 'fire3d.pending-qr.v1';
 const message = (error: unknown) =>
   error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
 
@@ -47,6 +57,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [error, setError] = useState('');
   const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
+  const [pendingQrToken, setPendingQrTokenState] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -55,9 +66,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (active) setError(`Không xóa được dữ liệu demo cũ: ${message(issue)}`);
       }),
       restoreSession(),
+      AsyncStorage.getItem(PENDING_QR_KEY),
     ])
-      .then(async ([, restored]) => {
+      .then(async ([, restored, pending]) => {
         if (!active) return;
+        setPendingQrTokenState(pending);
         if (restored?.role === 'Trainee') setAccount(restored);
         else if (restored) await logoutSession();
       })
@@ -102,6 +115,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setError('');
   }
 
+  const setPendingQrToken = useCallback(async (token: string | null) => {
+    if (token) await AsyncStorage.setItem(PENDING_QR_KEY, token);
+    else await AsyncStorage.removeItem(PENDING_QR_KEY);
+    setPendingQrTokenState(token);
+  }, []);
+
   return (
     <Context.Provider
       value={{
@@ -110,6 +129,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
         reduceMotion,
         error,
         onboardingToken,
+        pendingQrToken,
+        setPendingQrToken,
         signInWithPassword: async (email, password) => {
           const user = await loginWithPassword(email, password);
           setError('');

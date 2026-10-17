@@ -43,9 +43,7 @@ test('logout clears the previous account and retired deep links return home', as
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
   await expect(page.getByText('Trainee One')).toBeVisible();
-  await expect(page.getByRole('button', { name: /quét QR|bắt đầu bài|xem kết quả/i })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole('button', { name: 'Quét QR hoặc nhập mã Building' })).toBeVisible();
   await page.getByRole('button', { name: 'Mở tài khoản' }).click();
   await page.getByRole('button', { name: 'Đăng xuất' }).click();
   await expect(page.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeVisible();

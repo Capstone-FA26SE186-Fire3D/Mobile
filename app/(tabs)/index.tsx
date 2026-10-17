@@ -15,6 +15,11 @@ export default function HomeScreen() {
         <Text muted>Quản lý tài khoản và gửi phản hồi cho đội Fire3D.</Text>
       </View>
       <Button
+        title="Quét QR hoặc nhập mã Building"
+        icon="qr-code-outline"
+        onPress={() => router.push('/scan-qr')}
+      />
+      <Button
         title="Mở tài khoản"
         icon="person-outline"
         onPress={() => router.push('/(tabs)/profile')}
@@ -26,8 +31,8 @@ export default function HomeScreen() {
         onPress={() => router.push('/support')}
       />
       <Notice>
-        QR, bài tập, Learn, AI và kết quả sẽ được mở khi hệ thống có luồng Trainee và phiên tập huấn
-        thật.
+        Chọn một Building để xem bài tập được phép. Phiên tập huấn Unity sẽ xuất hiện khi package và
+        runtime được tích hợp.
       </Notice>
     </Screen>
   );
