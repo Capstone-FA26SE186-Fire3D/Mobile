@@ -38,6 +38,8 @@ function Navigation() {
         <Stack.Screen name="reset-password" />
         <Stack.Screen name="scan-qr" />
         <Stack.Screen name="qr/[token]" />
+        <Stack.Screen name="learn/index" />
+        <Stack.Screen name="learn/[slug]" />
         <Stack.Protected guard={!account}>
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
@@ -48,6 +50,10 @@ function Navigation() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="account-settings" />
           <Stack.Screen name="support" />
+          <Stack.Screen name="ai/index" />
+          <Stack.Screen name="history/index" />
+          <Stack.Screen name="history/[sessionId]" />
+          <Stack.Screen name="learn/bookmarks" />
         </Stack.Protected>
       </Stack>
     </View>
