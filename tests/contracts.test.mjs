@@ -104,7 +104,7 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
   const request = async (path, options) => {
     calls.push({ path, options });
   };
-  await putDeviceBinding(request, installation, 'native-fcm-token', '35');
+  await putDeviceBinding(request, installation, 'native-fcm-token', '35', '1.2.3');
   await deleteDeviceBinding(request, installation);
   assert.deepEqual(calls, [
     {
@@ -116,7 +116,7 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
           deviceUuid: installation.deviceUuid,
           fcmToken: 'native-fcm-token',
           osVersion: '35',
-          appVersion: '0.1.0',
+          appVersion: '1.2.3',
         },
       },
     },
@@ -136,7 +136,7 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
     /offline/,
   );
   await assert.rejects(
-    () => putDeviceBinding(request, installation, 'not a token', '35'),
+    () => putDeviceBinding(request, installation, 'not a token', '35', '1.2.3'),
     /FCM device token/,
   );
 });
