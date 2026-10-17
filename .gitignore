@@ -2,6 +2,7 @@ node_modules/
 .expo/
 /android/
 .env
+/vendor/unityLibrary/
 
 # Codex session notes are machine-local; shared guidance stays trackable.
 /.codex/local/
