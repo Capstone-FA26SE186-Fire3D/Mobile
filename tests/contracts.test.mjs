@@ -9,6 +9,43 @@ import {
 } from '../src/api/google.contract.ts';
 import { base64Url } from '../src/services/device-identity.ts';
 import { putDeviceBinding, deleteDeviceBinding } from '../src/services/device-api.ts';
+import { validatePackageManifest } from '../src/features/training/package-contract.ts';
+
+test('Unity package manifest pins provenance and rejects path traversal', () => {
+  const pin = {
+    releaseId: 'release',
+    manifestHash: 'a'.repeat(64),
+    buildingId: 'building',
+    revisionId: 'revision',
+    runtimeVersion: '2.0.0',
+    materialLibraryVersion: '1',
+  };
+  const manifest = {
+    schemaVersion: 'fet3d.package/1',
+    runtimeVersion: '2.0.0',
+    buildTarget: 'Android',
+    unityVersion: '6000',
+    materialLibraryVersion: '1',
+    buildingId: 'building',
+    revisionId: 'revision',
+    metadata: 'metadata.json',
+    scenario: 'scenario.json',
+    floors: [{ floorId: 'L1', bundle: 'floor.bundle', scene: 'Scene' }],
+    files: [
+      { path: 'metadata.json', sha256: 'b'.repeat(64), size: 1 },
+      { path: 'scenario.json', sha256: 'c'.repeat(64), size: 1 },
+      { path: 'floor.bundle', sha256: 'd'.repeat(64), size: 1 },
+    ],
+  };
+  assert.equal(validatePackageManifest(manifest, pin), manifest);
+  assert.throws(() => validatePackageManifest({ ...manifest, runtimeVersion: '1.0.0' }, pin));
+  assert.throws(() =>
+    validatePackageManifest(
+      { ...manifest, files: [{ path: 'floor/..', sha256: 'b'.repeat(64), size: 1 }] },
+      pin,
+    ),
+  );
+});
 
 test('Google exchange accepts only an authenticated Trainee session', () => {
   const authentication = {
