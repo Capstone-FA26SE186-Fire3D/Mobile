@@ -1,6 +1,6 @@
 # Fire3D Mobile
 
-Ứng dụng Expo cho **Trainee**, kết nối với Fire3D API. Các màn đang mở gồm đăng ký OTP, đăng nhập mật khẩu hoặc Google, hồ sơ, avatar, phản hồi và hỗ trợ. Phiên Fire3D do backend cấp là nguồn xác thực; token lưu trong SecureStore trên Android.
+Ứng dụng Expo cho **Trainee**, kết nối với Fire3D API. Các màn đang mở gồm đăng ký OTP, đăng nhập mật khẩu hoặc Google, hồ sơ, avatar, Learn, trợ lý AI, QR Building, chọn bài/chế độ, tải gói và mở phiên Unity, kết quả/lịch sử, phản hồi và hỗ trợ. Phiên Fire3D do backend cấp là nguồn xác thực; token lưu trong SecureStore trên Android.
 
 ## Thiết lập
 
@@ -28,7 +28,15 @@ Sau đăng nhập, app xin quyền thông báo và lấy **FCM device token** b�
 - Quên mật khẩu, reset và xác minh email cũ có màn deep link `fire3d://reset-password?token=...` và `fire3d://verify-email?token=...`. BE hiện gửi link theo `AuthEmail:FrontendUrl`; cần cấu hình URL chuyển tiếp tới app để email mở trực tiếp Mobile.
 - Hỗ trợ: phản hồi, ticket và tin nhắn qua API Fire3D.
 
-QR, game, Learn, AI và kết quả được ẩn. BE đã có xác minh mã tham gia và danh sách bài ở một số route, nhưng chưa có QR resolve, session/package/gameplay/result thật cho luồng Trainee. Không dùng các route quản trị Building để suy ra quyền tập huấn. Bản Mobile này chưa nghiệm thu được luồng QR → Unity → kết quả của capstone.
+## Luồng tập huấn (QR → Unity → kết quả)
+
+- Quét QR/deep link `https://fet3d.io.vn/qr/<token>` → đăng nhập (QR chờ được giữ qua đăng nhập) → nhập mã tham gia nếu Building Private → danh sách bài được phép (`app/qr/[token].tsx`).
+- Chọn bài → `app/training/[trainingId].tsx`: chọn Learn / Guided Drill / Assessment theo `allowedModes`, chuẩn bị phiên (`POST /api/training/sessions`, Idempotency-Key lưu theo account/bài/chế độ), tải và kiểm SHA-256 package (`GET /api/training/sessions/{id}/package`; URL ký 10 phút được lấy lại khi hết hạn; có tiến độ, hủy, thử lại và tải tiếp phần đã kiểm), rồi bấm **Bắt đầu phiên** (online start, key lưu theo session) để mở Unity.
+- Sau `Completed`, app gửi event và completion rồi mở `app/training/session/[sessionId].tsx`: kết quả do BE chấm, hoặc **Đang chờ đồng bộ** khi BE trả `AwaitingSync` hoặc còn event chưa gửi. Mất mạng sau khi start vẫn chơi tiếp; event nằm trong queue SQLite bền và tự đồng bộ khi app hoạt động lại. Không bắt đầu phiên mới khi offline.
+- Lịch sử (`app/history`) mở kết quả, hoặc trạng thái đồng bộ của phiên chưa có kết quả.
+- Web, Expo Go hoặc bản build chưa có Unity: xem được bài và chuẩn bị phiên; phần tải gói/vào phiên hiển thị thông báo cần ứng dụng Android có Unity.
+
+Bridge, package và giới hạn Unity: [docs/unity-integration.md](docs/unity-integration.md). Chưa nghiệm thu trên thiết bị vì chưa có Unity export và APK.
 
 ## Kiểm tra
 
@@ -41,6 +49,6 @@ pnpm exec expo install --check
 pnpm exec expo export --platform android --output-dir .expo/export-check
 ```
 
-Playwright mock API để kiểm tra form, OTP, profile ETag, support, đổi tài khoản và route đã gỡ. Model/API tests kiểm tra Google exchange, onboarding username và định dạng installation key. Các test này không thay cho thử trên Android và BE Azure. Khi có Firebase config hoàn chỉnh và tài khoản thử nghiệm, cần thử Google, OTP, avatar upload, support, FCM delivery, reset link và đăng xuất trên emulator `Pixel_4` có Google Play.
+Playwright mock API để kiểm tra form, OTP, profile ETag, support, đổi tài khoản, route đã gỡ và luồng QR → bài → chế độ → chuẩn bị phiên/kết quả (web không có Unity). Model/API tests kiểm tra Google exchange, onboarding username, định dạng installation key và adapter package/session (`tests/training.test.mjs`). Các test này không thay cho thử trên Android và BE Azure. Khi có Firebase config hoàn chỉnh và tài khoản thử nghiệm, cần thử Google, OTP, avatar upload, support, FCM delivery, reset link và đăng xuất trên emulator `Pixel_4` có Google Play.
 
 Ma trận API: [docs/be-api-status.md](docs/be-api-status.md). Trạng thái UI: [DESIGN.md](DESIGN.md).

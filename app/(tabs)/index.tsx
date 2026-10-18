@@ -44,8 +44,8 @@ export default function HomeScreen() {
         onPress={() => router.push('/support')}
       />
       <Notice>
-        Chọn một Building để xem bài tập được phép. Phiên tập huấn Unity sẽ xuất hiện khi package và
-        runtime được tích hợp.
+        Quét QR của Building để chọn bài tập và chế độ. Tải gói và vào phiên Unity cần ứng dụng
+        Android có tích hợp Unity và kết nối mạng khi bắt đầu.
       </Notice>
     </Screen>
   );

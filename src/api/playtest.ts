@@ -13,11 +13,13 @@ import {
   getLaunch,
   saveLaunch,
 } from '@/features/training/event-queue.native';
+import { prepareVerifiedPackage } from '@/features/training/package-cache.native';
+import { APP_RUNTIME_VERSION, type PackagePin } from '@/features/training/package-contract';
 import {
-  prepareVerifiedPackage,
-  type PackageDownload,
-} from '@/features/training/package-cache.native';
-import type { PackagePin } from '@/features/training/package-contract';
+  planPackageDownload,
+  type PackagePlan,
+  type RuntimePackageDownload,
+} from '@/features/training/session-contract';
 import { unityBridge } from '@/features/training/unity-bridge.native';
 
 export type PlaytestStatus = {
@@ -78,24 +80,36 @@ export function cancelPlaytest(id: string, key = Crypto.randomUUID()): Promise<P
   });
 }
 
-/** Package sources and material-library pin must come from BE before this can be called. */
+export function getPlaytestPackage(id: string): Promise<RuntimePackageDownload> {
+  return requestWithSession(`/api/playtests/${encodeURIComponent(id)}/package`);
+}
+
+/** The playtest pin from its status; the manifest hash pins the file, revision is checked against the manifest. */
+export function playtestPin(status: PlaytestStatus): PackagePin {
+  return {
+    releaseId: status.scenarioVersionId,
+    manifestHash: status.package.manifestHash,
+    buildingId: status.buildingId,
+    revisionId: status.revisionId,
+    runtimeVersion: APP_RUNTIME_VERSION,
+    materialLibraryVersion: null,
+  };
+}
+
+async function planPlaytestPackage(status: PlaytestStatus): Promise<PackagePlan> {
+  return planPackageDownload(playtestPin(status), await getPlaytestPackage(status.id));
+}
+
+/** Downloads/verifies the pinned package (signed URLs re-fetched when they expire), then starts and launches Unity. */
 export async function launchPlaytest(
   status: PlaytestStatus,
-  pin: PackagePin,
-  download: PackageDownload,
   mode: 'Learn' | 'Guided' | 'Assessment',
 ): Promise<void> {
-  if (
-    !status.launchSession ||
-    pin.releaseId !== status.scenarioVersionId ||
-    pin.buildingId !== status.buildingId ||
-    pin.revisionId !== status.revisionId ||
-    pin.manifestHash !== status.package.manifestHash
-  )
-    throw new Error(
-      'Playtest package không khớp pin của BE hoặc phiên Mobile không có quyền launch.',
-    );
-  const manifestPath = await prepareVerifiedPackage(pin, download);
+  if (!status.launchSession) throw new Error('Phiên Mobile này không có quyền mở playtest.');
+  const pin = playtestPin(status);
+  const manifestPath = await prepareVerifiedPackage(await planPlaytestPackage(status), {
+    refresh: () => planPlaytestPackage(status),
+  });
   const grant =
     status.status === 'Created' && status.recovery.canStart
       ? await startPlaytest(status.id)
