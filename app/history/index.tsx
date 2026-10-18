@@ -48,12 +48,29 @@ export default function HistoryScreen() {
           <Text>
             Phiên: {item.status}. Kết quả: {item.resultStatus ?? 'Chưa có'}.
           </Text>
-          <Button
-            title="Xem kết quả"
-            variant="secondary"
-            disabled={!item.resultStatus}
-            onPress={() => router.push(`/history/${item.sessionId}`)}
-          />
+          {item.resultStatus || item.status === 'Completed' ? (
+            <Button
+              title="Xem kết quả"
+              variant="secondary"
+              disabled={!item.resultStatus}
+              onPress={() => router.push(`/history/${item.sessionId}`)}
+            />
+          ) : (
+            <Button
+              title="Xem trạng thái đồng bộ"
+              variant="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: '/training/session/[sessionId]',
+                  params: {
+                    sessionId: item.sessionId,
+                    trainingId: item.training.id,
+                    mode: item.mode,
+                  },
+                })
+              }
+            />
+          )}
         </View>
       ))}
       {items.length < total && (

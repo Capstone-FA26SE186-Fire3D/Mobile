@@ -1,4 +1,4 @@
-# BE ↔ Mobile API status (2026-10-10)
+# BE ↔ Mobile API status (2026-10-19)
 
 Mobile hiện chỉ phục vụ `Trainee`. Ma trận đối chiếu với OpenAPI Azure và source BE; một route xuất hiện trong OpenAPI không chứng minh tích hợp provider hoặc thiết bị đã hoạt động.
 
@@ -12,8 +12,12 @@ Mobile hiện chỉ phục vụ `Trainee`. Ma trận đối chiếu với OpenAP
 | Avatar | `GET /api/me/avatar`, upload intent/complete, `DELETE /api/me/avatar` | Đã nối; cần thử upload thật với signed URL. |
 | Hỗ trợ | `GET/POST /api/feedback`, `GET/POST /api/support/tickets`, ticket/messages | Đã nối. |
 | Link email cũ | `POST /api/auth/verify-email` | Giữ cho link cũ; đăng ký mới dùng OTP. |
-| Building | `POST /api/buildings/{id}/participation/verify`, `GET /api/buildings/{id}/trainings` | BE có một phần quyền Trainee; Mobile chưa mở vì thiếu QR resolve và session thật. |
-| Training/game/result/Learn/AI | Chưa có contract Trainee đầy đủ cho QR resolve, session/package/result và các luồng này | Ẩn route và nút; không dùng dữ liệu mẫu. |
+| QR / Building | `GET /api/qr/{token}`, `GET /api/qr/{token}/trainings`, `POST /api/buildings/{id}/participation/verify` | Đã nối; QR chờ giữ qua đăng nhập. |
+| Chuẩn bị / tải gói | `POST /api/training/sessions` (Idempotency-Key), `GET /api/training/sessions/{id}`, `GET /api/training/sessions/{id}/package`, `POST /api/training/reconcile` | Đã nối. Key lưu bền theo account/bài/chế độ; pin so sánh manifest SHA-256, release, Building, runtime và build target giữa prepare, package và start. `TrainingSessionView.package` không có `revisionId`/`materialLibraryVersion` nên hai giá trị này lấy từ manifest đã kiểm hash. |
+| Start / Unity | `POST /api/training/sessions/{id}/start` (Idempotency-Key theo session; grant hết hạn trước launch thì dùng key mới), `/launched`, `/heartbeat`, `/continuation` | Đã nối; cần BE bật live launch và thử trên Android với Unity export. |
+| Sync / kết quả | `/events:batch`, `/complete` (200 Completed, 202 AwaitingSync), `GET /result`, `GET /api/training/sessions` | Đã nối; sync khi Completed, khi mở app và khi app hoạt động lại; dùng continuation token khi mất phiên đăng nhập. |
+| Playtest | `GET /api/playtests/{id}/package` và các route playtest | Adapter package dùng chung; event playtest không gửi `elapsedMs` vì `PlaytestEvent` của BE không có trường này. Màn playtest chưa có nút tải/mở Unity. |
+| Learn/AI | Learn public, bookmark, AI request | Xem `app/learn`, `app/ai`. |
 
 Thiết kế package/metadata cho Training (đề xuất Docs 15/10/2026, chưa có contract BE): package có thể chia theo tầng kèm `building_metadata.json` có `interactables`; Mobile tải và kiểm hash từng phần, không xử lý IFC; event tương tác mới đi qua queue sync hiện có. Xem [IFC ingestion, hiển thị và tương tác](../../Docs/ifc_ingestion_visual_interaction.md) mục 5.7 và 6.
 

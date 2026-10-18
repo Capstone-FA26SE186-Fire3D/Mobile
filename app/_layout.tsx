@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
@@ -12,9 +13,13 @@ import { colors } from '@/theme/tokens';
 import { FontsReady } from '@/components/ui/Text';
 import { Brand } from '@/components/ui/Button';
 import { Notice } from '@/components/ui/Screen';
+import { startTrainingRuntime } from '@/features/training/training-runtime';
 
 function Navigation() {
   const { account, ready, reduceMotion, error } = useSession();
+  const trainee = account?.role === 'Trainee';
+  // Device-wide: ingest Unity callbacks and sync started sessions (events, completion) whenever possible.
+  useEffect(() => (trainee ? startTrainingRuntime() : undefined), [trainee]);
   if (!ready)
     return (
       <View style={styles.loading}>
@@ -54,6 +59,8 @@ function Navigation() {
           <Stack.Screen name="ai/index" />
           <Stack.Screen name="history/index" />
           <Stack.Screen name="history/[sessionId]" />
+          <Stack.Screen name="training/[trainingId]" />
+          <Stack.Screen name="training/session/[sessionId]" />
           <Stack.Screen name="learn/bookmarks" />
         </Stack.Protected>
         <Stack.Protected guard={account?.role === 'OrganizationUser'}>

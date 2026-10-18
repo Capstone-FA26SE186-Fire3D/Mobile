@@ -12,6 +12,7 @@ type UnityEvent = {
   payload: Record<string, unknown>;
 };
 type BridgeMessage = { type: string; sessionId: string | null; payload: unknown };
+export type IngestedMessage = BridgeMessage & { nativeId: number; receivedAt: number | null };
 type EventRow = { event_id: string; sequence: number; json: string; state: string };
 type CompletionRow = { key: string; last_sequence: number; end_reason: string; state: string };
 type LaunchRow = {
@@ -21,7 +22,18 @@ type LaunchRow = {
   manifest_path: string;
   state: string;
 };
-type SignalRow = { native_id: number; session_id: string; payload_json: string };
+type SignalRow = {
+  native_id: number;
+  session_id: string;
+  payload_json: string;
+  received_at: number | null;
+};
+export type TrainingSyncRow = {
+  session_id: string;
+  launch_state: string;
+  completion_state: string | null;
+  pending_events: number;
+};
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 async function database(): Promise<SQLiteDatabase> {
@@ -44,6 +56,9 @@ async function database(): Promise<SQLiteDatabase> {
         session_id TEXT PRIMARY KEY, kind TEXT NOT NULL, generation INTEGER NOT NULL, expires_at TEXT NOT NULL,
         manifest_path TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending'
       );`);
+    const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(bridge_messages)');
+    if (!columns.some((column) => column.name === 'received_at'))
+      await db.execAsync('ALTER TABLE bridge_messages ADD COLUMN received_at INTEGER');
     return db;
   });
   return databasePromise;
@@ -79,19 +94,31 @@ function parseEvent(value: unknown): UnityEvent {
   return event;
 }
 
-/** Native SQLite has already committed each callback; acknowledge it only after this second store commits. */
-export async function ingestUnityCallbacks(): Promise<number> {
+/**
+ * Native SQLite has already committed each callback; acknowledge it only after this second store commits. Returns the
+ * messages moved in this call (in native order) so the runtime can react to Launched/Completed/Error/Exited.
+ */
+export async function ingestUnityCallbacks(): Promise<IngestedMessage[]> {
   const db = await database();
   const pending = await unityBridge.pendingCallbacks();
+  const ingested: IngestedMessage[] = [];
   for (const callback of pending) {
-    const message = parseMessage(callback.payload);
+    let message: BridgeMessage;
+    try {
+      message = parseMessage(callback.payload);
+    } catch {
+      // Unparseable JSON can never become valid; keep a copy and acknowledge so it does not block the queue.
+      message = { type: 'Malformed', sessionId: null, payload: null };
+    }
+    const receivedAt = Number.isSafeInteger(callback.receivedAt) ? callback.receivedAt! : null;
     await db.withExclusiveTransactionAsync(async (txn) => {
       await txn.runAsync(
-        'INSERT OR IGNORE INTO bridge_messages(native_id,session_id,type,payload_json) VALUES (?,?,?,?)',
+        'INSERT OR IGNORE INTO bridge_messages(native_id,session_id,type,payload_json,received_at) VALUES (?,?,?,?,?)',
         callback.id,
         message.sessionId,
         message.type,
         callback.payload,
+        receivedAt,
       );
       if (message.type === 'Events') {
         if (!message.sessionId || !Array.isArray(message.payload))
@@ -150,8 +177,9 @@ export async function ingestUnityCallbacks(): Promise<number> {
       }
     });
     await unityBridge.acknowledgeCallback(callback.id);
+    ingested.push({ ...message, nativeId: callback.id, receivedAt });
   }
-  return pending.length;
+  return ingested;
 }
 
 export async function pendingEvents(sessionId: string): Promise<UnityEvent[]> {
@@ -274,7 +302,7 @@ export async function saveLaunch(
 
 export async function pendingLaunchedSignals(): Promise<SignalRow[]> {
   return (await database()).getAllAsync<SignalRow>(
-    "SELECT native_id,session_id,payload_json FROM bridge_messages WHERE type='Launched' AND handled=0 ORDER BY native_id",
+    "SELECT native_id,session_id,payload_json,received_at FROM bridge_messages WHERE type='Launched' AND handled=0 ORDER BY native_id",
   );
 }
 
@@ -294,4 +322,52 @@ export async function markLaunched(nativeId: number, sessionId: string): Promise
       sessionId,
     );
   });
+}
+
+/** Training sessions launched on this device that still have events or a completion to sync, or are still running. */
+export async function trainingSessionsToSync(): Promise<TrainingSyncRow[]> {
+  return (await database()).getAllAsync<TrainingSyncRow>(
+    `SELECT l.session_id, l.state AS launch_state, c.state AS completion_state,
+       (SELECT COUNT(*) FROM unity_events e WHERE e.session_id=l.session_id AND e.state='pending') AS pending_events
+     FROM session_launches l LEFT JOIN session_completions c ON c.session_id=l.session_id
+     WHERE l.kind='Training' AND (c.state IS NULL OR c.state<>'completed'
+       OR EXISTS(SELECT 1 FROM unity_events e WHERE e.session_id=l.session_id AND e.state='pending'))`,
+  );
+}
+
+/** Local view of one session for the result screen: queued events and completion state. */
+export async function localSessionState(
+  sessionId: string,
+): Promise<{ pendingEvents: number; completion: string | null; launched: boolean }> {
+  const db = await database();
+  const events = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM unity_events WHERE session_id=? AND state='pending'",
+    sessionId,
+  );
+  const completion = await completionFor(sessionId);
+  const launch = await getLaunch(sessionId);
+  return {
+    pendingEvents: events?.count ?? 0,
+    completion: completion?.state ?? null,
+    launched: launch?.state === 'launched',
+  };
+}
+
+/** The most recent Unity message of the given types for a session (e.g. to restore an Error after a restart). */
+export async function lastBridgeMessage(
+  sessionId: string,
+  types: string[],
+): Promise<IngestedMessage | null> {
+  const row = await (
+    await database()
+  ).getFirstAsync<{ native_id: number; payload_json: string; received_at: number | null }>(
+    `SELECT native_id,payload_json,received_at FROM bridge_messages WHERE session_id=? AND type IN (${types
+      .map(() => '?')
+      .join(',')}) ORDER BY native_id DESC LIMIT 1`,
+    sessionId,
+    ...types,
+  );
+  if (!row) return null;
+  const message = JSON.parse(row.payload_json) as BridgeMessage;
+  return { ...message, nativeId: row.native_id, receivedAt: row.received_at };
 }

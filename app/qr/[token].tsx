@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ApiError } from '@/api';
 import {
   getQrTrainings,
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { parseQrToken } from '@/features/qr/qr-token';
+import { MODE_LABELS, allowedTrainingModes } from '@/features/training/session-contract';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -127,13 +129,41 @@ export default function QrBuildingScreen() {
                   {trainings.length === 0 && !busy ? (
                     <Text muted>Chưa có bài tập được phát hành.</Text>
                   ) : null}
-                  {trainings.map((training) => (
-                    <View key={training.id} style={styles.training}>
-                      <Text variant="label">{training.name}</Text>
-                      {!!training.description && <Text muted>{training.description}</Text>}
-                      <Text muted>Chế độ: {training.allowedModes.join(', ')}</Text>
-                    </View>
-                  ))}
+                  {trainings.map((training) => {
+                    const modes = allowedTrainingModes(training.allowedModes);
+                    return (
+                      <Pressable
+                        key={training.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Mở bài tập ${training.name}`}
+                        disabled={modes.length === 0}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/training/[trainingId]',
+                            params: { trainingId: training.id, qr: token },
+                          })
+                        }
+                        style={({ pressed }) => [
+                          styles.training,
+                          pressed && { opacity: 0.8 },
+                          modes.length === 0 && { opacity: 0.5 },
+                        ]}
+                      >
+                        <View style={styles.trainingHead}>
+                          <Text variant="label" style={{ flex: 1 }}>
+                            {training.name}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+                        </View>
+                        {!!training.description && <Text muted>{training.description}</Text>}
+                        <Text variant="small" muted>
+                          {modes.length > 0
+                            ? `Chế độ: ${modes.map((mode) => MODE_LABELS[mode].title).join(' • ')}`
+                            : 'Chưa mở chế độ nào.'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </>
               )}
             </View>
@@ -155,6 +185,7 @@ export default function QrBuildingScreen() {
 const styles = StyleSheet.create({
   section: { gap: 14 },
   training: { gap: 6, padding: 16, borderRadius: 14, backgroundColor: colors.surface },
+  trainingHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: {
     minHeight: 54,
     paddingHorizontal: 14,

@@ -1,11 +1,12 @@
-import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { requestWithSession } from './auth';
 import { apiClient } from './client';
 import { ApiError } from './types/common';
 import {
   applyEventReceipt,
   completionFor,
+  getLaunch,
   highestLocalSequence,
   ingestUnityCallbacks,
   markCompletion,
@@ -13,31 +14,27 @@ import {
   pendingEvents,
   pendingLaunchedSignals,
   requeueMissingRanges,
-  getLaunch,
   saveLaunch,
 } from '@/features/training/event-queue.native';
 import {
   prepareVerifiedPackage,
-  type PackageDownload,
+  type PackageProgress,
 } from '@/features/training/package-cache.native';
-import type { PackagePin } from '@/features/training/package-contract';
+import { APP_RUNTIME_VERSION } from '@/features/training/package-contract';
+import {
+  assertStartMatchesPrepare,
+  pinFromSession,
+  planPackageDownload,
+  type PackagePlan,
+  type RuntimePackageDownload,
+  type StartTrainingResponse,
+  type TrainingMode,
+  type TrainingSession,
+} from '@/features/training/session-contract';
 import { unityBridge } from '@/features/training/unity-bridge.native';
 
-export type TrainingSession = {
-  id: string;
-  status: string;
-  releaseId: string;
-  buildingId: string;
-  mode: string;
-  runtimeVersion: string;
-  acknowledgedSequence: number | null;
-  package: { packageHash: string; manifestHash: string; [key: string]: unknown };
-};
-type StartResponse = {
-  session: TrainingSession;
-  launch: { sessionId: string; generation: number; expiresAt: string; launchGrant: string };
-  continuation: { token: string; expiresAt: string };
-};
+export type { TrainingSession, TrainingMode } from '@/features/training/session-contract';
+
 type Range = { from: number; to: number };
 type EventReceipt = {
   accepted: string[];
@@ -47,64 +44,91 @@ type EventReceipt = {
   missingRanges: Range[];
   status: string;
 };
-type CompleteResponse = {
-  status: string;
+export type CompleteResponse = {
+  status: 'Completed' | 'AwaitingSync' | string;
   session: TrainingSession;
   acknowledgedSequence: number;
   missingRanges: Range[];
 };
 
 const continuationKey = (id: string) => `fire3d.continuation.${id}`;
+const sessionPath = (id: string, suffix = '') =>
+  `/api/training/sessions/${encodeURIComponent(id)}${suffix ? `/${suffix}` : ''}`;
 
+/** Creates (or, with the same persisted key, replays) the preparation. Never allocates a learner seat. */
 export function prepareTrainingSession(
   trainingId: string,
-  mode: 'Learn' | 'Guided' | 'Assessment',
-  key = Crypto.randomUUID(),
+  mode: TrainingMode,
+  idempotencyKey: string,
 ): Promise<TrainingSession> {
   return requestWithSession('/api/training/sessions', {
-    headers: { 'Idempotency-Key': key },
-    json: { trainingId, mode, runtimeVersion: '2.0.0' },
+    headers: { 'Idempotency-Key': idempotencyKey },
+    json: { trainingId, mode, runtimeVersion: APP_RUNTIME_VERSION },
   });
 }
 
+export function getTrainingSession(id: string): Promise<TrainingSession> {
+  return syncRequest<TrainingSession>(id, '', { method: 'GET' });
+}
+
+/** Side-effect-free lookup of the caller's sessions by id or by prepare/start idempotency key (crash recovery). */
+export function reconcileTrainingSessions(input: {
+  sessionIds?: string[];
+  idempotencyKeys?: string[];
+}): Promise<TrainingSession[]> {
+  return requestWithSession('/api/training/reconcile', { json: input });
+}
+
+export function getTrainingPackage(id: string): Promise<RuntimePackageDownload> {
+  return requestWithSession(sessionPath(id, 'package'));
+}
+
+/** Signed URLs for the session's pinned package, checked against the preparation pin. */
+export async function planTrainingPackage(session: TrainingSession): Promise<PackagePlan> {
+  return planPackageDownload(pinFromSession(session), await getTrainingPackage(session.id));
+}
+
+/** Downloads and verifies the pinned package into the local cache; returns the absolute manifest path for Unity. */
+export async function downloadTrainingPackage(
+  session: TrainingSession,
+  options: { onProgress?: (progress: PackageProgress) => void; signal?: AbortSignal },
+): Promise<string> {
+  const plan = await planTrainingPackage(session);
+  return prepareVerifiedPackage(plan, { ...options, refresh: () => planTrainingPackage(session) });
+}
+
+/**
+ * Online start with a persisted Idempotency-Key. A replayed start whose five-minute grant already expired (crash before
+ * launch) is started again with `freshKey()`: BE issues a new grant generation for the same session before launch.
+ */
 export async function startTrainingSession(
-  id: string,
-  key = Crypto.randomUUID(),
-): Promise<StartResponse> {
-  const response = await requestWithSession<StartResponse>(`/api/training/sessions/${id}/start`, {
-    method: 'POST',
-    headers: { 'Idempotency-Key': key },
-  });
-  if (!response.launch?.launchGrant || new Date(response.launch.expiresAt).getTime() <= Date.now())
-    throw new Error('Grant mở Unity đã hết hạn hoặc không hợp lệ.');
-  await SecureStore.setItemAsync(continuationKey(id), response.continuation.token);
+  prepared: TrainingSession,
+  key: string,
+  freshKey: () => Promise<string>,
+): Promise<StartTrainingResponse> {
+  const call = (idempotencyKey: string) =>
+    requestWithSession<StartTrainingResponse>(sessionPath(prepared.id, 'start'), {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
+  let response = await call(key);
+  if (!(Date.parse(response.launch?.expiresAt) > Date.now()))
+    response = await call(await freshKey());
+  assertStartMatchesPrepare(prepared, response);
+  if (Platform.OS !== 'web')
+    await SecureStore.setItemAsync(continuationKey(prepared.id), response.continuation.token);
   return response;
 }
 
-/** The URL map is supplied by a BE adapter once the package download contract is published. */
-export async function launchTrainingSession(
-  prepared: TrainingSession,
-  pin: PackagePin,
-  download: PackageDownload,
+/** Records the launch locally (for the Launched reconcile) and hands the verified package to Unity. */
+export async function launchStartedSession(
+  started: StartTrainingResponse,
+  manifestPath: string,
   resumeFromSequence = 0,
 ): Promise<void> {
-  if (
-    !prepared.id ||
-    prepared.releaseId !== pin.releaseId ||
-    prepared.buildingId !== pin.buildingId ||
-    prepared.package.manifestHash !== pin.manifestHash
-  )
-    throw new Error('Package pin không khớp phiên BE đã prepare.');
-  const manifestPath = await prepareVerifiedPackage(pin, download);
-  const started = await startTrainingSession(prepared.id);
-  if (
-    new Date(started.launch.expiresAt).getTime() <= Date.now() ||
-    started.session.id !== prepared.id ||
-    started.session.runtimeVersion !== '2.0.0'
-  )
-    throw new Error('Grant hoặc runtime của phiên không hợp lệ.');
+  const session = started.session;
   await saveLaunch(
-    prepared.id,
+    session.id,
     'Training',
     started.launch.generation,
     started.launch.expiresAt,
@@ -112,28 +136,47 @@ export async function launchTrainingSession(
   );
   await unityBridge.launch({
     protocolVersion: '1',
-    sessionId: prepared.id,
+    sessionId: session.id,
     kind: 'Training',
-    mode: prepared.mode,
-    runtimeVersion: '2.0.0',
+    mode: session.mode,
+    runtimeVersion: APP_RUNTIME_VERSION,
     manifestPath,
     resumeFromSequence,
     locale: 'vi',
   });
 }
 
+/**
+ * Confirms Unity's `Launched` to BE. A launch is valid when Unity reported it before the grant expired (native receive
+ * time), even if the device was offline and this runs later.
+ */
 export async function reconcileUnityLaunched(): Promise<void> {
   await ingestUnityCallbacks();
   for (const signal of await pendingLaunchedSignals()) {
     const launch = await getLaunch(signal.session_id);
     if (launch?.kind === 'Playtest') continue;
-    if (!launch || new Date(launch.expires_at).getTime() <= Date.now()) {
-      await unityBridge.abort('Launch grant expired');
-      throw new Error('Unity đã mở sau khi grant hết hạn.');
+    const reportedAt = signal.received_at ?? Date.now();
+    if (!launch || Date.parse(launch.expires_at) < reportedAt) {
+      await markLaunched(signal.native_id, signal.session_id);
+      await unityBridge.abort('LaunchGrantExpired');
+      throw new Error('Unity đã mở sau khi grant hết hạn; phiên bị dừng.');
     }
-    await requestWithSession(`/api/training/sessions/${signal.session_id}/launched`, {
-      json: { generation: launch.generation },
-    });
+    try {
+      await requestWithSession(sessionPath(signal.session_id, 'launched'), {
+        json: { generation: launch.generation },
+      });
+    } catch (issue) {
+      // 4xx other than auth is final for this signal (e.g. BE already recorded another generation); keep playing.
+      if (
+        !(issue instanceof ApiError) ||
+        issue.status < 400 ||
+        issue.status >= 500 ||
+        issue.status === 401
+      )
+        throw issue;
+      await markLaunched(signal.native_id, signal.session_id);
+      throw issue;
+    }
     await markLaunched(signal.native_id, signal.session_id);
   }
 }
@@ -141,21 +184,43 @@ export async function reconcileUnityLaunched(): Promise<void> {
 async function syncRequest<T>(
   id: string,
   suffix: string,
-  options: { method: 'POST'; json?: unknown; headers?: Record<string, string> },
+  options: { method: 'POST' | 'GET'; json?: unknown; headers?: Record<string, string> },
 ): Promise<T> {
-  const path = `/api/training/sessions/${id}/${suffix}`;
+  const path = sessionPath(id, suffix);
   try {
     return await requestWithSession<T>(path, options);
   } catch (issue) {
-    if (!(issue instanceof ApiError) || issue.status !== 401) throw issue;
+    if (!(issue instanceof ApiError) || issue.status !== 401 || Platform.OS === 'web') throw issue;
     const token = await SecureStore.getItemAsync(continuationKey(id));
     if (!token) throw issue;
     return apiClient.request<T>(path, { ...options, accessToken: token });
   }
 }
 
+export function heartbeatTrainingSession(
+  id: string,
+): Promise<{ serverTime: string; status: string }> {
+  return syncRequest(id, 'heartbeat', { method: 'POST' });
+}
+
+/** Live login only: replaces the continuation token (7-day offline sync window) of a started session. */
+export async function renewTrainingContinuation(id: string): Promise<void> {
+  const continuation = await requestWithSession<{ token: string; expiresAt: string }>(
+    sessionPath(id, 'continuation'),
+    { method: 'POST' },
+  );
+  if (!continuation?.token) throw new Error('BE không cấp lại continuation token.');
+  if (Platform.OS !== 'web')
+    await SecureStore.setItemAsync(continuationKey(id), continuation.token);
+}
+
+/**
+ * Sends queued events (≤ 500 per batch, stable event IDs) and then the completion with its persisted Idempotency-Key.
+ * Returns null when there is nothing to complete yet.
+ */
 export async function syncTrainingSession(id: string): Promise<CompleteResponse | null> {
-  await reconcileUnityLaunched();
+  // Launched needs a live login; a continuation-only sync still sends events, so a failure here must not block them.
+  await reconcileUnityLaunched().catch(() => undefined);
   let stalled = 0;
   for (let cycle = 0; cycle < 100; cycle++) {
     const events = await pendingEvents(id);
@@ -191,6 +256,6 @@ export async function syncTrainingSession(id: string): Promise<CompleteResponse 
 
 export async function resumeSequence(id: string): Promise<number> {
   await syncTrainingSession(id);
-  const session = await requestWithSession<TrainingSession>(`/api/training/sessions/${id}`);
+  const session = await getTrainingSession(id);
   return Math.max(session.acknowledgedSequence ?? 0, await highestLocalSequence(id));
 }
