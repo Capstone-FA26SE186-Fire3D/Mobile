@@ -44,16 +44,23 @@ module.exports = function withUnityLibrary(config) {
     if (!application) throw new Error('Generated AndroidManifest has no application.');
     application.activity ??= [];
     const name = 'com.fet3d.unity.UnityHostActivity';
-    if (!application.activity.some((activity) => activity.$['android:name'] === name))
-      application.activity.push({
-        $: {
-          'android:name': name,
-          'android:exported': 'false',
-          'android:screenOrientation': 'landscape',
-          'android:configChanges':
-            'keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode',
-        },
-      });
+    const packageName = value.android?.package ?? 'com.fet3d.app';
+    let activity = application.activity.find((item) => item.$['android:name'] === name);
+    if (!activity) {
+      activity = { $: { 'android:name': name } };
+      application.activity.push(activity);
+    }
+    // Own task in the app process: Mobile reorders tasks instead of finishing Unity (destroy kills the process).
+    Object.assign(activity.$, {
+      'android:exported': 'false',
+      'android:screenOrientation': 'landscape',
+      'android:launchMode': 'singleTask',
+      'android:taskAffinity': `${packageName}.unity`,
+      'android:excludeFromRecents': 'true',
+      'android:resizeableActivity': 'false',
+      'android:configChanges':
+        'keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode',
+    });
     return value;
   });
   return config;

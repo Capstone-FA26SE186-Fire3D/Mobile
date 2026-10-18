@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { getTrainingResult, type TrainingResult } from '@/api/training-history';
-import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
-import { Text } from '@/components/ui/Text';
+import { TrainingResultCard } from '@/features/training/components/TrainingResultCard';
 import { colors } from '@/theme/tokens';
 
 export default function ResultScreen() {
@@ -35,37 +34,7 @@ export default function ResultScreen() {
       <PageHeader title="Kết quả cá nhân" onBack={() => router.back()} />
       {busy && <ActivityIndicator color={colors.primary} />}
       {!!error && <Notice error>{error}</Notice>}
-      {result && (
-        <View style={styles.card}>
-          <Text variant="title">{result.outcome}</Text>
-          <Text>Chế độ: {result.mode}</Text>
-          <Text>Lý do: {result.reason}</Text>
-          {result.scorePercent !== null && (
-            <Text>
-              Điểm từ BE: {result.scorePercent}%
-              {result.passThresholdPercent !== null
-                ? ` / ngưỡng ${result.passThresholdPercent}%`
-                : ''}
-            </Text>
-          )}
-          {result.criteria?.map((item) => (
-            <Text key={item.id}>
-              {item.passed ? '✓' : '✗'} {item.label ?? item.metric}
-              {item.reason ? ` (${item.reason})` : ''}
-            </Text>
-          ))}
-          <Button
-            title="Hỏi AI về kết quả"
-            onPress={() =>
-              router.push({ pathname: '/ai', params: { sessionId: result.sessionId } })
-            }
-          />
-        </View>
-      )}
+      {result && <TrainingResultCard result={result} />}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  card: { gap: 12, padding: 16, backgroundColor: colors.surface, borderRadius: 16 },
-});
