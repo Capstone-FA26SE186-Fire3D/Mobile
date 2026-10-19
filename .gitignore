@@ -8,3 +8,4 @@ node_modules/
 /.codex/local/
 /modules/*/android/build/
 /modules/*/android/.cxx/
+/vendor/.unity-*/

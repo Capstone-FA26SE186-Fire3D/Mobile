@@ -36,7 +36,23 @@ Sau đăng nhập, app xin quyền thông báo và lấy **FCM device token** b�
 - Lịch sử (`app/history`) mở kết quả, hoặc trạng thái đồng bộ của phiên chưa có kết quả.
 - Web, Expo Go hoặc bản build chưa có Unity: xem được bài và chuẩn bị phiên; phần tải gói/vào phiên hiển thị thông báo cần ứng dụng Android có Unity.
 
-Bridge, package và giới hạn Unity: [docs/unity-integration.md](docs/unity-integration.md). Chưa nghiệm thu trên thiết bị vì chưa có Unity export và APK.
+Bridge, package và giới hạn Unity: [docs/unity-integration.md](docs/unity-integration.md).
+
+## Build APK Android có Unity
+
+1. Trong Unity: **Fire3D → Build → Export Unity Library for Mobile**. Kết quả nằm cạnh thư mục export: `fet3d-unityLibrary-<version>.zip` và `<zip>.json` (version, SHA-256).
+2. Trong Mobile:
+
+```sh
+pnpm unity:prepare --zip <đường dẫn>/fet3d-unityLibrary-<version>.zip
+cp .env.example .env
+pnpm android:prebuild
+cd android && ./gradlew assembleRelease
+```
+
+APK: `android/app/build/outputs/apk/release/app-release.apk` (arm64-v8a, ký bằng debug keystore để cài thử). `--zip` kiểm SHA-256 theo file `.json`, không cần S3 và không sửa `unity-artifact.lock.json`. Bản phát hành chính thức thì upload zip lên S3, pin `version`/`s3Uri`/`sha256` trong lock rồi chạy `pnpm unity:prepare` không tham số.
+
+Windows: bật _long paths_ (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1`, khởi động lại máy) nếu checkout nằm sâu; nếu không, đường dẫn C++ của `react-native-gesture-handler` vượt 260 ký tự và bước `buildCMake` lỗi.
 
 ## Kiểm tra
 
