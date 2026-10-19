@@ -4,5 +4,12 @@ plugins {
 }
 group = 'com.fet3d'
 version = '1.0.0'
-android { namespace 'com.fet3d.unity' }
+android {
+  namespace 'com.fet3d.unity'
+  // expo-module-gradle-plugin requires the module version in defaultConfig.
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
 dependencies { implementation project(':unityLibrary') }
