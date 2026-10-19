@@ -22,7 +22,7 @@ function session(overrides: Record<string, unknown> = {}) {
     scenarioVersionId: '55555555-5555-4555-8555-555555555555',
     buildingId,
     mode: 'Assessment',
-    runtimeVersion: '2.0.0',
+    runtimeVersion: '2.0.2',
     scenarioHash: hash('9'),
     rubricHash: hash('8'),
     package: { packageHash: hash('a'), manifestHash: hash('b'), buildTarget: 'Android' },
@@ -112,7 +112,7 @@ test('QR → training → mode → prepare; web without Unity explains instead o
   await expect(page.getByRole('button', { name: 'Tải gói tập huấn' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Bắt đầu phiên' })).toHaveCount(0);
   expect(prepareCalls).toHaveLength(1);
-  expect(prepareCalls[0].body).toEqual({ trainingId, mode: 'Assessment', runtimeVersion: '2.0.0' });
+  expect(prepareCalls[0].body).toEqual({ trainingId, mode: 'Assessment', runtimeVersion: '2.0.2' });
   expect(prepareCalls[0].key).toMatch(/^[0-9a-f-]{36}$/i);
 
   // Coming back restores the same preparation from the persisted attempt: no second prepare.
