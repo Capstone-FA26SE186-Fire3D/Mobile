@@ -209,6 +209,7 @@ export default function TrainingScreen() {
     if (!account || !mode || !attempt.current?.startKey) return;
     setBusy(true);
     setError('');
+    setNotice('');
     try {
       const started = await startTrainingSession(session, attempt.current.startKey, async () => {
         attempt.current = await rotateStartKey(account.id, attempt.current!);
@@ -235,6 +236,10 @@ export default function TrainingScreen() {
         params: { sessionId: current.session.id, trainingId, qr, mode: current.session.mode },
       });
     return subscribeTrainingRuntime((event) => {
+      if (event.kind === 'runtime-mismatch') {
+        setError(event.message);
+        return;
+      }
       if (event.kind !== 'unity') return;
       const message = event.message;
       if (message.sessionId && message.sessionId !== current.session.id) return;
@@ -242,7 +247,9 @@ export default function TrainingScreen() {
       else if (message.type === 'Completed') openResult();
       else if (message.type === 'Error') {
         const payload = (message.payload ?? {}) as { code?: string; message?: string };
-        setError(`Unity báo lỗi ${payload.code ?? ''}: ${payload.message ?? 'không rõ'}`.trim());
+        if (payload.code === 'LAUNCH_CANCELLED') setNotice('Đã hủy mở màn chơi.');
+        else
+          setError(`Unity báo lỗi ${payload.code ?? ''}: ${payload.message ?? 'không rõ'}`.trim());
         if (!launched)
           setPhase({ name: 'ready', session: current.session, manifestPath: current.manifestPath });
       } else if (message.type === 'Exited') {

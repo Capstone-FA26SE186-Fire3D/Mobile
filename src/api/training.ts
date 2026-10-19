@@ -20,7 +20,7 @@ import {
   prepareVerifiedPackage,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
-import { APP_RUNTIME_VERSION } from '@/features/training/package-contract';
+import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from '@/features/training/runtime-version';
 import {
   assertStartMatchesPrepare,
   pinFromSession,
@@ -135,7 +135,7 @@ export async function launchStartedSession(
     manifestPath,
   );
   await unityBridge.launch({
-    protocolVersion: '1',
+    protocolVersion: BRIDGE_PROTOCOL_VERSION,
     sessionId: session.id,
     kind: 'Training',
     mode: session.mode,

@@ -1,5 +1,10 @@
-/** Runtime version this app's embedded Unity export implements (Mobile#22, protocol "1"). */
-export const APP_RUNTIME_VERSION = '2.0.0';
+import {
+  APP_RUNTIME_VERSION,
+  BRIDGE_PROTOCOL_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+} from './runtime-version.ts';
+
+export { APP_RUNTIME_VERSION };
 export const PACKAGE_SCHEMA = 'fet3d.package/1';
 
 export type ManifestFile = { path: string; sha256: string; size: number };
@@ -91,8 +96,10 @@ export function validatePackageManifest(value: unknown, pin: PackagePin): Conten
   if (
     manifest.schemaVersion !== PACKAGE_SCHEMA ||
     manifest.buildTarget !== 'Android' ||
-    (manifest.protocolVersion !== undefined && manifest.protocolVersion !== '1') ||
-    (manifest.manifestSchemaVersion !== undefined && manifest.manifestSchemaVersion !== '1')
+    (manifest.protocolVersion !== undefined &&
+      manifest.protocolVersion !== BRIDGE_PROTOCOL_VERSION) ||
+    (manifest.manifestSchemaVersion !== undefined &&
+      manifest.manifestSchemaVersion !== MANIFEST_SCHEMA_VERSION)
   )
     throw new Error(
       'Manifest không đúng schema fet3d.package/1, protocol "1" hoặc target Android.',

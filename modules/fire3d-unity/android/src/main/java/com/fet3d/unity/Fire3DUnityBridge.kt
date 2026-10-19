@@ -21,6 +21,10 @@ import java.lang.ref.WeakReference
  *   that `Ready` (with a fallback delivery after [READY_FALLBACK_MS] for runtimes that do not re-send it).
  * On `Exited`, or an `Error` that ends the launch, the React Native task is brought back to the front. The Unity activity
  * is never finished and UnityPlayer.quit() is never called: destroying the player kills the shared app process.
+ *
+ * Unity is idle again only after `Ready`: runtime 2.0.1+ releases a failed or cancelled launch and then sends `Error`
+ * followed by `Ready`, so the next launch waits for that `Ready` (the fallback covers 2.0.0, which did not re-send it).
+ * Back while the package loads sends one `Abort`; Unity answers `LAUNCH_CANCELLED` and never `Launched`.
  */
 object Fire3DUnityBridge {
   private const val RECEIVER = "Fire3DBridge"
@@ -35,6 +39,9 @@ object Fire3DUnityBridge {
   private var idle = false
   private var sessionActive = false
   private var launchedCurrent = false
+  private var abortSent = false
+  private var lastPayload: String? = null
+  private var currentSessionId: String? = null
   private var host: WeakReference<UnityHostActivity>? = null
   private val fallback = Runnable { deliverPendingAfterTimeout() }
 
@@ -64,15 +71,31 @@ object Fire3DUnityBridge {
           true
         }
         "Error" -> {
-          // An Error before Launched means this launch failed (bad package, SESSION_BUSY, MODE_NOT_ALLOWED…): Unity is
-          // back in Bootstrap without a session, so the user must not be left on an empty Unity screen.
-          val fatal = !launchedCurrent || record?.optJSONObject("payload")?.optBoolean("fatal") == true
-          if (fatal) {
+          val payload = record?.optJSONObject("payload")
+          if (payload?.optString("code") == "SESSION_BUSY") {
+            // Unity was still releasing the previous launch: keep this launch and deliver it on the next Ready.
+            if (pendingLaunch == null) pendingLaunch = lastPayload
             sessionActive = false
             launchedCurrent = false
-            if (readySeen) idle = true
+            idle = false
+            true
+          } else {
+            // An Error before Launched means this launch failed or was cancelled (bad package, LAUNCH_CANCELLED,
+            // MODE_NOT_ALLOWED…). Unity cleans up and sends Ready; until then the next launch is queued.
+            val sessionId = record?.optString("sessionId")?.takeIf { it.isNotEmpty() && it != "null" }
+            val ours = sessionId == null || sessionId == currentSessionId
+            val fatal = ours && (!launchedCurrent || payload?.optBoolean("fatal") == true)
+            if (fatal) {
+              sessionActive = false
+              launchedCurrent = false
+              idle = false
+              if (readySeen && pendingLaunch != null) {
+                main.removeCallbacks(fallback)
+                main.postDelayed(fallback, READY_FALLBACK_MS)
+              }
+            }
+            fatal
           }
-          fatal
         }
         else -> false
       }
@@ -114,6 +137,19 @@ object Fire3DUnityBridge {
   @Synchronized
   fun hasActiveSession(): Boolean = sessionActive
 
+  /**
+   * Back pressed in Unity. Returns false when there is nothing to stop (the caller brings the app back instead). While the
+   * package loads only one Abort is sent; later presses are ignored until Unity answers.
+   */
+  @Synchronized
+  fun requestAbort(reason: String): Boolean {
+    if (!sessionActive) return false
+    if (!launchedCurrent && abortSent) return true
+    abortSent = true
+    send("Abort", JSONObject().put("reason", reason).toString())
+    return true
+  }
+
   @Synchronized
   fun attachHost(activity: UnityHostActivity) {
     ensureJournal(activity)
@@ -139,9 +175,12 @@ object Fire3DUnityBridge {
 
   private fun deliver(payload: String) {
     pendingLaunch = null
+    lastPayload = payload
+    currentSessionId = runCatching { JSONObject(payload).optString("sessionId") }.getOrNull()
     idle = false
     sessionActive = true
     launchedCurrent = false
+    abortSent = false
     send("Launch", payload)
   }
 
