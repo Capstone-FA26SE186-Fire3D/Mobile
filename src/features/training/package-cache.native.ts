@@ -96,6 +96,21 @@ export async function cachedPackagePath(pin: PackagePin): Promise<string | null>
 }
 
 /**
+ * The scenario document of a package that [cachedPackagePath] or [prepareVerifiedPackage] has just verified (SHA-256 pinned
+ * by the manifest); null when the manifest names no scenario. Used to read `modePolicy` before choosing a mode.
+ */
+export async function readPackageScenario(pin: PackagePin): Promise<unknown | null> {
+  const { final } = folders(pin);
+  const manifest = await readManifest(new File(final, 'manifest.json'), pin);
+  if (!manifest.scenario) return null;
+  const entry = manifest.files.find((file) => file.path === manifest.scenario);
+  const file = fileIn(final, manifest.scenario);
+  if (!entry || !(await matches(file, entry.size, entry.sha256)))
+    throw new Error('scenario.json không khớp SHA-256 đã pin. Hãy tải lại package.');
+  return JSON.parse(await file.text()) as unknown;
+}
+
+/**
  * Downloads into `<manifestHash>.partial`, verifying SHA-256 per file, and exposes the package to Unity only after every
  * manifest entry is verified. Cancel keeps verified files so the next attempt resumes; expired URLs are re-fetched.
  */

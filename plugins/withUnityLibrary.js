@@ -7,6 +7,29 @@ const {
 const fs = require('node:fs');
 const path = require('node:path');
 
+/**
+ * Unity names its export "<RuntimeCatalog.RuntimeVersion>-<UTC stamp>"; the app reports APP_RUNTIME_VERSION to BE on start,
+ * so an APK must never embed another runtime (the bridge also refuses Launch on a Ready mismatch).
+ */
+function embeddedRuntime(root, prepared) {
+  const runtimeSource = fs.readFileSync(
+    path.join(root, 'src', 'features', 'training', 'runtime-version.ts'),
+    'utf8',
+  );
+  const appRuntime = /APP_RUNTIME_VERSION = '([^']+)'/.exec(runtimeSource)?.[1];
+  const unityRuntime = String(prepared?.version ?? '').split('-')[0];
+  if (!appRuntime || unityRuntime !== appRuntime)
+    throw new Error(
+      `Unity artifact ${prepared?.version} is runtime ${unityRuntime}, the app reports ${appRuntime}.`,
+    );
+  return unityRuntime;
+}
+
+function preparedArtifact(root) {
+  const marker = path.join(root, 'vendor', 'unityLibrary', '.unity-artifact.json');
+  return fs.existsSync(marker) ? JSON.parse(fs.readFileSync(marker, 'utf8')) : null;
+}
+
 module.exports = function withUnityLibrary(config) {
   config = withDangerousMod(config, [
     'android',
@@ -27,6 +50,7 @@ module.exports = function withUnityLibrary(config) {
       if (!pinned && prepared.source !== 'local')
         throw new Error('Pin unity-artifact.lock.json or prepare a local export with --zip.');
       if (!pinned) console.warn(`Using local Unity artifact ${prepared.version} (not pinned).`);
+      embeddedRuntime(root, prepared);
       fs.cpSync(source, path.join(value.modRequest.platformProjectRoot, 'unityLibrary'), {
         recursive: true,
       });
@@ -66,6 +90,14 @@ module.exports = function withUnityLibrary(config) {
       'android:configChanges':
         'keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode',
     });
+    // Read by Fire3DUnityBridge.handshake before /start, so a mismatch is reported before Trial is used.
+    const runtime = embeddedRuntime(value.modRequest.projectRoot, preparedArtifact(value.modRequest.projectRoot));
+    application['meta-data'] ??= [];
+    const metaName = 'com.fet3d.unity.RUNTIME_VERSION';
+    application['meta-data'] = application['meta-data'].filter(
+      (item) => item.$['android:name'] !== metaName,
+    );
+    application['meta-data'].push({ $: { 'android:name': metaName, 'android:value': runtime } });
     return value;
   });
   return config;

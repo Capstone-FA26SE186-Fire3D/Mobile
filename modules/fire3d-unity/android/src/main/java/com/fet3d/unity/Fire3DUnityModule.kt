@@ -25,9 +25,12 @@ class Fire3DUnityModule : Module() {
     AsyncFunction("pendingCallbacks") { Fire3DUnityBridge.pending() }
     AsyncFunction("acknowledgeCallback") { id: Long -> Fire3DUnityBridge.acknowledge(id) }
     AsyncFunction("launch") { payload: String ->
-      if (!Fire3DUnityBridge.requestLaunch(payload))
-        throw CodedException("ERR_UNITY_BUSY", "Unity đang chạy một phiên khác. Hãy tiếp tục hoặc kết thúc phiên đó trước.", null)
-      showHost(context())
+      when (val refused = Fire3DUnityBridge.requestLaunch(payload)) {
+        null -> showHost(context())
+        Fire3DUnityBridge.BUSY ->
+          throw CodedException("ERR_UNITY_BUSY", "Unity đang chạy một phiên khác. Hãy tiếp tục hoặc kết thúc phiên đó trước.", null)
+        else -> throw CodedException("ERR_UNITY_RUNTIME_MISMATCH", refused, null)
+      }
     }
     AsyncFunction("show") {
       if (Fire3DUnityBridge.isUnityAlive()) {
@@ -37,6 +40,8 @@ class Fire3DUnityModule : Module() {
         false
       }
     }
+    AsyncFunction("handshake") { Fire3DUnityBridge.handshake(context()) }
+    AsyncFunction("activeSession") { Fire3DUnityBridge.activeSessionId() }
     AsyncFunction("pause") { Fire3DUnityBridge.send("Pause", "") }
     AsyncFunction("resume") { Fire3DUnityBridge.send("Resume", "") }
     AsyncFunction("abort") { reason: String -> Fire3DUnityBridge.send("Abort", reason) }

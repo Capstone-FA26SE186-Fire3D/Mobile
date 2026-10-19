@@ -4,7 +4,7 @@
  * it in `Ready`, and a mismatch is reported by `checkUnityRuntime`. BE accepts it only while that version is an active
  * row of the runtime catalog (POST/PATCH /api/admin/runtime-catalog, see docs/unity-integration.md).
  */
-export const APP_RUNTIME_VERSION = '2.0.1';
+export const APP_RUNTIME_VERSION = '2.0.2';
 export const BRIDGE_PROTOCOL_VERSION = '1';
 export const MANIFEST_SCHEMA_VERSION = '1';
 
@@ -17,4 +17,24 @@ export function checkUnityRuntime(payload: unknown): string | null {
   )
     return null;
   return `Unity báo runtime ${String(ready.runtimeVersion ?? '?')} (protocol ${String(ready.protocolVersion ?? '?')}), ứng dụng gửi BE ${APP_RUNTIME_VERSION} (protocol ${BRIDGE_PROTOCOL_VERSION}).`;
+}
+
+/**
+ * Pre-start handshake (before Trial or a learner seat is used): null when the embedded Unity can play this app's runtime.
+ * `ready` compares the live Ready; `embedded` (Unity not booted yet) compares the runtime stamped at prebuild; `unknown`
+ * (a build without the stamp) passes here and is decided by the native Ready check before `Launch`.
+ */
+export function checkUnityHandshake(handshake: {
+  source: string;
+  runtimeVersion: string | null;
+  protocolVersion: string | null;
+}): string | null {
+  if (handshake.source === 'ready')
+    return checkUnityRuntime({
+      runtimeVersion: handshake.runtimeVersion,
+      protocolVersion: handshake.protocolVersion,
+    });
+  if (handshake.source === 'embedded' && handshake.runtimeVersion !== APP_RUNTIME_VERSION)
+    return `Unity trong ứng dụng là runtime ${String(handshake.runtimeVersion)}, ứng dụng gửi BE ${APP_RUNTIME_VERSION}.`;
+  return null;
 }

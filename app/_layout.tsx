@@ -17,9 +17,17 @@ import { startTrainingRuntime } from '@/features/training/training-runtime';
 
 function Navigation() {
   const { account, ready, reduceMotion, error } = useSession();
-  const trainee = account?.role === 'Trainee';
-  // Device-wide: ingest Unity callbacks and sync started sessions (events, completion) whenever possible.
-  useEffect(() => (trainee ? startTrainingRuntime() : undefined), [trainee]);
+  // Device-wide, one receiver for Trainee training and OrganizationUser playtests: ingest Unity callbacks and sync the
+  // signed-in account's started sessions (events, completion) on callbacks, app start and foreground.
+  const accountId = account?.id;
+  const role = account?.role;
+  useEffect(
+    () =>
+      accountId && (role === 'Trainee' || role === 'OrganizationUser')
+        ? startTrainingRuntime({ accountId, role })
+        : undefined,
+    [accountId, role],
+  );
   if (!ready)
     return (
       <View style={styles.loading}>
