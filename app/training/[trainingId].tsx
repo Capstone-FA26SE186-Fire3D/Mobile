@@ -216,7 +216,7 @@ export default function TrainingScreen() {
         return attempt.current.startKey!;
       });
       setPhase({ name: 'playing', session: started.session, manifestPath });
-      await launchStartedSession(started, manifestPath);
+      await launchStartedSession(started, manifestPath, 0, account.id);
     } catch (issue) {
       setPhase({ name: 'ready', session, manifestPath });
       setError(describe(issue, 'Không bắt đầu được phiên.'));

@@ -1,6 +1,11 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from './runtime-version.ts';
 
+export type UnityHandshake = {
+  source: 'ready' | 'embedded' | 'unknown';
+  runtimeVersion: string | null;
+  protocolVersion: string | null;
+};
 export type NativeCallback = { id: number; payload: string; receivedAt?: number };
 type Subscription = { remove(): void };
 type UnityNativeModule = {
@@ -11,6 +16,8 @@ type UnityNativeModule = {
   pause(): Promise<void>;
   resume(): Promise<void>;
   abort(reason: string): Promise<void>;
+  handshake?(): Promise<UnityHandshake>;
+  activeSession?(): Promise<string | null>;
   addListener?(event: 'onCallback', listener: (event: { id: number }) => void): Subscription;
 };
 
@@ -46,6 +53,15 @@ export const unityBridge = {
   pause: () => bridge().pause(),
   resume: () => bridge().resume(),
   abort: (reason: string) => bridge().abort(JSON.stringify({ reason })),
+  /** Runtime of the embedded Unity before /start (last Ready, else the version stamped at prebuild). */
+  handshake: async (): Promise<UnityHandshake> =>
+    (await bridge().handshake?.()) ?? {
+      source: 'unknown',
+      runtimeVersion: null,
+      protocolVersion: null,
+    },
+  /** Session Unity is loading or playing in this process; null when idle or not booted. */
+  activeSession: async (): Promise<string | null> => (await bridge().activeSession?.()) ?? null,
   /** Fires after native SQLite committed a Unity callback; call ingestUnityCallbacks to move it into the JS queue. */
   onCallback(listener: () => void): () => void {
     const subscription = native?.addListener?.('onCallback', () => listener());

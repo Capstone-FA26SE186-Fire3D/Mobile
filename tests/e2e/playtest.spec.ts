@@ -58,8 +58,11 @@ test('OrganizationUser redeems handoff after login and stays in playtest only', 
   await page.getByRole('textbox', { name: 'Email' }).fill(owner.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-  await expect(page.getByText('Trạng thái: Created')).toBeVisible();
-  await expect(page.getByText(/Chờ BE cấp URL tải manifest/)).toBeVisible();
+  await expect(page.getByText('Trạng thái: Chưa bắt đầu')).toBeVisible();
+  // Prepare comes first and never uses Trial; without Unity (web) nothing can be downloaded or started.
+  await expect(page.getByText(/không dùng lượt Trial/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tải và kiểm tra package' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Bắt đầu playtest' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Mở tài khoản' })).toHaveCount(0);
   expect(redeemed).toBe(1);
 });

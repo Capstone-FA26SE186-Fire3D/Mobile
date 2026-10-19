@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { validHandoffCode } from '@/features/playtest/pending-handoff';
+import { describePlaytestProblem, handoffView } from '@/features/playtest/playtest-flow';
 import { saveRecentPlaytest } from '@/features/playtest/recent-playtest';
 import { useSession } from '@/store/SessionProvider';
 import { colors } from '@/theme/tokens';
@@ -17,9 +18,10 @@ export default function PlaytestHandoffScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const view = handoffView(valid, account);
 
   useEffect(() => {
-    if (!valid || account?.role !== 'OrganizationUser') return;
+    if (view !== 'redeem' || !account) return;
     let active = true;
     setBusy(true);
     redeemPlaytestHandoff(code)
@@ -30,8 +32,7 @@ export default function PlaytestHandoffScreen() {
         router.replace({ pathname: '/playtest', params: { id: status.id } });
       })
       .catch((issue) => {
-        if (active)
-          setError(issue instanceof Error ? issue.message : 'Không nhận được handoff playtest.');
+        if (active) setError(describePlaytestProblem(issue, 'Không nhận được handoff playtest.'));
       })
       .finally(() => {
         if (active) setBusy(false);
@@ -39,7 +40,7 @@ export default function PlaytestHandoffScreen() {
     return () => {
       active = false;
     };
-  }, [valid, code, account?.id, account?.role, setPendingHandoffCode, attempt]);
+  }, [view, code, account?.id, setPendingHandoffCode, attempt]);
 
   async function login() {
     if (!valid) return;
@@ -50,14 +51,14 @@ export default function PlaytestHandoffScreen() {
   return (
     <Screen>
       <PageHeader title="Nhận playtest" onBack={() => router.back()} />
-      {!valid ? (
+      {view === 'invalid' ? (
         <Notice error>Link handoff không hợp lệ hoặc thiếu mã.</Notice>
-      ) : !account ? (
+      ) : view === 'login' ? (
         <>
           <Text>Đăng nhập bằng tài khoản OrganizationUser đã tạo playtest để tiếp tục.</Text>
           <Button title="Đăng nhập và nhận playtest" onPress={() => void login()} />
         </>
-      ) : account.role !== 'OrganizationUser' ? (
+      ) : view === 'wrong-role' ? (
         <>
           <Notice error>
             Handoff này chỉ dành cho OrganizationUser. Hãy đăng nhập đúng tài khoản.
