@@ -1,40 +1,121 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import extract from 'extract-zip';
 
+// Two sources for vendor/unityLibrary:
+// - pinned (default): the S3 artifact in unity-artifact.lock.json, for CI and release builds;
+// - local: `pnpm unity:prepare --zip <fet3d-unityLibrary-*.zip>` from Unity's "Export Unity Library for Mobile"
+//   (its <zip>.json gives version and SHA-256). The lock file is not touched; the marker records source "local".
 const root = resolve(import.meta.dirname, '..');
+const vendor = join(root, 'vendor');
+const target = join(vendor, 'unityLibrary');
+const marker = join(target, '.unity-artifact.json');
+const zipFlag = process.argv.indexOf('--zip');
+const localZip = zipFlag >= 0 ? process.argv[zipFlag + 1] : undefined;
+if (zipFlag >= 0 && !localZip)
+  throw new Error('Usage: pnpm unity:prepare --zip <fet3d-unityLibrary-*.zip>');
+
+const sha256Of = async (file) => {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
+};
+
+const readMarker = async () =>
+  existsSync(marker) ? JSON.parse(await readFile(marker, 'utf8')) : undefined;
+
+const install = async (zip, version, sha256, source) => {
+  // Extract next to the target: a rename from the OS temp folder fails across drives (EXDEV on Windows).
+  await mkdir(vendor, { recursive: true });
+  const scratch = await mkdtemp(join(vendor, '.unity-'));
+  try {
+    const extracted = join(scratch, 'extracted');
+    await mkdir(extracted);
+    await extract(zip, { dir: extracted });
+    const entries = await readdir(extracted);
+    const library =
+      entries.length === 1 && entries[0] === 'unityLibrary'
+        ? join(extracted, 'unityLibrary')
+        : extracted;
+    if (
+      !existsSync(join(library, 'build.gradle')) ||
+      !existsSync(join(library, 'src', 'main', 'AndroidManifest.xml'))
+    )
+      throw new Error('Archive is not a Unity Android unityLibrary Gradle export.');
+    const walk = async (folder) => {
+      for (const name of await readdir(folder)) {
+        const candidate = join(folder, name);
+        const info = await lstat(candidate);
+        if (info.isSymbolicLink()) throw new Error('Unity artifact contains a symbolic link.');
+        if (info.isDirectory()) await walk(candidate);
+      }
+    };
+    await walk(library);
+    await writeFile(
+      join(library, '.unity-artifact.json'),
+      JSON.stringify({ version, sha256, source }) + '\n',
+    );
+    await rm(target, { recursive: true, force: true });
+    await rename(library, target);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+};
+
 const lock = JSON.parse(await readFile(join(root, 'unity-artifact.lock.json'), 'utf8'));
+
+if (localZip) {
+  const zip = resolve(localZip);
+  if (!existsSync(zip)) throw new Error(`Unity archive not found: ${zip}`);
+  const sha256 = await sha256Of(zip);
+  const info = existsSync(`${zip}.json`) ? JSON.parse(await readFile(`${zip}.json`, 'utf8')) : {};
+  if (info.sha256 && info.sha256 !== sha256)
+    throw new Error(`${basename(zip)} does not match the SHA-256 in ${basename(zip)}.json.`);
+  const version =
+    info.version ??
+    basename(zip)
+      .replace(/^fet3d-unityLibrary-/, '')
+      .replace(/\.zip$/, '');
+  await install(zip, version, sha256, 'local');
+  console.log(`Prepared local Unity artifact ${version} (sha256 ${sha256}).`);
+  process.exit(0);
+}
+
 const { version, s3Uri, sha256 } = lock;
+const pinned = Boolean(version || s3Uri || sha256);
+if (!pinned) {
+  const previous = await readMarker();
+  if (previous?.source === 'local') {
+    console.log(`Using local Unity artifact ${previous.version} (lock is not pinned).`);
+    process.exit(0);
+  }
+  throw new Error(
+    'Pin version, versioned S3 URI and SHA-256 in unity-artifact.lock.json, or run pnpm unity:prepare --zip <archive>.',
+  );
+}
 if (
   !version ||
   !/^s3:\/\/[a-z0-9.-]+\/[A-Za-z0-9!_.*'()/+-]+\.zip$/.test(s3Uri ?? '') ||
   !/^[a-f0-9]{64}$/.test(sha256 ?? '') ||
   !s3Uri.includes(`/${version}/`)
 )
-  throw new Error(
-    'Pin version, versioned S3 URI and SHA-256 in unity-artifact.lock.json before preparing Unity.',
-  );
+  throw new Error('unity-artifact.lock.json needs version, a versioned S3 URI and a SHA-256.');
 
-const vendor = join(root, 'vendor');
-const target = join(vendor, 'unityLibrary');
-const marker = join(target, '.unity-artifact.json');
-if (existsSync(target)) {
-  const previous = JSON.parse(await readFile(marker, 'utf8'));
-  if (previous.version === version && previous.sha256 === sha256) {
-    console.log(`Unity artifact ${version} already verified in vendor cache.`);
-    process.exit(0);
-  }
-  throw new Error(
-    'vendor/unityLibrary holds a different artifact; move it aside before preparing another version.',
-  );
+const previous = await readMarker();
+if (previous && previous.version === version && previous.sha256 === sha256) {
+  console.log(`Unity artifact ${version} already verified in vendor cache.`);
+  process.exit(0);
 }
+if (previous && previous.source !== 'local')
+  throw new Error(
+    'vendor/unityLibrary holds a different pinned artifact; move it aside before preparing another version.',
+  );
 
 await mkdir(vendor, { recursive: true });
-const scratch = await mkdtemp(join(tmpdir(), 'fet3d-unity-'));
+const scratch = await mkdtemp(join(vendor, '.unity-download-'));
 try {
   const zip = join(scratch, 'unityLibrary.zip');
   const download = spawnSync('aws', ['s3', 'cp', s3Uri, zip, '--only-show-errors'], {
@@ -42,37 +123,9 @@ try {
   });
   if (download.error) throw new Error(`AWS CLI is required: ${download.error.message}`);
   if (download.status !== 0) throw new Error(`S3 download failed (exit ${download.status}).`);
-  const hash = createHash('sha256');
-  for await (const chunk of createReadStream(zip)) hash.update(chunk);
-  if (hash.digest('hex') !== sha256)
+  if ((await sha256Of(zip)) !== sha256)
     throw new Error('unityLibrary archive SHA-256 does not match the pin.');
-  const extracted = join(scratch, 'extracted');
-  await mkdir(extracted);
-  await extract(zip, { dir: extracted });
-  const entries = await readdir(extracted);
-  const library =
-    entries.length === 1 && entries[0] === 'unityLibrary'
-      ? join(extracted, 'unityLibrary')
-      : extracted;
-  if (
-    !existsSync(join(library, 'build.gradle')) ||
-    !existsSync(join(library, 'src', 'main', 'AndroidManifest.xml'))
-  )
-    throw new Error('Archive is not a Unity Android unityLibrary Gradle export.');
-  const walk = async (folder) => {
-    for (const name of await readdir(folder)) {
-      const candidate = join(folder, name);
-      const info = await lstat(candidate);
-      if (info.isSymbolicLink()) throw new Error('Unity artifact contains a symbolic link.');
-      if (info.isDirectory()) await walk(candidate);
-    }
-  };
-  await walk(library);
-  await writeFile(
-    join(library, '.unity-artifact.json'),
-    JSON.stringify({ version, sha256 }) + '\n',
-  );
-  await rename(library, target);
+  await install(zip, version, sha256, 'pinned');
   console.log(`Prepared pinned Unity artifact ${version}.`);
 } finally {
   await rm(scratch, { recursive: true, force: true });

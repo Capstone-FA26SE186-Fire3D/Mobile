@@ -15,13 +15,18 @@ module.exports = function withUnityLibrary(config) {
       const lock = JSON.parse(fs.readFileSync(path.join(root, 'unity-artifact.lock.json'), 'utf8'));
       const source = path.join(root, 'vendor', 'unityLibrary');
       const marker = path.join(source, '.unity-artifact.json');
-      if (!lock.version || !/^[a-f0-9]{64}$/.test(lock.sha256) || !fs.existsSync(marker))
+      if (!fs.existsSync(marker))
         throw new Error(
-          'Run pnpm unity:prepare with a pinned S3 artifact before Android prebuild.',
+          'Run pnpm unity:prepare (pinned S3 artifact) or pnpm unity:prepare --zip <archive> before Android prebuild.',
         );
       const prepared = JSON.parse(fs.readFileSync(marker, 'utf8'));
-      if (prepared.version !== lock.version || prepared.sha256 !== lock.sha256)
+      const pinned = Boolean(lock.version || lock.sha256);
+      // A pinned lock must match exactly; an unpinned lock accepts a local export prepared with --zip.
+      if (pinned && (prepared.version !== lock.version || prepared.sha256 !== lock.sha256))
         throw new Error('Prepared Unity artifact differs from unity-artifact.lock.json.');
+      if (!pinned && prepared.source !== 'local')
+        throw new Error('Pin unity-artifact.lock.json or prepare a local export with --zip.');
+      if (!pinned) console.warn(`Using local Unity artifact ${prepared.version} (not pinned).`);
       fs.cpSync(source, path.join(value.modRequest.platformProjectRoot, 'unityLibrary'), {
         recursive: true,
       });
