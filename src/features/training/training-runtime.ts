@@ -12,13 +12,16 @@ import {
   type IngestedMessage,
   type TrainingSyncRow,
 } from './event-queue.native';
+import { checkUnityRuntime } from './runtime-version.ts';
 import { retryDelayMs } from './session-contract';
 import { unityBridge } from './unity-bridge.native';
 
 export type TrainingRuntimeEvent =
   | { kind: 'unity'; message: IngestedMessage }
   | { kind: 'synced'; sessionId: string; response: CompleteResponse | null }
-  | { kind: 'sync-failed'; sessionId: string | null; message: string; offline: boolean };
+  | { kind: 'sync-failed'; sessionId: string | null; message: string; offline: boolean }
+  /** Unity's Ready names another runtime than the one this app reports to BE: the embedded export is out of date. */
+  | { kind: 'runtime-mismatch'; message: string };
 
 const listeners = new Set<(event: TrainingRuntimeEvent) => void>();
 const lastHeartbeat = new Map<string, number>();
@@ -97,7 +100,13 @@ async function pumpOnce(): Promise<boolean> {
     });
   };
   try {
-    for (const message of await ingestUnityCallbacks()) emit({ kind: 'unity', message });
+    for (const message of await ingestUnityCallbacks()) {
+      if (message.type === 'Ready') {
+        const mismatch = checkUnityRuntime(message.payload);
+        if (mismatch) emit({ kind: 'runtime-mismatch', message: mismatch });
+      }
+      emit({ kind: 'unity', message });
+    }
   } catch (issue) {
     fail(null, issue);
   }

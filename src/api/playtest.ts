@@ -14,7 +14,8 @@ import {
   saveLaunch,
 } from '@/features/training/event-queue.native';
 import { prepareVerifiedPackage } from '@/features/training/package-cache.native';
-import { APP_RUNTIME_VERSION, type PackagePin } from '@/features/training/package-contract';
+import { type PackagePin } from '@/features/training/package-contract';
+import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from '@/features/training/runtime-version';
 import {
   planPackageDownload,
   type PackagePlan,
@@ -59,7 +60,7 @@ export function getPlaytest(id: string): Promise<PlaytestStatus> {
 export function startPlaytest(id: string, key = Crypto.randomUUID()): Promise<PlaytestLaunch> {
   return requestWithSession(`/api/playtests/${encodeURIComponent(id)}/start`, {
     headers: { 'Idempotency-Key': key },
-    json: { runtimeVersion: '2.0.0' },
+    json: { runtimeVersion: APP_RUNTIME_VERSION },
   });
 }
 
@@ -120,17 +121,17 @@ export async function launchPlaytest(
     !grant?.launchGrant ||
     grant.playtestId !== status.id ||
     grant.manifestHash !== pin.manifestHash ||
-    grant.runtimeVersion !== '2.0.0' ||
+    grant.runtimeVersion !== APP_RUNTIME_VERSION ||
     new Date(grant.expiresAt).getTime() <= Date.now()
   )
     throw new Error('Grant playtest không hợp lệ hoặc đã hết hạn.');
   await saveLaunch(status.id, 'Playtest', grant.generation, grant.expiresAt, manifestPath);
   await unityBridge.launch({
-    protocolVersion: '1',
+    protocolVersion: BRIDGE_PROTOCOL_VERSION,
     sessionId: status.id,
     kind: 'Playtest',
     mode,
-    runtimeVersion: '2.0.0',
+    runtimeVersion: APP_RUNTIME_VERSION,
     manifestPath,
     resumeFromSequence: status.acknowledgedSequence,
     locale: 'vi',

@@ -1,4 +1,5 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
+import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from './runtime-version.ts';
 
 export type NativeCallback = { id: number; payload: string; receivedAt?: number };
 type Subscription = { remove(): void };
@@ -25,11 +26,11 @@ function bridge(): UnityNativeModule {
 }
 
 export type LaunchRequest = {
-  protocolVersion: '1';
+  protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
   sessionId: string;
   kind: 'Training' | 'Playtest';
   mode: string;
-  runtimeVersion: '2.0.0';
+  runtimeVersion: typeof APP_RUNTIME_VERSION;
   manifestPath: string;
   resumeFromSequence: number;
   locale: string;
