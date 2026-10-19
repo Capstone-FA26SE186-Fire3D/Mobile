@@ -31,6 +31,7 @@ import {
   type TrainingMode,
   type TrainingSession,
 } from '@/features/training/session-contract';
+import { launchBelongsTo } from '@/features/training/launch-owner';
 import { unityBridge } from '@/features/training/unity-bridge.native';
 
 export type { TrainingSession, TrainingMode } from '@/features/training/session-contract';
@@ -125,6 +126,7 @@ export async function launchStartedSession(
   started: StartTrainingResponse,
   manifestPath: string,
   resumeFromSequence = 0,
+  accountId: string | null = null,
 ): Promise<void> {
   const session = started.session;
   await saveLaunch(
@@ -133,6 +135,7 @@ export async function launchStartedSession(
     started.launch.generation,
     started.launch.expiresAt,
     manifestPath,
+    accountId,
   );
   await unityBridge.launch({
     protocolVersion: BRIDGE_PROTOCOL_VERSION,
@@ -150,35 +153,41 @@ export async function launchStartedSession(
  * Confirms Unity's `Launched` to BE. A launch is valid when Unity reported it before the grant expired (native receive
  * time), even if the device was offline and this runs later.
  */
-export async function reconcileUnityLaunched(): Promise<void> {
+export async function reconcileUnityLaunched(accountId?: string): Promise<void> {
   await ingestUnityCallbacks();
+  let failure: unknown = null;
   for (const signal of await pendingLaunchedSignals()) {
     const launch = await getLaunch(signal.session_id);
     if (launch?.kind === 'Playtest') continue;
+    // Another account's launch waits for that account (legacy rows without account are the Trainee's).
+    if (accountId && launch && !launchBelongsTo(launch, accountId, true)) continue;
     const reportedAt = signal.received_at ?? Date.now();
     if (!launch || Date.parse(launch.expires_at) < reportedAt) {
       await markLaunched(signal.native_id, signal.session_id);
-      await unityBridge.abort('LaunchGrantExpired');
-      throw new Error('Unity đã mở sau khi grant hết hạn; phiên bị dừng.');
+      if ((await unityBridge.activeSession()) === signal.session_id)
+        await unityBridge.abort('LaunchGrantExpired');
+      failure ??= new Error('Unity đã mở sau khi grant hết hạn; phiên bị dừng.');
+      continue;
     }
     try {
       await requestWithSession(sessionPath(signal.session_id, 'launched'), {
         json: { generation: launch.generation },
       });
+      await markLaunched(signal.native_id, signal.session_id);
     } catch (issue) {
       // 4xx other than auth is final for this signal (e.g. BE already recorded another generation); keep playing.
       if (
-        !(issue instanceof ApiError) ||
-        issue.status < 400 ||
-        issue.status >= 500 ||
-        issue.status === 401
+        issue instanceof ApiError &&
+        issue.status >= 400 &&
+        issue.status < 500 &&
+        issue.status !== 401
       )
-        throw issue;
-      await markLaunched(signal.native_id, signal.session_id);
-      throw issue;
+        await markLaunched(signal.native_id, signal.session_id);
+      // One failing signal never blocks the Launched signals of other sessions.
+      failure ??= issue;
     }
-    await markLaunched(signal.native_id, signal.session_id);
   }
+  if (failure) throw failure;
 }
 
 async function syncRequest<T>(
@@ -218,9 +227,12 @@ export async function renewTrainingContinuation(id: string): Promise<void> {
  * Sends queued events (≤ 500 per batch, stable event IDs) and then the completion with its persisted Idempotency-Key.
  * Returns null when there is nothing to complete yet.
  */
-export async function syncTrainingSession(id: string): Promise<CompleteResponse | null> {
+export async function syncTrainingSession(
+  id: string,
+  accountId?: string,
+): Promise<CompleteResponse | null> {
   // Launched needs a live login; a continuation-only sync still sends events, so a failure here must not block them.
-  await reconcileUnityLaunched().catch(() => undefined);
+  await reconcileUnityLaunched(accountId).catch(() => undefined);
   let stalled = 0;
   for (let cycle = 0; cycle < 100; cycle++) {
     const events = await pendingEvents(id);

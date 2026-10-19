@@ -25,10 +25,18 @@ import java.lang.ref.WeakReference
  * Unity is idle again only after `Ready`: runtime 2.0.1+ releases a failed or cancelled launch and then sends `Error`
  * followed by `Ready`, so the next launch waits for that `Ready` (the fallback covers 2.0.0, which did not re-send it).
  * Back while the package loads sends one `Abort`; Unity answers `LAUNCH_CANCELLED` and never `Launched`.
+ *
+ * Handshake: `Launch` is only delivered when the last `Ready` names the same `runtimeVersion` and `protocolVersion` as the
+ * launch payload (the values the app sent to BE on start). Otherwise the launch is dropped: [requestLaunch] returns the
+ * reason when Unity is already idle, or a `RUNTIME_MISMATCH` Error callback is journaled when the reason only shows on a
+ * later `Ready`, so a stale embedded export can never play under another runtime's grant.
  */
 object Fire3DUnityBridge {
   private const val RECEIVER = "Fire3DBridge"
   private const val READY_FALLBACK_MS = 5_000L
+  const val BUSY = "BUSY"
+  /** Manifest meta-data written by plugins/withUnityLibrary.js: RuntimeCatalog.RuntimeVersion of the embedded export. */
+  private const val RUNTIME_META = "com.fet3d.unity.RUNTIME_VERSION"
 
   private val main = Handler(Looper.getMainLooper())
   private var journal: CallbackJournal? = null
@@ -42,12 +50,15 @@ object Fire3DUnityBridge {
   private var abortSent = false
   private var lastPayload: String? = null
   private var currentSessionId: String? = null
+  private var readyRuntime: String? = null
+  private var readyProtocol: String? = null
   private var host: WeakReference<UnityHostActivity>? = null
   private val fallback = Runnable { deliverPendingAfterTimeout() }
 
   @JvmStatic
   fun onUnityMessage(raw: String) {
     val id: Long
+    var rejected: Long? = null
     val returnToApp: Boolean
     synchronized(this) {
       id = requireNotNull(journal) { "Unity callback journal is not initialized." }.append(raw)
@@ -57,9 +68,12 @@ object Fire3DUnityBridge {
           readySeen = true
           idle = true
           sessionActive = false
+          val ready = record?.optJSONObject("payload")
+          readyRuntime = ready?.optString("runtimeVersion")
+          readyProtocol = ready?.optString("protocolVersion")
           main.removeCallbacks(fallback)
-          pendingLaunch?.let { deliver(it) }
-          false
+          rejected = pendingLaunch?.let { offer(it) }
+          rejected != null
         }
         "Launched" -> {
           launchedCurrent = true
@@ -102,6 +116,7 @@ object Fire3DUnityBridge {
     }
     if (returnToApp) main.post { bringAppToFront() }
     listener?.invoke(id)
+    rejected?.let { listener?.invoke(it) }
   }
 
   @Synchronized
@@ -116,23 +131,48 @@ object Fire3DUnityBridge {
     if (journal == null) journal = CallbackJournal(context.applicationContext)
   }
 
-  /** Queues or delivers the launch; returns false when a session is still running in Unity. */
+  /**
+   * Queues or delivers the launch. Returns null when accepted, [BUSY] when a session is still running in Unity, or the
+   * mismatch reason when the idle Unity runtime is not the one the launch was started for.
+   */
   @Synchronized
-  fun requestLaunch(payload: String): Boolean {
-    if (sessionActive) return false
-    if (readySeen && idle) deliver(payload)
-    else {
+  fun requestLaunch(payload: String): String? {
+    if (sessionActive) return BUSY
+    if (readySeen && idle) {
+      mismatch(payload)?.let { return it }
+      deliver(payload)
+    } else {
       pendingLaunch = payload
       if (readySeen) {
         main.removeCallbacks(fallback)
         main.postDelayed(fallback, READY_FALLBACK_MS)
       }
     }
-    return true
+    return null
   }
 
   @Synchronized
   fun isUnityAlive(): Boolean = readySeen && host?.get()?.isFinishing == false
+
+  /** Session Unity is loading or playing in this process (null when idle or not booted). */
+  @Synchronized
+  fun activeSessionId(): String? = if (sessionActive && isUnityAlive()) currentSessionId else null
+
+  /**
+   * Runtime of the embedded Unity before the app asks BE to start: the last `Ready` when Unity already booted in this
+   * process, otherwise the runtime the prebuild stamped from the Unity export (protocol unknown until `Ready`).
+   */
+  @Synchronized
+  fun handshake(context: Context): Map<String, Any?> {
+    if (readySeen && !readyRuntime.isNullOrEmpty())
+      return mapOf("source" to "ready", "runtimeVersion" to readyRuntime, "protocolVersion" to readyProtocol)
+    val embedded = runCatching {
+      val info = context.packageManager.getApplicationInfo(context.packageName, android.content.pm.PackageManager.GET_META_DATA)
+      info.metaData?.getString(RUNTIME_META)
+    }.getOrNull()
+    return if (embedded.isNullOrEmpty()) mapOf("source" to "unknown", "runtimeVersion" to null, "protocolVersion" to null)
+    else mapOf("source" to "embedded", "runtimeVersion" to embedded, "protocolVersion" to null)
+  }
 
   @Synchronized
   fun hasActiveSession(): Boolean = sessionActive
@@ -173,6 +213,32 @@ object Fire3DUnityBridge {
   @Synchronized fun pending(): List<Map<String, Any>> = requireNotNull(journal).pending()
   @Synchronized fun acknowledge(id: Long) = requireNotNull(journal).acknowledge(id)
 
+  /** Null when the last Ready matches the launch's runtime and protocol; otherwise a message for the app. */
+  private fun mismatch(payload: String): String? {
+    val launch = runCatching { JSONObject(payload) }.getOrNull() ?: return "Launch payload is not JSON."
+    val runtime = launch.optString("runtimeVersion")
+    val protocol = launch.optString("protocolVersion")
+    if (runtime == readyRuntime && protocol == readyProtocol) return null
+    return "Unity runtime $readyRuntime (protocol $readyProtocol) cannot play a launch for runtime $runtime (protocol $protocol)."
+  }
+
+  /** Delivers a queued launch that passes the handshake; returns the journaled Error id when it does not. */
+  private fun offer(payload: String): Long? {
+    val reason = mismatch(payload) ?: return null.also { deliver(payload) }
+    return reject(payload, reason)
+  }
+
+  /** Drops a queued launch that failed the handshake and journals the Error the app shows for it. */
+  private fun reject(payload: String, reason: String): Long {
+    pendingLaunch = null
+    val sessionId = runCatching { JSONObject(payload).optString("sessionId") }.getOrNull()
+    val error = JSONObject()
+      .put("type", "Error")
+      .put("sessionId", sessionId ?: JSONObject.NULL)
+      .put("payload", JSONObject().put("code", "RUNTIME_MISMATCH").put("message", reason).put("fatal", true))
+    return requireNotNull(journal).append(error.toString())
+  }
+
   private fun deliver(payload: String) {
     pendingLaunch = null
     lastPayload = payload
@@ -184,9 +250,16 @@ object Fire3DUnityBridge {
     send("Launch", payload)
   }
 
-  @Synchronized
   private fun deliverPendingAfterTimeout() {
-    if (!sessionActive) pendingLaunch?.let { deliver(it) }
+    var rejected: Long? = null
+    synchronized(this) {
+      if (!sessionActive)
+        rejected = pendingLaunch?.let { offer(it) }
+    }
+    rejected?.let { id ->
+      bringAppToFront()
+      listener?.invoke(id)
+    }
   }
 
   /** Brings the React Native task (MainActivity) back, leaving the Unity task alive and paused behind it. */
