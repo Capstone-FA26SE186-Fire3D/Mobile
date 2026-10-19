@@ -6,7 +6,6 @@ import android.view.KeyEvent
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import com.unity3d.player.UnityPlayerActivity
-import org.json.JSONObject
 
 /**
  * Runs in the app process (bridge and callback journal stay available) but in its own task (manifest: taskAffinity,
@@ -57,14 +56,15 @@ class UnityHostActivity : UnityPlayerActivity() {
   @Deprecated("Replaced by OnBackInvokedCallback on Android 13+")
   override fun onBackPressed() = onBack()
 
-  /** Back ends a running session as Abandoned (Unity then sends Completed and Exited); idle Unity just returns to the app. */
+  /**
+   * Back while the package loads cancels the launch (Unity answers LAUNCH_CANCELLED); during a session it ends the
+   * session as Abandoned (Completed, then Exited); idle Unity just returns to the app.
+   */
   private fun onBack() {
     val now = System.currentTimeMillis()
     if (now - lastBackAt < 800) return
     lastBackAt = now
-    if (Fire3DUnityBridge.hasActiveSession())
-      Fire3DUnityBridge.send("Abort", JSONObject().put("reason", "BackButton").toString())
-    else
+    if (!Fire3DUnityBridge.requestAbort("BackButton"))
       Fire3DUnityBridge.bringAppToFront()
   }
 }

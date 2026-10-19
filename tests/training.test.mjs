@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validatePackageManifest } from '../src/features/training/package-contract.ts';
+import { APP_RUNTIME_VERSION } from '../src/features/training/runtime-version.ts';
 import {
   allowedTrainingModes,
   assertStartMatchesPrepare,
@@ -27,7 +28,7 @@ function preparedSession(overrides = {}) {
     scenarioVersionId: '55555555-5555-4555-8555-555555555555',
     buildingId: '11111111-1111-4111-8111-111111111111',
     mode: 'Assessment',
-    runtimeVersion: '2.0.0',
+    runtimeVersion: APP_RUNTIME_VERSION,
     scenarioHash: hash('9'),
     rubricHash: hash('8'),
     package: { packageHash: hash('a'), manifestHash: hash('b'), buildTarget: 'Android' },
@@ -115,7 +116,7 @@ test('pin comes only from a prepared or running session with a complete Android 
     manifestHash: hash('b'),
     buildingId: '11111111-1111-4111-8111-111111111111',
     revisionId: null,
-    runtimeVersion: '2.0.0',
+    runtimeVersion: APP_RUNTIME_VERSION,
     materialLibraryVersion: null,
   });
   assert.throws(() => pinFromSession(preparedSession({ status: 'Expired' })), /Prepared/);
