@@ -5,10 +5,14 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { parseQrToken } from '@/features/qr/qr-token';
+import { parseHandoffCode, parseQrToken } from '@/features/qr/qr-token';
+import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
+/** Trainee: Building QR → /qr/<token>. OrganizationUser: the playtest handoff QR shown on the Web → /playtest/handoff. */
 export default function ScanQrScreen() {
+  const { account } = useSession();
+  const handoff = account?.role === 'OrganizationUser';
   const [permission, requestPermission] = useCameraPermissions();
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
@@ -16,13 +20,19 @@ export default function ScanQrScreen() {
 
   function open(value: string) {
     if (locked.current) return;
-    const token = parseQrToken(value);
-    if (!token) {
-      setError('Mã QR phải là token 43 ký tự hoặc URL HTTPS dạng /qr/<token>.');
+    const code = handoff ? parseHandoffCode(value) : parseQrToken(value);
+    if (!code) {
+      setError(
+        handoff
+          ? 'Đây không phải mã bàn giao playtest. Quét QR trong tab Playtest trên Web (mã có hạn 5 phút).'
+          : 'Mã QR phải là token 43 ký tự hoặc URL HTTPS dạng /qr/<token>.',
+      );
       return;
     }
     locked.current = true;
-    router.push(`/qr/${token}`);
+    setError('');
+    if (handoff) router.replace({ pathname: '/playtest/handoff', params: { code } });
+    else router.push(`/qr/${code}`);
     setTimeout(() => {
       locked.current = false;
     }, 1000);
@@ -30,8 +40,15 @@ export default function ScanQrScreen() {
 
   return (
     <Screen>
-      <PageHeader title="Quét mã Building" onBack={() => router.back()} />
-      <Text muted>Quét QR do tổ chức cấp hoặc dán đường dẫn/mã bên dưới.</Text>
+      <PageHeader
+        title={handoff ? 'Quét mã bàn giao playtest' : 'Quét mã Building'}
+        onBack={() => router.back()}
+      />
+      <Text muted>
+        {handoff
+          ? 'Trên Web, mở tab Playtest của phiên bản và bấm chuyển sang Mobile, rồi quét QR hiện ra hoặc dán đường dẫn bên dưới.'
+          : 'Quét QR do tổ chức cấp hoặc dán đường dẫn/mã bên dưới.'}
+      </Text>
       {Platform.OS !== 'web' && permission?.granted ? (
         <CameraView
           style={styles.camera}
@@ -43,18 +60,18 @@ export default function ScanQrScreen() {
         <Button title="Cho phép dùng camera" onPress={() => void requestPermission()} />
       ) : null}
       <View style={styles.form}>
-        <Text variant="label">URL QR hoặc token</Text>
+        <Text variant="label">{handoff ? 'Đường dẫn hoặc mã bàn giao' : 'URL QR hoặc token'}</Text>
         <TextInput
-          accessibilityLabel="URL QR hoặc token"
+          accessibilityLabel={handoff ? 'Đường dẫn hoặc mã bàn giao' : 'URL QR hoặc token'}
           autoCapitalize="none"
           autoCorrect={false}
           value={input}
           onChangeText={setInput}
-          placeholder="https://fet3d.io.vn/qr/..."
+          placeholder={handoff ? 'fet3d://playtest/handoff?code=...' : 'https://fet3d.io.vn/qr/...'}
           style={styles.input}
         />
         {!!error && <Notice error>{error}</Notice>}
-        <Button title="Mở Building" onPress={() => open(input)} />
+        <Button title={handoff ? 'Nhận playtest' : 'Mở Building'} onPress={() => open(input)} />
       </View>
     </Screen>
   );

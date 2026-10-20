@@ -325,6 +325,8 @@ export function describePlaytestProblem(issue: unknown, fallback: string): strin
     case 'RUNTIME_MISMATCH':
     case 'ERR_UNITY_RUNTIME_MISMATCH':
       return `Unity trong ứng dụng không phải runtime ${APP_RUNTIME_VERSION} (protocol ${BRIDGE_PROTOCOL_VERSION}). Cập nhật ứng dụng Fire3D.`;
+    case 'PACKAGE_SESSION_NOT_ACTIVE':
+      return 'Package không còn mở cho phiên này: playtest đã bị hủy/kết thúc hoặc đã chuyển sang phiên khác. Trạng thái bên dưới đã được tải lại.';
     case 'PACKAGE_HASH_MISMATCH':
       return 'Package trên máy không khớp SHA-256 đã pin. Hãy tải lại package.';
     default:

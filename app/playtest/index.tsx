@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
@@ -17,6 +17,7 @@ import { Text } from '@/components/ui/Text';
 import {
   describePlaytestProblem,
   playtestStep,
+  problemCode,
   selectPlaytestModes,
 } from '@/features/playtest/playtest-flow';
 import { readRecentPlaytest } from '@/features/playtest/recent-playtest';
@@ -177,7 +178,11 @@ export default function PlaytestScreen() {
       );
     } catch (issue) {
       if (issue instanceof PackageDownloadCancelled) setNotice(issue.message);
-      else setError(describePlaytestProblem(issue, 'Không tải được package playtest.'));
+      else {
+        setError(describePlaytestProblem(issue, 'Không tải được package playtest.'));
+        // The Web may have cancelled it or moved it to another session since this screen loaded: show the current state.
+        if (problemCode(issue) === 'PACKAGE_SESSION_NOT_ACTIVE') void refresh();
+      }
     } finally {
       abort.current = null;
       setDownload(null);
@@ -256,7 +261,9 @@ export default function PlaytestScreen() {
       {!!error && <Notice error>{error}</Notice>}
       {!!notice && <Notice>{notice}</Notice>}
       {!playtestId && (
-        <Notice>Chưa có handoff playtest trên thiết bị này. Mở link từ Web để nhận.</Notice>
+        <Notice>
+          Chưa có playtest trên thiết bị này. Quét mã bàn giao hiện trong tab Playtest trên Web.
+        </Notice>
       )}
       {status && step && (
         <View style={styles.section}>
@@ -409,6 +416,13 @@ export default function PlaytestScreen() {
           />
         </View>
       )}
+      <Button
+        title={playtestId ? 'Quét mã bàn giao khác' : 'Quét mã bàn giao'}
+        icon="qr-code-outline"
+        variant={playtestId ? 'secondary' : 'primary'}
+        disabled={busy || !!download}
+        onPress={() => router.push('/scan-qr')}
+      />
       <Button title="Đăng xuất" variant="ghost" onPress={() => void signOut()} />
     </Screen>
   );
