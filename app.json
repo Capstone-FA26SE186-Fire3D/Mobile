@@ -45,7 +45,8 @@
         "expo-build-properties",
         { "android": { "minSdkVersion": 29, "buildArchs": ["arm64-v8a"] } }
       ],
-      "./plugins/withUnityLibrary"
+      "./plugins/withUnityLibrary",
+      "./plugins/withWindowsCMake"
     ]
   }
 }

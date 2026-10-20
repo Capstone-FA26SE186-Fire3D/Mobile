@@ -52,7 +52,7 @@ cd android && ./gradlew assembleRelease
 
 APK: `android/app/build/outputs/apk/release/app-release.apk` (arm64-v8a, ký bằng debug keystore để cài thử). `--zip` kiểm SHA-256 theo file `.json`, không cần S3 và không sửa `unity-artifact.lock.json`. Bản phát hành chính thức thì upload zip lên S3, pin `version`/`s3Uri`/`sha256` trong lock rồi chạy `pnpm unity:prepare` không tham số.
 
-Windows: bật _long paths_ (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1`, khởi động lại máy) nếu checkout nằm sâu; nếu không, đường dẫn C++ của `react-native-gesture-handler` vượt 260 ký tự và bước `buildCMake` lỗi.
+Windows: cần SDK CMake 4.1.2 (`sdkmanager "cmake;4.1.2"`) và bật _long paths_ (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1`). Plugin `withWindowsCMake` ghi `cmake.dir` vào `android/local.properties` khi prebuild: CMake mặc định 3.22.1 đi kèm ninja 1.10 không hỗ trợ đường dẫn dài, nên trong checkout sâu đường dẫn C++ của `react-native-gesture-handler` vượt 260 ký tự và bước `buildCMake` lỗi (`ninja: error: Stat`) dù đã bật long paths; ninja 1.12 của CMake 4.1.2 thì chạy được.
 
 ## Kiểm tra
 
