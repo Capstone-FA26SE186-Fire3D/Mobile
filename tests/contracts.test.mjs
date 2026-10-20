@@ -9,7 +9,7 @@ import {
 } from '../src/api/google.contract.ts';
 import { base64Url } from '../src/services/device-identity.ts';
 import { putDeviceBinding, deleteDeviceBinding } from '../src/services/device-api.ts';
-import { parseQrToken } from '../src/features/qr/qr-token.ts';
+import { parseHandoffCode, parseQrToken } from '../src/features/qr/qr-token.ts';
 import { validatePackageManifest } from '../src/features/training/package-contract.ts';
 
 test('QR accepts only the published URL shape or a bare 43-character token', () => {
@@ -21,6 +21,18 @@ test('QR accepts only the published URL shape or a bare 43-character token', () 
   assert.equal(parseQrToken(`https://fet3d.io.vn/qr/${token}?redirect=other`), null);
   assert.equal(parseQrToken(`https://fet3d.io.vn/other/${token}`), null);
   assert.equal(parseQrToken('a'.repeat(42)), null);
+});
+
+test('Playtest handoff QR accepts the Web deep link, its HTTPS form or the bare code only', () => {
+  const code = 'b'.repeat(43);
+  assert.equal(parseHandoffCode(code), code);
+  assert.equal(parseHandoffCode(`fet3d://playtest/handoff?code=${code}`), code);
+  assert.equal(parseHandoffCode(` fire3d://playtest/handoff?code=${code} `), code);
+  assert.equal(parseHandoffCode(`https://fet3d.io.vn/playtest/handoff?code=${code}`), code);
+  assert.equal(parseHandoffCode(`fet3d://playtest/handoff?code=${code}&next=x`), null);
+  assert.equal(parseHandoffCode(`https://evil.example/playtest/handoff?code=${code}`), null);
+  assert.equal(parseHandoffCode(`https://fet3d.io.vn/qr/${code}`), null);
+  assert.equal(parseHandoffCode('b'.repeat(42)), null);
 });
 
 test('Unity package manifest pins provenance and rejects path traversal', () => {
