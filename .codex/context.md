@@ -11,16 +11,17 @@ Nguồn chuẩn: [v7 contract](../../Docs/schema_v7_contract.md) và [requiremen
 - Trainee chọn Learn, Guided Drill hoặc Assessment tự do, không prerequisite/sprint, retry không giới hạn, không certificate. Unity Learn khác Learn blog. Backend trả rubric hash, criterion results, score, outcome `Passed|NotPassed|Incomplete|NotAssessed` và lý do; completion không tự Passed.
 - Session đã start pin entitlement/review/rubric, tiếp tục và sync idempotent sau expiry/revoke/mất mạng; không start mới offline. AI bị chặn trong Assessment. Learner RAG chỉ dùng scenario `name`, `objectives`, `instructions` approved/published/còn quyền; không rubric/đáp án/draft/IFC private.
 - Learn AI scope cần cả `learn_post_id` và published `learn_version_id`. Hidden có thể RAG theo backend nhưng không public; Deleted/Unpublished loại khỏi retrieval. Mất quyền chỉ giữ Common và giải thích kết quả cá nhân đã lưu, không retrieval Building mới.
-- Auth theo [BE authentication](../../BE/docs/authentication.md): form → request OTP → verify OTP nhận registrationToken → register account → login riêng nhận JWT. Google đã link được login; Google mới OnboardingRequired, completion/link API còn thiếu. FCM token chỉ là push installation, không phải proof OTP hoặc token đăng nhập.
+- Auth theo [BE authentication](../../BE/docs/authentication.md): form → request OTP → verify OTP nhận registrationToken → register account → login riêng nhận JWT. Google đã link được login; Google mới OnboardingRequired; BE đã có API completion/link, Mobile có màn onboarding; provider/device acceptance phải kiểm riêng. FCM token chỉ là push installation, không phải proof OTP hoặc token đăng nhập.
 
 ## Hiện trạng đã kiểm tra
 
-- Expo + React Native + TypeScript, Expo Router theo [package.json](../package.json).
-- UI prototype FET3D có login demo, sảnh tòa nhà low-poly, danh sách/search, camera/nhập QR mẫu, chi tiết/chuẩn bị tập huấn, kết quả trống và tài khoản demo. Route ở `app/`, nghiệp vụ ở `src/features/`, UI chung ở `src/components/ui/`, tokens ở `src/theme/`.
-- Chat cũ được giữ tại `src/features/chat/`, gọi `POST /chat` qua `EXPO_PUBLIC_RAG_API_URL`; không có xác thực backend mới.
-- Scripts có `start`, `android`, `web`, `typecheck`, `test`, `test:e2e`, `format:check`. Tests browser không thay kiểm chứng thiết bị Android.
-- Stack đã chốt trong Docs là React Native/Expo với native Android Unity bridge. Prototype hiện **chưa** có bridge, runtime hoặc auth/QR backend; hình low-poly chỉ là PNG sprite minh họa.
-- Đã có [repo Unity](../../Unity/.codex/context.md) trong workspace; scaffold không chứng minh native bridge/gameplay đã tích hợp. Gameplay BIM 3D dùng camera góc nhìn thứ ba (third-person) theo [Docs technology mục 1.2](../../Docs/fire-evacuation-training-technology.md#12-gameplay-third-person-và-biểu-diễn-bim). Unity sở hữu input gameplay và camera; Mobile sở hữu launch/native lifecycle. Không thêm cameraMode hoặc đổi protocolVersion chỉ vì đổi góc nhìn.
+- Source `main` dùng Expo 57/React Native/TypeScript, Expo Router; API/features nằm trong `src/api` và `src/features`. Auth/backend, Google onboarding, QR Building, preparation/start, kết quả và Organization playtest đã có đường thực thi; không còn mô tả toàn app là login/QR demo.
+- Native Android bridge nằm ở `modules/fire3d-unity`, config plugin ở `plugins/withUnityLibrary.js`; `android/` và `vendor/unityLibrary` là output/cache local. Unity as a Library đã được tích hợp vào APK, không chạy trong Expo Go.
+- `APP_RUNTIME_VERSION = "2.0.2"` tại `src/features/training/runtime-version.ts`, protocol `"1"`. [Contract tích hợp](../docs/unity-integration.md) mô tả native Ready handshake, kiểm manifest/files SHA-256, native callback journal và JS SQLite queue, sync/retry idempotent.
+- OrganizationUser có màn playtest và scanner QR bàn giao (`app/playtest`, `app/scan-qr.tsx`); không dùng luồng QR Trainee để cấp quyền playtest.
+- `unity-artifact.lock.json` còn chưa pin export dùng chung; build APK local bằng export hiện có không chứng minh clean checkout tự tái tạo được artifact. Nghiệm thu trên điện thoại (Google login, launch, lifecycle, offline sync) cần bằng chứng riêng.
+- Google Android OAuth cấu hình ở `google-services.json`, được prebuild đưa vào Android. APK release dùng đường dẫn `android/app/build/outputs/apk/release/app-release.apk`; không tự sao chép APK sang thư mục artifacts khác.
+- Scripts và checklist nằm ở `package.json` và docs tích hợp; browser/mock tests không thay kiểm chứng Android thật. Unity sở hữu gameplay/camera third-person; Mobile sở hữu API, tải/verify package và native lifecycle.
 
 ## Kiến trúc tích hợp đích — 2026-09-17
 
@@ -29,7 +30,7 @@ Nguồn chuẩn: [v7 contract](../../Docs/schema_v7_contract.md) và [requiremen
 - Push notification dùng Firebase Cloud Messaging. FCM registration token được quản lý theo installation, có rotate/revoke và không được dùng như credential đăng nhập.
 - Mobile không truy cập trực tiếp Supabase PostgreSQL/`pgvector` hoặc AWS S3 bằng service credential. Backend trả signed S3 URL TTL ngắn cho đúng release/session; app tải và verify hash/schema/runtime trước khi mở Unity.
 - RAG production thuộc Python/FastAPI và `pgvector`; provider LLM là OpenAI hoặc Gemini sau khi chốt. Mobile chỉ dựa vào API contract chung, không khóa UI vào SDK/provider cụ thể.
-- AI/RAG FastAPI chạy riêng trên Azure; Container Apps là phương án triển khai đề xuất. Mobile production gọi `.NET API` để backend kiểm tra identity, tenant, quota, source scope và request idempotency. Mobile chỉ nhận response/citations/usage kỹ thuật, không tự tính giá hoặc gọi AI trực tiếp như prototype cũ; timeout phải tra cứu request status trước khi retry.
+- AI/RAG FastAPI chạy riêng trên Azure; Tài liệu AI hiện hướng dẫn App Service code deploy; nghiệm thu hạ tầng/provider là bước riêng. Mobile production gọi `.NET API` để backend kiểm tra identity, tenant, quota, source scope và request idempotency. Mobile chỉ nhận response/citations/usage kỹ thuật, không tự tính giá hoặc gọi AI trực tiếp như prototype cũ; timeout phải tra cứu request status trước khi retry.
 - Mobile production gọi API qua endpoint OneShield/OnePortal (iNET) → Nginx đã chốt; Nginx chuyển request tới .NET API. Domain, TLS, edge policy và endpoint theo môi trường là cấu hình triển khai, không hard-code vào app.
 - Luồng runtime mục tiêu tách rõ: Building QR → danh sách bài đã publish → người học chọn bài → tạo preparation/idempotency record → tải/verify phần package còn thiếu → `POST /api/training/sessions/{sessionId}/start` online recheck access, approved/published scenario, entitlement, learner seat, package/runtime → cấp launch grant pin `training/release/scenario` → mở Unity. Hết hạn chặn session mới; phiên đã start vẫn được tiếp tục và sync kết quả sau khi có mạng.
 - OrganizationUser playtest là luồng riêng: nhận package draft/version đã verify từ web/backend, start với Trial còn quota thử hoặc Building entitlement Active, không dùng QR Trainee, không ghi learner analytics; entitlement hết hạn sau start không cắt playtest.
@@ -93,7 +94,7 @@ Khi có Docs cạnh repo, đọc technology/workflows cho phần dự kiến. N�
 
 ## IFC ingestion, hiển thị và tương tác — 2026-10-15
 
-Nguồn: [IFC ingestion, hiển thị và tương tác](../../Docs/ifc_ingestion_visual_interaction.md) (Docs PR #15/#16). Đây là **đề xuất thiết kế** có bằng chứng spike cục bộ trên 32 file IFC công khai; chưa có worker, API, migration hay code Unity tương ứng. Mục 4 (nhiều IFC cho một revision), ngân sách tam giác và preset vật liệu còn chờ team chốt.
+Nguồn: [IFC ingestion, hiển thị và tương tác](../../Docs/ifc_ingestion_visual_interaction.md) (Docs PR #15/#16). Tài liệu gồm thiết kế và bằng chứng spike cục bộ trên 32 file IFC công khai. Source hiện đã có IFC worker (`AI/ifc-worker`), API/gate xử lý ở BE và Unity build worker; nghiệm thu từng bước với IFC thật, QA và Android vẫn phải kiểm tra riêng. Mục 4 (nhiều IFC cho một revision), ngân sách tam giác và preset vật liệu còn chờ team chốt.
 
 Quy tắc chung đã chốt với nhóm: chỉ nhận IFC (RVT tự xuất IFC ở ngoài); **IFC có thiết bị PCCC/nguồn nước thì pipeline tự tạo, không có thì OrganizationUser đặt trong editor**; mô hình 3D thiết bị luôn lấy từ thư viện dùng chung (có thể tạo bằng công cụ AI như Tripo rồi dọn lưới), không lấy từ IFC; IFC hầu như không mang màu/texture dùng được nên vật liệu lấy từ thư viện PBR CC0 theo preset.
 
@@ -106,16 +107,16 @@ Phụ trách: Nguyễn Gia Kiệt (Mobile). Việc liên quan repo này:
 ## Unity runtime và pipeline bake — 2026-10-17
 
 Quyết định của trưởng nhóm, đã vào Docs (PR #21–#24) và issue:
-- Unity runtime đã chạy trong Editor 6000.6.6f1: mô phỏng lửa/khói/nhiệt + NPC bằng **Entities**, camera third-person, tương tác theo ngữ cảnh, HUD, telemetry, nạp AssetBundle. APK demo build được (IL2CPP/ARM64). Code đang ở nhánh `feature/third-person-player-camera` của repo Unity, chưa lên `develop`.
+- Unity runtime đã chạy trong Editor 6000.6.6f1: mô phỏng lửa/khói/nhiệt + NPC bằng **Entities**, camera third-person, tương tác theo ngữ cảnh, HUD, telemetry, nạp AssetBundle. APK demo build được (IL2CPP/ARM64). Runtime đã có trên `main` của Unity; phiên bản tích hợp Mobile hiện là `2.0.2`. Source/build không thay cho nghiệm thu gameplay trên thiết bị.
 - **Ưu tiên hình ảnh:** Unity build worker chạy batch trên **Azure VM Windows do BE vận hành** (BE#110). Worker import GLB, gán material theo `libraryKey`, bake lightmap + light/reflection probe cho 2 bộ ánh sáng (bình thường, mất điện), xuất AssetBundle theo tầng + `manifest.json` (`fet3d.package/1`, SHA-256 từng file). Không dùng Addressables.
 - Texture PBR chỉ nằm trong project Unity (bundle `fet3d-materials` cài sẵn trong app). GLB chỉ mang `libraryKey`; BE và worker không lưu file ảnh.
 - `IFC_EXIT_UNKNOWN` = phương án B, chỉ dùng `door.exit` (BE#100).
 - Event Unity gửi (BE#101): `eventId` là GUID, `schemaVersion` = `"1"` (chuỗi), `objectId` = id object trong `fet3d.editor/1`; core `Moved`/`HazardExposure` mỗi 5 giây; Unity không chấm Đạt/Chưa đạt.
 
 Việc của repo Mobile (**Mobile#22**, gom Mobile#11/#12/#13):
-- Nhúng **Unity as a Library**: Unity export (`AndroidBuilder.ExportForMobile`) ra module `unityLibrary`. Repo dùng Expo 57 + dev client, chưa có `android/`, nên phải tạo **config plugin** chèn module khi `expo prebuild` (ARM64, minSdk 29).
+- Nhúng **Unity as a Library**: Unity export (`AndroidBuilder.ExportForMobile`) ra module `unityLibrary`. Repo dùng Expo 57 + dev client; **config plugin** `plugins/withUnityLibrary.js` chèn module khi `expo prebuild` (ARM64, minSdk 29), `android/` là output local.
 - Native module: Mobile → Unity bằng `UnityPlayer.UnitySendMessage("Fire3DBridge", "Launch"|"Pause"|"Abort", json)`; Unity → Mobile bằng `com.fet3d.unity.Fire3DUnityBridge.onUnityMessage(String)` (Kotlin `@JvmStatic`). Không gọi `UnityPlayer.quit()`, vì lệnh này giết process RN.
-- Protocol `"1"`. Thứ tự: `Ready` → Mobile gửi `Launch {protocolVersion, sessionId, kind, mode, runtimeVersion APP_RUNTIME_VERSION ("2.0.1", `src/features/training/runtime-version.ts`), manifestPath, resumeFromSequence, locale}` → Unity gửi `Launched`, `Events` (≤ 500/lô; **ghi queue bền trước** rồi `events:batch`), `Completed {lastEventSequence, endReason, elapsedMs, reachedExit, collapsed}`, `Error {code,message}`, `Exited`.
+- Protocol `"1"`. Thứ tự: `Ready` → Mobile gửi `Launch {protocolVersion, sessionId, kind, mode, runtimeVersion APP_RUNTIME_VERSION ("2.0.2", `src/features/training/runtime-version.ts`), manifestPath, resumeFromSequence, locale}` → Unity gửi `Launched`, `Events` (≤ 500/lô; **ghi queue bền trước** rồi `events:batch`), `Completed {lastEventSequence, endReason, elapsedMs, reachedExit, collapsed}`, `Error {code,message}`, `Exited`.
 - Package: tải mọi file trong `manifest.files[]`, kiểm SHA-256 trước khi `Launch`. Cache không cấp quyền start mới.
 - Không `finish()` `UnityHostActivity`: trong Unity 6000.6 `UnityPlayerActivity.onDestroy` → `UnityPlayer.destroy()` giết cả process RN (`mProcessKillRequested` mặc định true, đã kiểm bytecode `classes.jar`). Unity chạy task riêng; khi `Exited` Mobile đưa task RN lên trước, lần launch sau gửi `Launch` trực tiếp khi Unity đang idle. Chi tiết: [docs/unity-integration.md](../docs/unity-integration.md).
 - APK demo của Unity (`AndroidBuilder.BuildDemoApk`) dùng để thử cảm ứng và hiệu năng trên máy thật trong lúc làm bridge.
