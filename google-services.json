@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1017511681658-gnvfujnq8g904cmae8n8o7rmvuujgqqv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fet3d.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "1017511681658-q3vug8ikr9jgd1dqmnba0g7qqo7387ap.apps.googleusercontent.com",
           "client_type": 3
         }
