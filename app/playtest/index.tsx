@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import {
+  ArrowUpRight,
+  Check,
+  CircleAlert,
+  Play,
+  RefreshCw,
+  ScanLine,
+  X,
+} from 'lucide-react-native';
 import {
   cachedPlaytestPackage,
   cancelPlaytest,
@@ -11,8 +19,18 @@ import {
   type PlaytestStatus,
   type PreparedPlaytest,
 } from '@/api/playtest';
-import { Button } from '@/components/ui/Button';
-import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
+import { Brand, Button } from '@/components/ui/Button';
+import {
+  Callout,
+  Card,
+  Field,
+  HexBadge,
+  ProgressRing,
+  Ribbon,
+  Segments,
+} from '@/components/ui/Game';
+import { Notice, Screen } from '@/components/ui/Screen';
+import { StateView } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
 import {
   describePlaytestProblem,
@@ -21,19 +39,21 @@ import {
   selectPlaytestModes,
 } from '@/features/playtest/playtest-flow';
 import { readRecentPlaytest } from '@/features/playtest/recent-playtest';
+import { parseHandoffCode } from '@/features/qr/qr-token';
+import { ModeCard } from '@/features/training/components/PrepareParts';
 import { getLaunch } from '@/features/training/event-queue.native';
 import {
   PackageDownloadCancelled,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
-import { formatBytes, MODE_LABELS, type TrainingMode } from '@/features/training/session-contract';
+import { formatBytes, type TrainingMode } from '@/features/training/session-contract';
 import {
   pumpTrainingRuntime,
   subscribeTrainingRuntime,
 } from '@/features/training/training-runtime';
 import { UNITY_UNAVAILABLE_MESSAGE, unityBridge } from '@/features/training/unity-bridge.native';
 import { useSession } from '@/store/SessionProvider';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 const STATUS_LABELS: Record<PlaytestStatus['status'], string> = {
   Created: 'Chưa bắt đầu',
@@ -68,6 +88,7 @@ export default function PlaytestScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [handoffInput, setHandoffInput] = useState('');
   const abort = useRef<AbortController | null>(null);
   const working = useRef(false);
 
@@ -250,198 +271,401 @@ export default function PlaytestScreen() {
       ? Math.min(100, Math.round((progress.bytesDone / progress.totalBytes) * 100))
       : 0;
   const canLaunch = step?.name === 'start' || step?.name === 'retry-launch';
+  const grantExpired =
+    step?.name === 'retry-launch' &&
+    (recoveryCode === 'PLAYTEST_GRANT_EXPIRED' || recoveryCode === 'PLAYTEST_GRANT_STALE');
+  const initials = (account?.fullName || account?.username || account?.email || 'OU')
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join('');
+
+  function openHandoff() {
+    const code = parseHandoffCode(handoffInput);
+    if (!code) {
+      setError(
+        'Đây không phải mã bàn giao playtest. Dán đường dẫn hiện trong tab Playtest trên Web.',
+      );
+      return;
+    }
+    setHandoffInput('');
+    router.replace({ pathname: '/playtest/handoff', params: { code } });
+  }
+
+  const cancelButton = status?.recovery.canCancel && step?.name !== 'final' && (
+    <Button
+      title="Hủy playtest"
+      variant="danger"
+      size="sm"
+      disabled={busy || !!download}
+      onPress={() => void cancel()}
+    />
+  );
+  const refreshButton = (
+    <Button
+      title="Cập nhật trạng thái"
+      icon={RefreshCw}
+      variant="secondary"
+      size="sm"
+      disabled={busy}
+      onPress={() => void refresh()}
+    />
+  );
+
+  const footer = !playtestId ? (
+    <>
+      <Button
+        title="Nhận playtest"
+        icon={ArrowUpRight}
+        disabled={!handoffInput.trim()}
+        onPress={openHandoff}
+      />
+      <Button title="Đăng xuất" variant="danger" size="sm" onPress={() => void signOut()} />
+    </>
+  ) : step?.name === 'final' || step?.name === 'not-launch-session' ? (
+    <>
+      <Button
+        title="Quét mã bàn giao khác"
+        icon={ScanLine}
+        onPress={() => router.push('/scan-qr')}
+      />
+      <Button title="Đăng xuất" variant="danger" size="sm" onPress={() => void signOut()} />
+    </>
+  ) : download ? (
+    <Button title="Hủy tải" variant="secondary" onPress={() => abort.current?.abort()} />
+  ) : step?.name === 'prepare' ? (
+    <>
+      <Button
+        title="Tải và kiểm tra gói"
+        icon={ArrowUpRight}
+        disabled={busy || !unityBridge.available}
+        onPress={() => void prepare()}
+      />
+      {cancelButton}
+    </>
+  ) : canLaunch ? (
+    <>
+      <Button
+        title={
+          grantExpired
+            ? 'Cấp lại và mở Unity'
+            : step?.name === 'start'
+              ? 'Bắt đầu playtest'
+              : 'Thử mở lại'
+        }
+        icon={grantExpired || step?.name === 'retry-launch' ? RefreshCw : Play}
+        loading={busy}
+        disabled={busy || !mode}
+        onPress={() => void launch()}
+      />
+      {cancelButton}
+    </>
+  ) : step ? (
+    <>
+      {refreshButton}
+      {cancelButton}
+    </>
+  ) : undefined;
+
+  const stepIndex = !step ? 1 : step.name === 'prepare' ? 2 : canLaunch ? 3 : 4;
 
   return (
-    <Screen>
-      <PageHeader title="Playtest tổ chức" />
-      <Text muted>
-        Chỉ playtest đã được bàn giao từ Web bằng cùng tài khoản OrganizationUser xuất hiện ở đây.
-      </Text>
-      {!status && !!playtestId && !error && <ActivityIndicator color={colors.primary} />}
+    <Screen footer={footer} contentStyle={{ padding: 16, gap: 14 }}>
+      <View style={styles.top}>
+        <Brand size="sm" />
+        <Text style={styles.topTitle}>Playtest tổ chức</Text>
+        <View style={styles.avatar} accessibilityLabel={`Tài khoản ${account?.email ?? ''}`}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
+      </View>
+      {!status && !!playtestId && !error && <ActivityIndicator color={colors.ember} />}
+      {!!notice && <Callout tone="info">{notice}</Callout>}
       {!!error && <Notice error>{error}</Notice>}
-      {!!notice && <Notice>{notice}</Notice>}
+
       {!playtestId && (
-        <Notice>
-          Chưa có playtest trên thiết bị này. Quét mã bàn giao hiện trong tab Playtest trên Web.
-        </Notice>
-      )}
-      {status && step && (
-        <View style={styles.section}>
-          <Text variant="heading">Trạng thái: {STATUS_LABELS[status.status] ?? status.status}</Text>
-          <Text variant="small" muted>
-            Package {status.package.manifestHash.slice(0, 12)}…
+        <>
+          <Text variant="title">Quét mã bàn giao</Text>
+          <Text muted>
+            Mở playtest trên Web, bấm “Chạy thử trên điện thoại” rồi quét mã QR. Mã có hiệu lực 5
+            phút.
           </Text>
-          {!!recoveryCode && step.name !== 'final' && (
-            <Notice error>
+          <Card
+            accessibilityLabel="Quét mã bàn giao"
+            onPress={() => router.push('/scan-qr')}
+            contentStyle={styles.scanCard}
+          >
+            <HexBadge icon={ScanLine} size={72} />
+            <Text style={styles.scanText}>Đưa mã QR vào khung</Text>
+          </Card>
+          <Field
+            label="Mã bàn giao"
+            value={handoffInput}
+            onChangeText={setHandoffInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Dán đường dẫn hoặc mã 43 ký tự"
+            onSubmitEditing={openHandoff}
+          />
+        </>
+      )}
+
+      {status && step && (
+        <>
+          {!!recoveryCode && step.name !== 'final' && !grantExpired && (
+            <Callout tone="danger">
               {RECOVERY_LABELS[recoveryCode] ?? `Đồng bộ dừng (${recoveryCode}).`}
-            </Notice>
+            </Callout>
           )}
           {!unityBridge.available && step.name !== 'final' && (
             <Notice error>{UNITY_UNAVAILABLE_MESSAGE}</Notice>
           )}
 
           {step.name === 'not-launch-session' && (
-            <Notice error>
-              Phiên đăng nhập này không phải phiên đã nhận playtest. Tạo mã bàn giao mới trên Web
-              cho thiết bị này.
-            </Notice>
+            <StateView
+              icon={X}
+              tone="danger"
+              ribbon="Khác phiên đăng nhập"
+              title="Playtest không thuộc phiên này"
+              body="Phiên đăng nhập này không phải phiên đã nhận playtest. Tạo mã bàn giao mới trên Web cho thiết bị này."
+            />
           )}
 
-          {step.name === 'prepare' && !download && (
+          {(step.name === 'prepare' || !!download) && (
             <>
-              <Text variant="small" muted>
-                Tải và kiểm tra SHA-256 package trước. Bước này không dùng lượt Trial.
-              </Text>
-              <Button
-                title="Tải và kiểm tra package"
-                icon="cloud-download-outline"
-                disabled={busy || !unityBridge.available}
-                onPress={() => void prepare()}
-              />
+              <Ribbon label="Playtest đã nhận" />
+              <Text variant="heading">{STATUS_LABELS[status.status] ?? status.status}</Text>
+              <Card contentStyle={{ gap: 0 }}>
+                {[
+                  ['Nhận mã bàn giao', 'Đã nhận'],
+                  ['Tải và kiểm tra gói', 'Không dùng lượt thử ở bước này'],
+                  ['Chọn chế độ & bắt đầu', 'Dùng một lượt thử hoặc gói trả phí của tòa nhà'],
+                  ['Chơi trong Unity', ''],
+                ].map(([title, hint], i) => (
+                  <StepItem
+                    key={title}
+                    index={i + 1}
+                    title={title}
+                    hint={hint}
+                    state={i + 1 < stepIndex ? 'done' : i + 1 === stepIndex ? 'active' : 'pending'}
+                    last={i === 3}
+                  />
+                ))}
+              </Card>
+              {download && (
+                <Card contentStyle={{ gap: 10 }} accessibilityLabel={`Đã tải ${percent}%`}>
+                  <Text variant="strong">Gói tập huấn</Text>
+                  <Segments total={10} filled={percent / 10} style={{ width: 180 }} />
+                  <Text variant="small" muted>
+                    {progress?.phase === 'verifying'
+                      ? 'Đang kiểm tra SHA-256…'
+                      : progress?.phase === 'checking'
+                        ? 'Đang kiểm tra phần đã tải…'
+                        : progress
+                          ? `${formatBytes(progress.bytesDone)} / ${formatBytes(progress.totalBytes)} · tệp ${progress.fileIndex}/${progress.fileCount}`
+                          : 'Đang lấy danh sách tệp…'}
+                  </Text>
+                </Card>
+              )}
             </>
           )}
 
-          {download && (
-            <View style={styles.card} accessibilityLabel={`Đã tải ${percent}%`}>
-              <Text variant="label">
-                {progress?.phase === 'verifying'
-                  ? 'Đang kiểm tra SHA-256…'
-                  : progress?.phase === 'checking'
-                    ? 'Đang kiểm tra phần đã tải…'
-                    : progress
-                      ? `Đang tải ${progress.fileIndex}/${progress.fileCount} tệp`
-                      : 'Đang lấy danh sách tệp…'}{' '}
-                {percent}%
-              </Text>
-              <View style={styles.track}>
-                <View style={[styles.bar, { width: `${percent}%` }]} />
-              </View>
-              {progress && (
-                <Text variant="small" muted>
-                  {formatBytes(progress.bytesDone)} / {formatBytes(progress.totalBytes)}
-                </Text>
-              )}
-              <Button title="Hủy tải" variant="secondary" onPress={() => abort.current?.abort()} />
-            </View>
-          )}
-
-          {canLaunch && choice && (
-            <View style={styles.section} accessibilityRole="radiogroup">
-              <Text variant="heading">Chọn chế độ</Text>
-              {choice.modes.length === 0 && (
-                <Notice error>Kịch bản không cho phép chế độ nào mà runtime hỗ trợ.</Notice>
-              )}
-              {choice.modes.map((item) => {
-                const selected = item === mode;
-                return (
-                  <Pressable
+          {canLaunch && choice && !grantExpired && (
+            <>
+              <Ribbon label="Gói sẵn sàng" color={colors.exit} shadow="#1F6B44" />
+              <Text variant="title">Chọn chế độ chạy thử</Text>
+              <View style={{ gap: 14 }} accessibilityRole="radiogroup">
+                {choice.modes.length === 0 && (
+                  <Notice error>Kịch bản không cho phép chế độ nào mà runtime hỗ trợ.</Notice>
+                )}
+                {choice.modes.map((item) => (
+                  <ModeCard
                     key={item}
-                    accessibilityRole="radio"
-                    accessibilityLabel={MODE_LABELS[item].title}
-                    accessibilityState={{ checked: selected, disabled: busy }}
+                    mode={item}
+                    selected={item === mode}
                     disabled={busy}
                     onPress={() => setMode(item)}
-                    style={[styles.mode, selected && styles.modeSelected]}
-                  >
-                    <Ionicons
-                      name={selected ? 'radio-button-on' : 'radio-button-off'}
-                      size={22}
-                      color={selected ? colors.primary : colors.muted}
-                    />
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text variant="label">{MODE_LABELS[item].title}</Text>
-                      <Text variant="small" muted>
-                        {MODE_LABELS[item].description}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-              <Text variant="small" muted>
+                  />
+                ))}
+              </View>
+              <Callout tone="warning">
                 {step.name === 'start'
-                  ? 'Package đã được kiểm tra. Bắt đầu sẽ dùng một lượt Trial (hoặc gói trả phí) của Building.'
-                  : 'Playtest đã bắt đầu nhưng Unity chưa mở được. Thử mở lại xin grant mới, không dùng thêm lượt Trial.'}
-              </Text>
-              <Button
-                title={step.name === 'start' ? 'Bắt đầu playtest' : 'Thử mở lại'}
-                icon="play"
-                loading={busy}
-                disabled={busy || !mode}
-                onPress={() => void launch()}
-              />
-            </View>
+                  ? 'Bắt đầu sẽ dùng một lượt thử (hoặc gói trả phí) của tòa nhà. Playtest không tính vào thống kê học viên.'
+                  : 'Playtest đã bắt đầu nhưng Unity chưa mở được. Thử mở lại xin quyền mới, không dùng thêm lượt thử.'}
+              </Callout>
+            </>
+          )}
+
+          {grantExpired && (
+            <StateView
+              icon={CircleAlert}
+              tone="warning"
+              ribbon="Cần cấp lại quyền"
+              title="Quyền chạy đã hết hạn"
+              body="Playtest chưa mở được vì quyền chạy ngắn hạn đã hết. Cấp lại quyền không dùng thêm lượt thử."
+            />
           )}
 
           {step.name === 'wait-launch' && (
-            <Notice>Đang chờ máy chủ xác nhận Unity đã mở. Cập nhật trạng thái sau ít phút.</Notice>
+            <View style={styles.center}>
+              <ProgressRing value={0.35} size={160} stroke={20} />
+              <Ribbon label="Đang mở Unity" />
+              <Text style={styles.stateTitle}>Đang chờ máy chủ xác nhận</Text>
+              <Text muted style={styles.stateBody}>
+                FET3D đang xác nhận Unity đã mở. Cập nhật trạng thái sau ít phút.
+              </Text>
+            </View>
           )}
 
           {step.name === 'back-to-unity' && (
-            <Button
-              title="Quay lại Unity"
-              icon="game-controller-outline"
-              onPress={() => void backToUnity()}
-            />
+            <Card accent contentStyle={styles.playing}>
+              <HexBadge icon={Play} size={96} />
+              <Ribbon label="Đang chạy" />
+              <Text style={styles.stateTitle}>Playtest đang mở trong Unity</Text>
+              <Text muted style={styles.stateBody}>
+                {status.acknowledgedSequence} sự kiện đã lưu. Chạy thử không tính vào thống kê học
+                viên.
+              </Text>
+              <Button
+                title="Quay lại Unity"
+                icon={Play}
+                style={{ alignSelf: 'stretch' }}
+                onPress={() => void backToUnity()}
+              />
+            </Card>
           )}
 
           {step.name === 'running-elsewhere' && (
-            <Notice>
-              Unity không còn chạy playtest này trên máy. Sự kiện đã ghi sẽ được đồng bộ; playtest
-              không được tự chạy lại.
-            </Notice>
-          )}
-
-          {step.name === 'final' && (
-            <Notice>
-              {step.state === 'Completed'
-                ? `Playtest đã hoàn tất${status.completion ? ` với ${status.completion.lastEventSequence} sự kiện` : ''}.`
-                : 'Playtest đã bị hủy.'}{' '}
-              Muốn chơi lại, tạo playtest mới trên Web.
-            </Notice>
-          )}
-
-          {status.recovery.canCancel && step.name !== 'final' && (
-            <Button
-              title="Hủy playtest"
-              disabled={busy || !!download}
-              variant="secondary"
-              onPress={() => void cancel()}
+            <StateView
+              icon={CircleAlert}
+              tone="warning"
+              ribbon="Unity đã đóng"
+              title="Playtest không còn chạy trên máy"
+              body="Sự kiện đã ghi sẽ được đồng bộ; playtest không được tự chạy lại."
             />
           )}
-          <Button
-            title="Cập nhật trạng thái"
-            variant="secondary"
-            disabled={busy}
-            onPress={() => void refresh()}
-          />
-        </View>
+
+          {step.name === 'final' &&
+            (step.state === 'Completed' ? (
+              <StateView
+                icon={Check}
+                tone="exit"
+                ribbon="Playtest hoàn tất"
+                title={
+                  status.completion
+                    ? `Đã ghi nhận ${status.completion.lastEventSequence} sự kiện`
+                    : 'Playtest đã hoàn tất'
+                }
+                body="Muốn chạy lại, hãy tạo playtest mới trên Web. Kết quả xem trong khu quản lý tổ chức."
+              />
+            ) : (
+              <StateView
+                icon={X}
+                tone="neutral"
+                ribbon="Đã hủy"
+                title="Playtest đã bị hủy"
+                body="Muốn chạy lại, hãy tạo playtest mới trên Web."
+              />
+            ))}
+        </>
       )}
-      <Button
-        title={playtestId ? 'Quét mã bàn giao khác' : 'Quét mã bàn giao'}
-        icon="qr-code-outline"
-        variant={playtestId ? 'secondary' : 'primary'}
-        disabled={busy || !!download}
-        onPress={() => router.push('/scan-qr')}
-      />
-      <Button title="Đăng xuất" variant="ghost" onPress={() => void signOut()} />
     </Screen>
   );
 }
 
+function StepItem({
+  index,
+  title,
+  hint,
+  state,
+  last,
+}: {
+  index: number;
+  title: string;
+  hint: string;
+  state: 'done' | 'active' | 'pending';
+  last?: boolean;
+}) {
+  return (
+    <View style={styles.stepItem}>
+      <View style={{ alignItems: 'center' }}>
+        <View
+          style={[
+            styles.stepBox,
+            state === 'done' && {
+              borderColor: colors.success,
+              backgroundColor: colors.successSoft,
+            },
+            state === 'active' && { borderColor: colors.ember, backgroundColor: colors.ember },
+          ]}
+        >
+          {state === 'done' ? (
+            <Check size={14} color={colors.success} strokeWidth={3} />
+          ) : (
+            <Text
+              style={[styles.stepNumber, state === 'active' && { color: colors.emberForeground }]}
+            >
+              {index}
+            </Text>
+          )}
+        </View>
+        {!last && (
+          <View
+            style={[styles.stepLine, state === 'done' && { backgroundColor: colors.success }]}
+          />
+        )}
+      </View>
+      <View style={{ flex: 1, paddingBottom: last ? 0 : 14 }}>
+        <Text
+          style={[
+            styles.stepTitle,
+            state === 'active' && { color: colors.ember },
+            state === 'pending' && { color: colors.dim },
+          ]}
+        >
+          {title}
+        </Text>
+        {!!hint && (
+          <Text variant="small" muted>
+            {hint}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  section: { gap: 12 },
-  card: { gap: 10, padding: 16, borderRadius: 16, backgroundColor: colors.surface },
-  mode: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+  top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topTitle: { flex: 1, fontFamily: fonts.black, fontSize: 17, lineHeight: 23 },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modeSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  track: { height: 10, borderRadius: 5, backgroundColor: colors.sand, overflow: 'hidden' },
-  bar: { height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  avatarText: { fontFamily: fonts.black, fontSize: 13, lineHeight: 18, color: colors.ember },
+  scanCard: { alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 200 },
+  scanText: { fontFamily: fonts.extrabold, fontSize: 14, lineHeight: 19, color: colors.muted },
+  center: { alignItems: 'center', gap: 14, paddingVertical: 24 },
+  stateTitle: { fontFamily: fonts.black, fontSize: 20, lineHeight: 27, textAlign: 'center' },
+  stateBody: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  playing: { alignItems: 'center', gap: 12, padding: 20, backgroundColor: colors.surfaceRaised },
+  stepItem: { flexDirection: 'row', gap: 12 },
+  stepBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.lineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumber: { fontFamily: fonts.black, fontSize: 13, lineHeight: 17, color: colors.dim },
+  stepLine: { width: 2, flex: 1, minHeight: 14, backgroundColor: colors.lineStrong },
+  stepTitle: { fontFamily: fonts.extrabold, fontSize: 14, lineHeight: 20 },
 });

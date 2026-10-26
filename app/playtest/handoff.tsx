@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator } from 'react-native';
+import { ArrowUpRight, RefreshCw, ScanLine, User, X } from 'lucide-react-native';
 import { redeemPlaytestHandoff } from '@/api/playtest';
 import { Button } from '@/components/ui/Button';
-import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
-import { Text } from '@/components/ui/Text';
+import { StateScreen } from '@/components/ui/StateScreen';
 import { validHandoffCode } from '@/features/playtest/pending-handoff';
 import { describePlaytestProblem, handoffView } from '@/features/playtest/playtest-flow';
 import { saveRecentPlaytest } from '@/features/playtest/recent-playtest';
 import { useSession } from '@/store/SessionProvider';
-import { colors } from '@/theme/tokens';
 
 export default function PlaytestHandoffScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -24,6 +22,7 @@ export default function PlaytestHandoffScreen() {
     if (view !== 'redeem' || !account) return;
     let active = true;
     setBusy(true);
+    setError('');
     redeemPlaytestHandoff(code)
       .then(async (status) => {
         if (!active) return;
@@ -48,33 +47,80 @@ export default function PlaytestHandoffScreen() {
     router.push('/login');
   }
 
-  return (
-    <Screen>
-      <PageHeader title="Nhận playtest" onBack={() => router.back()} />
-      {view === 'invalid' ? (
-        <Notice error>Link handoff không hợp lệ hoặc thiếu mã.</Notice>
-      ) : view === 'login' ? (
-        <>
-          <Text>Đăng nhập bằng tài khoản OrganizationUser đã tạo playtest để tiếp tục.</Text>
-          <Button title="Đăng nhập và nhận playtest" onPress={() => void login()} />
-        </>
-      ) : view === 'wrong-role' ? (
-        <>
-          <Notice error>
-            Handoff này chỉ dành cho OrganizationUser. Hãy đăng nhập đúng tài khoản.
-          </Notice>
+  const rescan = () => router.replace('/scan-qr');
+  const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
+
+  if (view === 'login')
+    return (
+      <StateScreen
+        icon={User}
+        tone="info"
+        ribbon="Cần đăng nhập"
+        title="Đăng nhập để nhận playtest"
+        body="Dùng tài khoản tổ chức (OrganizationUser) đã tạo playtest trên Web."
+        actions={
           <Button
-            title="Đổi tài khoản"
-            onPress={() => void setPendingHandoffCode(code).then(signOut)}
+            title="Đăng nhập và nhận playtest"
+            icon={ArrowUpRight}
+            onPress={() => void login()}
           />
-        </>
-      ) : (
-        <>
-          {busy && <ActivityIndicator color={colors.primary} />}
-          {!!error && <Notice error>{error}</Notice>}
-          {!!error && <Button title="Thử lại" onPress={() => setAttempt((value) => value + 1)} />}
-        </>
-      )}
-    </Screen>
+        }
+      />
+    );
+  if (view === 'wrong-role')
+    return (
+      <StateScreen
+        icon={User}
+        tone="warning"
+        ribbon="Sai loại tài khoản"
+        title="Playtest chỉ dành cho tài khoản tổ chức"
+        body="Bạn đang đăng nhập bằng tài khoản học viên. Hãy đổi sang tài khoản OrganizationUser đã tạo playtest."
+        actions={
+          <>
+            <Button
+              title="Đổi tài khoản"
+              onPress={() => void setPendingHandoffCode(code).then(signOut)}
+            />
+            <Button title="Hủy" variant="secondary" size="sm" onPress={leave} />
+          </>
+        }
+      />
+    );
+  if (view === 'invalid' || (!!error && !busy))
+    return (
+      <StateScreen
+        icon={X}
+        tone="danger"
+        ribbon="Mã không hợp lệ"
+        title="Mã bàn giao đã dùng, hết hạn hoặc bị thu hồi"
+        body={
+          view === 'invalid'
+            ? 'Liên kết bàn giao không hợp lệ hoặc thiếu mã. Hãy tạo mã mới trên Web rồi quét lại.'
+            : `${error} Mã chỉ dùng được một lần trong 5 phút.`
+        }
+        actions={
+          <>
+            <Button title="Quét mã khác" icon={ScanLine} onPress={rescan} />
+            {view === 'redeem' && (
+              <Button
+                title="Thử lại"
+                variant="secondary"
+                size="sm"
+                onPress={() => setAttempt((value) => value + 1)}
+              />
+            )}
+            <Button title="Đăng xuất" variant="ghost" onPress={() => void signOut()} />
+          </>
+        }
+      />
+    );
+  return (
+    <StateScreen
+      icon={RefreshCw}
+      tone="info"
+      ribbon="Đang nhận playtest"
+      title="Đang xác nhận mã bàn giao…"
+      body="Vui lòng chờ trong giây lát."
+    />
   );
 }
