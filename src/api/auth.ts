@@ -33,13 +33,42 @@ export type GoogleExchangeResponse = {
 type StoredSession = { accessToken: string; refreshToken: string };
 
 const SESSION_KEY = 'fire3d.auth.session.v1';
+// Last profile the API confirmed: lets the app open signed-in when it starts without a network.
+const ACCOUNT_KEY = 'fire3d.auth.account.v1';
 let currentSession: StoredSession | null = null;
 let refreshPromise: Promise<Account> | null = null;
 
+// Native keeps secrets in the Keychain/Keystore; web (dev/e2e only) falls back to localStorage.
+async function storeGet(key: string): Promise<string | null> {
+  if (Platform.OS !== 'web') return SecureStore.getItemAsync(key);
+  try {
+    return globalThis.localStorage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function storeSet(key: string, value: string): Promise<void> {
+  if (Platform.OS !== 'web') return SecureStore.setItemAsync(key, value);
+  try {
+    globalThis.localStorage?.setItem(key, value);
+  } catch {
+    // The session continues in memory when browser storage is unavailable.
+  }
+}
+
+async function storeDelete(key: string): Promise<void> {
+  if (Platform.OS !== 'web') return SecureStore.deleteItemAsync(key);
+  try {
+    globalThis.localStorage?.removeItem(key);
+  } catch {
+    // Nothing to clear.
+  }
+}
+
 async function readSession(): Promise<StoredSession | null> {
   if (currentSession) return currentSession;
-  if (Platform.OS === 'web') return null;
-  const raw = await SecureStore.getItemAsync(SESSION_KEY);
+  const raw = await storeGet(SESSION_KEY);
   if (!raw) return null;
   try {
     const value: unknown = JSON.parse(raw);
@@ -57,13 +86,38 @@ async function readSession(): Promise<StoredSession | null> {
   } catch {
     // Treat malformed device state as a missing session.
   }
-  await SecureStore.deleteItemAsync(SESSION_KEY);
+  await storeDelete(SESSION_KEY);
   return null;
 }
 
 async function saveSession(session: StoredSession): Promise<void> {
-  if (Platform.OS !== 'web') await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+  await storeSet(SESSION_KEY, JSON.stringify(session));
   currentSession = session;
+}
+
+async function cacheAccount(account: Account): Promise<void> {
+  try {
+    await storeSet(ACCOUNT_KEY, JSON.stringify(account));
+  } catch {
+    // The cache is an optimisation: a failed write never blocks sign-in.
+  }
+}
+
+async function cachedAccount(): Promise<Account | null> {
+  try {
+    const raw = await storeGet(ACCOUNT_KEY);
+    const value: unknown = raw ? JSON.parse(raw) : null;
+    return value &&
+      typeof value === 'object' &&
+      'id' in value &&
+      typeof value.id === 'string' &&
+      'role' in value &&
+      (value.role === 'Trainee' || value.role === 'OrganizationUser')
+      ? (value as Account)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 async function acceptAuthentication(response: LoginResponse): Promise<Account> {
@@ -77,12 +131,13 @@ async function acceptAuthentication(response: LoginResponse): Promise<Account> {
     throw new Error('Phiên Fire3D không hợp lệ hoặc vai trò không được hỗ trợ trên Mobile.');
   }
   await saveSession(response);
+  await cacheAccount(response.user);
   return response.user;
 }
 
 export async function clearSession(): Promise<void> {
   currentSession = null;
-  if (Platform.OS !== 'web') await SecureStore.deleteItemAsync(SESSION_KEY);
+  await Promise.all([storeDelete(SESSION_KEY), storeDelete(ACCOUNT_KEY)]);
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<Account> {
@@ -232,8 +287,10 @@ async function currentProfileEtag(): Promise<string> {
   return response.etag;
 }
 
-export function getCurrentAccount(): Promise<Account> {
-  return requestWithSession<Account>('/api/auth/me');
+export async function getCurrentAccount(): Promise<Account> {
+  const account = await requestWithSession<Account>('/api/auth/me');
+  await cacheAccount(account);
+  return account;
 }
 
 export type ProfileUpdate = {
@@ -245,13 +302,18 @@ export type ProfileUpdate = {
 };
 
 export function updateCurrentProfile(input: ProfileUpdate): Promise<Account> {
-  return currentProfileEtag().then((etag) =>
-    requestWithSession<Account>('/api/auth/me', {
-      method: 'PATCH',
-      headers: { 'If-Match': etag },
-      json: input,
-    }),
-  );
+  return currentProfileEtag()
+    .then((etag) =>
+      requestWithSession<Account>('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'If-Match': etag },
+        json: input,
+      }),
+    )
+    .then(async (account) => {
+      await cacheAccount(account);
+      return account;
+    });
 }
 
 export function changeCurrentPassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -330,17 +392,27 @@ export async function uploadCurrentAvatar(
   });
 }
 
+/** True when the API could not answer (offline, timeout, 5xx, 429) so the stored session says nothing about validity. */
+function isTransientFailure(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return error.status >= 500 || error.status === 429 || error.status === 408;
+}
+
 export async function restoreSession(): Promise<Account | null> {
   const session = await readSession();
   if (!session) return null;
   try {
-    return await apiClient.request<Account>('/api/auth/me', { accessToken: session.accessToken });
+    const account = await apiClient.request<Account>('/api/auth/me', {
+      accessToken: session.accessToken,
+    });
+    await cacheAccount(account);
+    return account;
   } catch (error) {
     if (error instanceof ApiError && error.status === 403) {
       await clearSession();
       return null;
     }
-    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+    if (!(error instanceof ApiError) || error.status !== 401) return offlineAccount(error);
     try {
       return await refreshSession(session);
     } catch (refreshError) {
@@ -348,9 +420,18 @@ export async function restoreSession(): Promise<Account | null> {
         await clearSession();
         return null;
       }
-      throw refreshError;
+      return offlineAccount(refreshError);
     }
   }
+}
+
+/** Starting without a network keeps the user signed in with the last confirmed profile; API calls then fail on their own. */
+async function offlineAccount(error: unknown): Promise<Account> {
+  if (isTransientFailure(error)) {
+    const account = await cachedAccount();
+    if (account) return account;
+  }
+  throw error;
 }
 
 export async function logoutSession(): Promise<void> {

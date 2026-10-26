@@ -103,7 +103,7 @@ test('OrganizationUser without a playtest scans the Web handoff QR in the app', 
   // A Building QR is not a handoff: refused before any request.
   await field.fill(`https://fet3d.io.vn/qr/${code}`);
   await page.getByRole('button', { name: 'Nhận playtest' }).click();
-  await expect(page.getByText(/không phải mã bàn giao playtest/)).toBeVisible();
+  await expect(page.getByText(/mã QR công trình dành cho học viên/)).toBeVisible();
   expect(redeemed).toBe(0);
 
   await field.fill(`fet3d://playtest/handoff?code=${code}`);

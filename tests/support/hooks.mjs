@@ -18,6 +18,11 @@ const FAKES = {
 const REPLACED = { [join(root, 'src', 'api', 'auth.ts')]: fake('auth.mjs') };
 
 export async function resolve(specifier, context, next) {
+  // `auth.ts?real` loads the genuine session module (a separate instance) instead of the scripted fake.
+  if (specifier.endsWith('?real')) {
+    const real = join(root, 'src', 'api', 'auth.ts');
+    return { url: `${pathToFileURL(real).href}?real`, shortCircuit: true };
+  }
   if (FAKES[specifier]) return { url: FAKES[specifier], shortCircuit: true };
   let path = null;
   if (specifier.startsWith('@/')) path = join(root, 'src', specifier.slice(2));

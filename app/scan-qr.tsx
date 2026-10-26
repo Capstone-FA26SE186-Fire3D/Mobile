@@ -17,7 +17,12 @@ import { Field, Raised, Ribbon } from '@/components/ui/Game';
 import { Notice } from '@/components/ui/Screen';
 import { StateScreen } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
-import { parseHandoffCode, parseQrToken } from '@/features/qr/qr-token';
+import {
+  parseHandoffCode,
+  parseQrToken,
+  scanMismatch,
+  scanMismatchText,
+} from '@/features/qr/qr-token';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -69,11 +74,8 @@ export default function ScanQrScreen() {
     if (locked.current) return;
     const code = handoff ? parseHandoffCode(value) : parseQrToken(value);
     if (!code) {
-      setError(
-        handoff
-          ? 'Đây không phải mã bàn giao playtest. Quét QR trong tab Playtest trên Web (mã có hạn 5 phút).'
-          : 'Mã không hợp lệ. Hãy dán đúng liên kết có dạng https://…/qr/<mã> hoặc mã 43 ký tự.',
-      );
+      const expecting = handoff ? 'handoff' : 'building';
+      setError(scanMismatchText(scanMismatch(value, expecting), expecting));
       setManual(true);
       return;
     }
