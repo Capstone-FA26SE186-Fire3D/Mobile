@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ArrowUpRight, Check, Info, Play, RefreshCw, User } from 'lucide-react-native';
 import { ApiError } from '@/api';
 import {
   getQrTrainings,
@@ -18,7 +18,9 @@ import {
   type TrainingSession,
 } from '@/api/training';
 import { Button } from '@/components/ui/Button';
+import { Callout, Card, HexBadge, ProgressRing, Ribbon, StepRow } from '@/components/ui/Game';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
+import { StateScreen } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
 import {
   bindPreparedSession,
@@ -34,7 +36,6 @@ import {
   type PackageProgress,
 } from '@/features/training/package-cache.native';
 import {
-  MODE_LABELS,
   allowedTrainingModes,
   describeTrainingProblem,
   formatBytes,
@@ -44,7 +45,9 @@ import {
 import { isOfflineError, subscribeTrainingRuntime } from '@/features/training/training-runtime';
 import { UNITY_UNAVAILABLE_MESSAGE, unityBridge } from '@/features/training/unity-bridge.native';
 import { useSession } from '@/store/SessionProvider';
-import { colors } from '@/theme/tokens';
+import { ModeCard, PrepareSteps, SummaryRows } from '@/features/training/components/PrepareParts';
+import { modeName } from '@/features/training/mode-ui';
+import { colors, fonts } from '@/theme/tokens';
 
 type Phase =
   | { name: 'pick' }
@@ -78,6 +81,10 @@ export default function TrainingScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [offline, setOffline] = useState(false);
+  const [seatsFull, setSeatsFull] = useState(false);
+  const [launched, setLaunched] = useState(false);
+  const [packageBytes, setPackageBytes] = useState<number | null>(null);
   const attempt = useRef<TrainingAttempt | null>(null);
   const abort = useRef<AbortController | null>(null);
   const modes = allowedTrainingModes(training?.allowedModes);
@@ -194,7 +201,10 @@ export default function TrainingScreen() {
     try {
       const manifestPath = await downloadTrainingPackage(session, {
         signal: controller.signal,
-        onProgress: (progress) => setPhase({ name: 'downloading', session, progress }),
+        onProgress: (progress) => {
+          if (progress.totalBytes > 0) setPackageBytes(progress.totalBytes);
+          setPhase({ name: 'downloading', session, progress });
+        },
       });
       setPhase({ name: 'ready', session, manifestPath });
     } catch (issue) {
@@ -210,6 +220,8 @@ export default function TrainingScreen() {
     setBusy(true);
     setError('');
     setNotice('');
+    setOffline(false);
+    setLaunched(false);
     try {
       const started = await startTrainingSession(session, attempt.current.startKey, async () => {
         attempt.current = await rotateStartKey(account.id, attempt.current!);
@@ -219,7 +231,10 @@ export default function TrainingScreen() {
       await launchStartedSession(started, manifestPath, 0, account.id);
     } catch (issue) {
       setPhase({ name: 'ready', session, manifestPath });
-      setError(describe(issue, 'Không bắt đầu được phiên.'));
+      if (isOfflineError(issue)) setOffline(true);
+      else if (issue instanceof ApiError && issue.payload?.code === 'LEARNER_LIMIT_REACHED')
+        setSeatsFull(true);
+      else setError(describe(issue, 'Không bắt đầu được phiên.'));
     } finally {
       setBusy(false);
     }
@@ -243,8 +258,10 @@ export default function TrainingScreen() {
       if (event.kind !== 'unity') return;
       const message = event.message;
       if (message.sessionId && message.sessionId !== current.session.id) return;
-      if (message.type === 'Launched') launched = true;
-      else if (message.type === 'Completed') openResult();
+      if (message.type === 'Launched') {
+        launched = true;
+        setLaunched(true);
+      } else if (message.type === 'Completed') openResult();
       else if (message.type === 'Error') {
         const payload = (message.payload ?? {}) as { code?: string; message?: string };
         if (payload.code === 'LAUNCH_CANCELLED') setNotice('Đã hủy mở màn chơi.');
@@ -281,156 +298,246 @@ export default function TrainingScreen() {
     progress && progress.totalBytes > 0
       ? Math.min(100, Math.round((progress.bytesDone / progress.totalBytes) * 100))
       : 0;
+  const title = training?.name ?? 'Chuẩn bị tập huấn';
+  const back = () => router.back();
+
+  if (seatsFull)
+    return (
+      <StateScreen
+        header={title}
+        onBack={back}
+        icon={User}
+        tone="warning"
+        ribbon="Hết suất học viên"
+        title="Tòa nhà đã hết suất"
+        body="Tòa nhà đã dùng hết số học viên khác nhau trong kỳ dịch vụ. Bạn chưa thể bắt đầu phiên mới. Hãy liên hệ tổ chức."
+        actions={
+          <>
+            <Button title="Về tòa nhà" variant="secondary" size="sm" onPress={back} />
+            <Button title="Trang chủ" variant="ghost" onPress={() => router.replace('/(tabs)')} />
+          </>
+        }
+      />
+    );
+
+  if (phase.name === 'playing' && !launched)
+    return (
+      <View style={styles.opening}>
+        <ProgressRing value={0.35} size={160} stroke={20} />
+        <Text style={styles.openingTitle}>Đang mở màn chơi…</Text>
+        <Text muted style={{ fontSize: 13 }}>
+          {[training?.name, building?.buildingName].filter(Boolean).join(' · ')}
+        </Text>
+        <View style={styles.hint}>
+          <Info size={16} color={colors.muted} strokeWidth={2} />
+          <Text variant="small" muted>
+            Nhấn Back để hủy khi đang tải
+          </Text>
+        </View>
+        {!!error && <Notice error>{error}</Notice>}
+      </View>
+    );
+
+  const footer =
+    phase.name === 'pick' && training ? (
+      <Button
+        title="Chuẩn bị phiên"
+        icon={ArrowUpRight}
+        loading={busy}
+        disabled={!mode || !canStartNew}
+        onPress={() => void prepare()}
+      />
+    ) : phase.name === 'prepared' && unityBridge.available ? (
+      <Button
+        title="Tải gói nhiệm vụ"
+        icon={ArrowUpRight}
+        onPress={() => void download(phase.session)}
+      />
+    ) : phase.name === 'downloading' ? (
+      <Button title="Hủy tải" variant="secondary" onPress={() => abort.current?.abort()} />
+    ) : phase.name === 'ready' ? (
+      <Button
+        title="Bắt đầu phiên"
+        icon={Play}
+        loading={busy}
+        disabled={!canStartNew}
+        onPress={() => void start(phase.session, phase.manifestPath)}
+      />
+    ) : undefined;
 
   return (
-    <Screen>
-      <PageHeader title="Chuẩn bị tập huấn" onBack={() => router.back()} />
-      {loading && <ActivityIndicator color={colors.primary} />}
-      {training && (
-        <View style={styles.section}>
-          <Text variant="title">{training.name}</Text>
-          {!!training.description && <Text muted>{training.description}</Text>}
-          {building && <Text muted>{building.buildingName}</Text>}
-        </View>
+    <Screen footer={footer} contentStyle={{ padding: 16, gap: 14 }}>
+      <PageHeader
+        title={title}
+        subtitle={
+          phase.name === 'playing'
+            ? 'Phiên đang chạy'
+            : phase.name === 'pick'
+              ? 'Bước 1/3 · Chọn chế độ'
+              : modeName(phase.session.mode)
+        }
+        onBack={back}
+      />
+      {loading && <ActivityIndicator color={colors.ember} />}
+      {phase.name !== 'playing' && training && (
+        <PrepareSteps step={phase.name === 'pick' ? 1 : phase.name === 'ready' ? 3 : 2} />
+      )}
+      {offline && phase.name === 'ready' && (
+        <Callout tone="warning">
+          Không có mạng. Gói đã sẵn sàng; hãy kết nối để bắt đầu phiên.
+        </Callout>
       )}
       {!!error && <Notice error>{error}</Notice>}
       {!!notice && <Notice>{notice}</Notice>}
       {building && !canStartNew && (
-        <Notice error>
-          Building chưa có dịch vụ đang hoạt động hoặc bạn chưa có quyền; không thể bắt đầu phiên
+        <Callout tone="warning">
+          Tòa nhà chưa có dịch vụ đang hoạt động hoặc bạn chưa có quyền; không thể bắt đầu phiên
           mới.
-        </Notice>
-      )}
-      {training && (
-        <View style={styles.section} accessibilityRole="radiogroup">
-          <Text variant="heading">Chọn chế độ</Text>
-          {modes.length === 0 && <Text muted>Bài tập chưa mở chế độ nào.</Text>}
-          {modes.map((item) => {
-            const selected = item === mode;
-            const locked = phase.name !== 'pick' && phase.name !== 'prepared';
-            return (
-              <Pressable
-                key={item}
-                accessibilityRole="radio"
-                accessibilityLabel={MODE_LABELS[item].title}
-                accessibilityState={{ checked: selected, disabled: locked }}
-                disabled={locked || busy}
-                onPress={() => setMode(item)}
-                style={[styles.mode, selected && styles.modeSelected]}
-              >
-                <Ionicons
-                  name={selected ? 'radio-button-on' : 'radio-button-off'}
-                  size={22}
-                  color={selected ? colors.primary : colors.muted}
-                />
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text variant="label">{MODE_LABELS[item].title}</Text>
-                  <Text variant="small" muted>
-                    {MODE_LABELS[item].description}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+        </Callout>
       )}
 
       {training && phase.name === 'pick' && (
-        <Button
-          title="Chuẩn bị phiên"
-          icon="clipboard-outline"
-          loading={busy}
-          disabled={!mode || !canStartNew}
-          onPress={() => void prepare()}
-        />
-      )}
-
-      {phase.name !== 'pick' && (
-        <View style={styles.card}>
-          <Text variant="label">Phiên đã chuẩn bị</Text>
-          <Text variant="small" muted>
-            Chế độ {MODE_LABELS[phase.session.mode as TrainingMode]?.title ?? phase.session.mode}
-            {phase.session.expiresAt
-              ? ` • hết hạn ${new Date(phase.session.expiresAt).toLocaleString('vi-VN')}`
-              : ''}
+        <>
+          <Text variant="caps" style={{ letterSpacing: 1.5 }}>
+            CHỌN CÁCH CHƠI
           </Text>
-          <Text variant="small" muted>
-            Chuẩn bị và tải gói chưa tính suất học viên. Suất chỉ được tính khi bạn bắt đầu phiên.
-          </Text>
-        </View>
-      )}
-
-      {phase.name === 'prepared' &&
-        (unityBridge.available ? (
-          <Button
-            title="Tải gói tập huấn"
-            icon="cloud-download-outline"
-            onPress={() => void download(phase.session)}
-          />
-        ) : (
-          <Notice error>{UNITY_UNAVAILABLE_MESSAGE}</Notice>
-        ))}
-
-      {phase.name === 'downloading' && (
-        <View style={styles.card} accessibilityLabel={`Đã tải ${percent}%`}>
-          <Text variant="label">
-            {progress?.phase === 'verifying'
-              ? 'Đang kiểm tra SHA-256…'
-              : progress?.phase === 'checking'
-                ? 'Đang kiểm tra phần đã tải…'
-                : 'Đang tải gói…'}{' '}
-            {percent}%
-          </Text>
-          <View style={styles.track}>
-            <View style={[styles.bar, { width: `${percent}%` }]} />
+          <View style={{ gap: 14 }} accessibilityRole="radiogroup">
+            {modes.length === 0 && <Text muted>Bài tập chưa mở chế độ nào.</Text>}
+            {modes.map((item) => (
+              <ModeCard
+                key={item}
+                mode={item}
+                selected={item === mode}
+                disabled={busy}
+                onPress={() => setMode(item)}
+              />
+            ))}
           </View>
-          {progress && (
-            <Text variant="small" muted>
-              {formatBytes(progress.bytesDone)} / {formatBytes(progress.totalBytes)} • file{' '}
-              {progress.fileIndex}/{progress.fileCount}
+          <Callout tone="info">Chuẩn bị và tải gói chưa tính suất học viên.</Callout>
+          {!!notice && !!attempt.current?.sessionId && (
+            <Button
+              title="Xem phiên trước"
+              variant="secondary"
+              size="sm"
+              onPress={() =>
+                router.push({
+                  pathname: '/training/session/[sessionId]',
+                  params: {
+                    sessionId: attempt.current!.sessionId!,
+                    trainingId,
+                    qr,
+                    mode: mode ?? '',
+                  },
+                })
+              }
+            />
+          )}
+        </>
+      )}
+
+      {(phase.name === 'prepared' || phase.name === 'downloading') && (
+        <>
+          <View style={styles.center}>
+            <ProgressRing value={percent / 100}>
+              <Text style={styles.percent}>{percent}%</Text>
+              <Text variant="small" muted>
+                {phase.name === 'downloading' ? 'đang tải' : 'chưa tải'}
+              </Text>
+            </ProgressRing>
+            <Text style={styles.stageTitle}>
+              {phase.name === 'downloading' ? 'Đang tải gói nhiệm vụ' : 'Sẵn sàng tải gói nhiệm vụ'}
+            </Text>
+            {progress && (
+              <Text muted style={{ fontSize: 13 }}>
+                {formatBytes(progress.bytesDone)} / {formatBytes(progress.totalBytes)} · tệp{' '}
+                {progress.fileIndex}/{progress.fileCount}
+              </Text>
+            )}
+          </View>
+          <Card contentStyle={{ gap: 12 }}>
+            <StepRow
+              label="Kiểm tra phần đã tải"
+              state={!progress ? 'pending' : progress.phase === 'checking' ? 'active' : 'done'}
+            />
+            <StepRow
+              label="Tải các tệp còn lại"
+              state={
+                !progress || progress.phase === 'checking'
+                  ? 'pending'
+                  : progress.phase === 'downloading'
+                    ? 'active'
+                    : 'done'
+              }
+            />
+            <StepRow
+              label="Xác minh toàn vẹn (SHA-256)"
+              state={
+                progress?.phase === 'verifying'
+                  ? 'active'
+                  : progress?.phase === 'ready'
+                    ? 'done'
+                    : 'pending'
+              }
+            />
+          </Card>
+          {phase.name === 'prepared' && !unityBridge.available ? (
+            <Notice error>{UNITY_UNAVAILABLE_MESSAGE}</Notice>
+          ) : (
+            <Text variant="small" dim style={{ textAlign: 'center', lineHeight: 18 }}>
+              Nên dùng Wi-Fi. Nếu bị gián đoạn, phần đã tải và đã kiểm tra được giữ lại để tải tiếp.
             </Text>
           )}
-          <Button title="Hủy tải" variant="secondary" onPress={() => abort.current?.abort()} />
-        </View>
+        </>
       )}
 
       {phase.name === 'ready' && (
         <>
-          <Notice>Gói đã được tải và kiểm tra SHA-256. Bắt đầu phiên cần kết nối mạng.</Notice>
-          <Button
-            title="Bắt đầu phiên"
-            icon="play-outline"
-            loading={busy}
-            disabled={!canStartNew}
-            onPress={() => void start(phase.session, phase.manifestPath)}
-          />
+          <View style={styles.center}>
+            <HexBadge icon={Check} tone="exit" size={120} />
+            <Ribbon label="Gói sẵn sàng" color={colors.exit} shadow="#1F6B44" />
+            <Text muted style={{ fontSize: 13 }}>
+              Đã tải và kiểm tra toàn vẹn
+            </Text>
+          </View>
+          <Card contentStyle={{ gap: 10 }}>
+            <SummaryRows
+              rows={[
+                ['Nhiệm vụ', training?.name],
+                ['Chế độ', modeName(phase.session.mode)],
+                ['Tòa nhà', building?.buildingName],
+                ['Dung lượng', packageBytes ? formatBytes(packageBytes) : null],
+              ]}
+            />
+          </Card>
+          <Callout tone="info">
+            Bắt đầu phiên cần mạng. Sau khi bắt đầu, mất mạng vẫn chơi tiếp và kết quả lưu trên máy.
+          </Callout>
         </>
       )}
 
       {phase.name === 'playing' && (
-        <View style={styles.card}>
-          <Text variant="label">Đang chơi trong Unity</Text>
-          <Text variant="small" muted>
-            Mất mạng vẫn chơi tiếp được; sự kiện được lưu trên máy và tự đồng bộ khi có mạng.
+        <Card accent contentStyle={styles.playing}>
+          <HexBadge icon={Play} size={96} />
+          <Ribbon label="Đang chơi trong Unity" />
+          <Text style={styles.playingTitle}>Phiên của bạn đang mở</Text>
+          <Text muted style={{ fontSize: 13, lineHeight: 20, textAlign: 'center' }}>
+            Mất mạng vẫn chơi tiếp được. Sự kiện lưu trên máy và tự đồng bộ khi có mạng.
           </Text>
           <Button
             title="Tiếp tục chơi"
-            icon="game-controller-outline"
+            icon={Play}
+            style={{ alignSelf: 'stretch' }}
             onPress={() => void backToUnity()}
           />
-        </View>
+        </Card>
       )}
-
-      {!!notice && !!attempt.current?.sessionId && phase.name === 'pick' && (
+      {phase.name === 'prepared' && !!error && unityBridge.available && (
         <Button
-          title="Xem phiên trước"
+          title="Thử tải lại"
+          icon={RefreshCw}
           variant="secondary"
-          onPress={() =>
-            router.push({
-              pathname: '/training/session/[sessionId]',
-              params: { sessionId: attempt.current!.sessionId!, trainingId, qr, mode: mode ?? '' },
-            })
-          }
+          size="sm"
+          onPress={() => void download(phase.session)}
         />
       )}
     </Screen>
@@ -438,19 +545,29 @@ export default function TrainingScreen() {
 }
 
 const styles = StyleSheet.create({
-  section: { gap: 12 },
-  card: { gap: 10, padding: 16, borderRadius: 16, backgroundColor: colors.surface },
-  mode: {
+  center: { alignItems: 'center', gap: 12, paddingVertical: 6 },
+  percent: { fontFamily: fonts.black, fontSize: 40, lineHeight: 50 },
+  stageTitle: { fontFamily: fonts.black, fontSize: 19, lineHeight: 25, textAlign: 'center' },
+  opening: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    padding: 24,
+    backgroundColor: colors.bg,
+  },
+  openingTitle: { fontFamily: fonts.black, fontSize: 22, lineHeight: 29 },
+  hint: {
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
   },
-  modeSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  track: { height: 10, borderRadius: 5, backgroundColor: colors.sand, overflow: 'hidden' },
-  bar: { height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  playing: { alignItems: 'center', gap: 12, padding: 20, backgroundColor: colors.surfaceRaised },
+  playingTitle: { fontFamily: fonts.black, fontSize: 21, lineHeight: 28, textAlign: 'center' },
 });
