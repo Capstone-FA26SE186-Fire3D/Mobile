@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 're
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/theme/tokens';
 import { Text } from './Text';
-import { BackButton, Callout } from './Game';
+import { BackButton, Callout, type LucideIcon } from './Game';
 
 export function Screen({
   children,
@@ -40,11 +40,17 @@ export function PageHeader({
   title,
   subtitle,
   onBack,
+  backIcon,
   children,
-}: PropsWithChildren<{ title: string; subtitle?: string; onBack?: () => void }>) {
+}: PropsWithChildren<{
+  title: string;
+  subtitle?: string;
+  onBack?: () => void;
+  backIcon?: LucideIcon;
+}>) {
   return (
     <View style={styles.header}>
-      {onBack && <BackButton onPress={onBack} />}
+      {onBack && <BackButton onPress={onBack} icon={backIcon} />}
       <View style={{ flex: 1 }}>
         <Text style={styles.headerTitle} accessibilityRole="header">
           {title}

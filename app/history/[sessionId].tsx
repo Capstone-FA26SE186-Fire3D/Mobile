@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator } from 'react-native';
 import { getTrainingResult, type TrainingResult } from '@/api/training-history';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
-import { TrainingResultCard } from '@/features/training/components/TrainingResultCard';
+import { TrainingResultView } from '@/features/training/components/TrainingResultCard';
 import { colors } from '@/theme/tokens';
 
 export default function ResultScreen() {
@@ -29,12 +29,13 @@ export default function ResultScreen() {
     };
   }, [sessionId]);
 
+  // Replaying needs the Building QR (access is re-checked there), so history results only close.
+  if (result) return <TrainingResultView result={result} onClose={() => router.back()} />;
   return (
     <Screen>
-      <PageHeader title="Kết quả cá nhân" onBack={() => router.back()} />
-      {busy && <ActivityIndicator color={colors.primary} />}
+      <PageHeader title="Kết quả phiên" onBack={() => router.back()} />
+      {busy && <ActivityIndicator color={colors.ember} />}
       {!!error && <Notice error>{error}</Notice>}
-      {result && <TrainingResultCard result={result} />}
     </Screen>
   );
 }

@@ -545,8 +545,9 @@ export function ProgressRing({
   value,
   size = 200,
   stroke = 22,
+  color = colors.ribbon,
   children,
-}: PropsWithChildren<{ value: number; size?: number; stroke?: number }>) {
+}: PropsWithChildren<{ value: number; size?: number; stroke?: number; color?: string }>) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const v = Math.max(0, Math.min(1, value));
@@ -569,7 +570,7 @@ export function ProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={colors.ribbon}
+          stroke={color}
           strokeWidth={stroke}
           fill="none"
           strokeDasharray={`${c * v} ${c}`}
@@ -646,9 +647,11 @@ export function Segments({
 export function BackButton({
   onPress,
   label = 'Quay lại',
+  icon: Icon = ChevronLeft,
 }: {
   onPress: () => void;
   label?: string;
+  icon?: LucideIcon;
 }) {
   return (
     <Pressable
@@ -658,7 +661,7 @@ export function BackButton({
       onPress={onPress}
       style={({ pressed }) => [styles.back, pressed && { opacity: 0.7 }]}
     >
-      <ChevronLeft size={18} color={colors.text} strokeWidth={2.5} />
+      <Icon size={18} color={colors.text} strokeWidth={2.5} />
     </Pressable>
   );
 }
