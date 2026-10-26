@@ -1,17 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  ArrowUpRight,
+  Check,
+  Eye,
+  EyeOff,
+  Lock,
+  MessageSquare,
+  Smartphone,
+  User,
+} from 'lucide-react-native';
 import {
   registerTrainee,
   requestRegistrationOtp,
@@ -20,8 +26,10 @@ import {
   type UserGender,
 } from '@/api/auth';
 import { ApiError } from '@/api';
-import { Brand, Button, IconButton } from '@/components/ui/Button';
-import { Notice } from '@/components/ui/Screen';
+import { Button } from '@/components/ui/Button';
+import { Field, HexBadge, Ribbon, Segments } from '@/components/ui/Game';
+import { Checkbox, OtpInput, PasswordStrength, SelectField } from '@/components/ui/Form';
+import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -32,6 +40,8 @@ const genderOptions: { label: string; value: UserGender | null }[] = [
   { label: 'Khác', value: 'Other' },
   { label: 'Không muốn chia sẻ', value: 'PreferNotToSay' },
 ];
+const RESEND_SECONDS = 60;
+const USERNAME_RULE = /^[a-z0-9._-]{3,30}$/;
 
 function registrationError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -60,8 +70,27 @@ function registrationError(error: unknown): string {
   return 'Không kết nối được Fire3D API. Vui lòng thử lại.';
 }
 
+function validBirthDate(value: string): boolean {
+  if (!value) return true;
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = parts ? new Date(`${value}T00:00:00Z`) : null;
+  const today = new Date();
+  return (
+    date !== null &&
+    !Number.isNaN(date.getTime()) &&
+    Number(parts?.[1]) >= 1 &&
+    date.getUTCFullYear() === Number(parts?.[1]) &&
+    date.getUTCMonth() + 1 === Number(parts?.[2]) &&
+    date.getUTCDate() === Number(parts?.[3]) &&
+    date.getTime() <= Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  );
+}
+
+type Step = 'info' | 'otp' | 'password' | 'done';
+
 export default function RegisterScreen() {
   const router = useRouter();
+  const [step, setStep] = useState<Step>('info');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -74,49 +103,43 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [registered, setRegistered] = useState(false);
 
-  async function register() {
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
+  async function sendOtp() {
     if (busy) return;
     const name = fullName.trim();
     const normalizedEmail = email.trim().toLowerCase();
-    const birthDate = dob.trim();
     const phone = phoneNumber.trim();
-    const normalizedUsername = username.trim().toLowerCase();
-    const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
-    const parsedDate = dateParts ? new Date(`${birthDate}T00:00:00Z`) : null;
-    const today = new Date();
-    const validBirthDate =
-      !birthDate ||
-      (parsedDate !== null &&
-        !Number.isNaN(parsedDate.getTime()) &&
-        Number(dateParts?.[1]) >= 1 &&
-        parsedDate.getUTCFullYear() === Number(dateParts?.[1]) &&
-        parsedDate.getUTCMonth() + 1 === Number(dateParts?.[2]) &&
-        parsedDate.getUTCDate() === Number(dateParts?.[3]) &&
-        parsedDate.getTime() <=
-          Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
     let issue: string | null = null;
     if (!name || name.length > 200) issue = 'Vui lòng nhập họ tên từ 1 đến 200 ký tự.';
     else if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))
       issue = 'Vui lòng nhập địa chỉ email hợp lệ.';
-    else if (!/^[a-z0-9._-]{3,30}$/.test(normalizedUsername))
+    else if (!USERNAME_RULE.test(username.trim().toLowerCase()))
       issue =
         'Username cần 3–30 ký tự, chỉ gồm chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang.';
-    else if (!validBirthDate) issue = 'Ngày sinh không hợp lệ hoặc ở tương lai (YYYY-MM-DD).';
+    else if (!validBirthDate(dob.trim()))
+      issue = 'Ngày sinh không hợp lệ hoặc ở tương lai (YYYY-MM-DD).';
     else if (phone && !/^[0-9+() -]{6,32}$/.test(phone))
       issue = 'Số điện thoại cần 6–32 ký tự, chỉ gồm số và + - ( ) khoảng trắng.';
-    else if (password.length < 12 || password.length > 128 || !password.trim())
-      issue = 'Mật khẩu cần từ 12 đến 128 ký tự và không chỉ gồm khoảng trắng.';
-    else if (password !== confirmPassword) issue = 'Mật khẩu xác nhận chưa khớp.';
     if (issue) {
       setError(issue);
       return;
     }
-
     setError('');
+    // Email already verified (back from a USERNAME_EXISTS error): keep the registration token.
+    if (registrationToken && verificationEmail === normalizedEmail) {
+      setStep('password');
+      return;
+    }
     setBusy(true);
     Keyboard.dismiss();
     try {
@@ -124,6 +147,8 @@ export default function RegisterScreen() {
       setVerificationEmail(normalizedEmail);
       setOtp('');
       setRegistrationToken(null);
+      setResendIn(RESEND_SECONDS);
+      setStep('otp');
     } catch (issue) {
       setError(registrationError(issue));
     } finally {
@@ -131,15 +156,9 @@ export default function RegisterScreen() {
     }
   }
 
-  async function completeRegistration() {
+  async function verifyOtp() {
     if (busy || !verificationEmail) return;
-    if (!/^[a-z0-9._-]{3,30}$/.test(username.trim().toLowerCase())) {
-      setError(
-        'Username cần 3–30 ký tự, chỉ gồm chữ thường, số, dấu chấm, gạch dưới hoặc gạch ngang.',
-      );
-      return;
-    }
-    if (!registrationToken && !/^\d{6}$/.test(otp.trim())) {
+    if (!/^\d{6}$/.test(otp.trim())) {
       setError('Vui lòng nhập mã xác minh gồm 6 chữ số.');
       return;
     }
@@ -147,10 +166,32 @@ export default function RegisterScreen() {
     setBusy(true);
     Keyboard.dismiss();
     try {
-      const token =
-        registrationToken ??
-        (await verifyRegistrationOtp(verificationEmail, otp.trim())).registrationToken;
-      setRegistrationToken(token);
+      setRegistrationToken(
+        (await verifyRegistrationOtp(verificationEmail, otp.trim())).registrationToken,
+      );
+      setStep('password');
+    } catch (issue) {
+      setError(registrationError(issue));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createAccount() {
+    if (busy || !verificationEmail || !registrationToken) return;
+    let issue: string | null = null;
+    if (password.length < 12 || password.length > 128 || !password.trim())
+      issue = 'Mật khẩu cần từ 12 đến 128 ký tự và không chỉ gồm khoảng trắng.';
+    else if (password !== confirmPassword) issue = 'Mật khẩu xác nhận chưa khớp.';
+    else if (!acknowledged) issue = 'Hãy xác nhận bạn hiểu FET3D là công cụ học tập.';
+    if (issue) {
+      setError(issue);
+      return;
+    }
+    setError('');
+    setBusy(true);
+    Keyboard.dismiss();
+    try {
       await registerTrainee({
         fullName: fullName.trim(),
         email: verificationEmail,
@@ -160,14 +201,21 @@ export default function RegisterScreen() {
         dob: dob.trim() || null,
         gender,
         phoneNumber: phoneNumber.trim() || null,
-        registrationToken: token,
+        registrationToken,
       });
       setPassword('');
       setConfirmPassword('');
       setOtp('');
       setRegistrationToken(null);
-      setRegistered(true);
+      setStep('done');
     } catch (issue) {
+      if (issue instanceof ApiError && issue.payload?.code === 'USERNAME_EXISTS') setStep('info');
+      // An expired/used registration token must be replaced by a fresh OTP.
+      else if (issue instanceof ApiError && /OTP|TOKEN/i.test(String(issue.payload?.code ?? ''))) {
+        setRegistrationToken(null);
+        setOtp('');
+        setStep('otp');
+      }
       setError(registrationError(issue));
     } finally {
       setBusy(false);
@@ -175,13 +223,14 @@ export default function RegisterScreen() {
   }
 
   async function resendOtp() {
-    if (busy || !verificationEmail) return;
+    if (busy || !verificationEmail || resendIn > 0) return;
     setBusy(true);
     setError('');
     try {
       await resendVerification(verificationEmail);
       setOtp('');
       setRegistrationToken(null);
+      setResendIn(RESEND_SECONDS);
     } catch (issue) {
       setError(registrationError(issue));
     } finally {
@@ -189,307 +238,213 @@ export default function RegisterScreen() {
     }
   }
 
+  function back() {
+    setError('');
+    if (step === 'otp' || (step === 'password' && registrationToken)) setStep('info');
+    else if (step === 'password') setStep('otp');
+    else router.replace('/login');
+  }
+
+  if (step === 'done')
+    return (
+      <Screen scroll={false} contentStyle={styles.done}>
+        <HexBadge icon={Check} tone="exit" size={150} />
+        <Ribbon label="Hoàn tất" color={colors.exit} shadow="#1F6B44" />
+        <Text variant="title" style={styles.center}>
+          Tài khoản đã sẵn sàng
+        </Text>
+        <Text muted style={styles.center}>
+          Đăng nhập để quét QR của tòa nhà và bắt đầu nhiệm vụ đầu tiên.
+        </Text>
+        <Button
+          title="Đăng nhập"
+          icon={ArrowUpRight}
+          style={{ alignSelf: 'stretch' }}
+          onPress={() => router.replace('/login')}
+        />
+      </Screen>
+    );
+
+  const index = step === 'info' ? 1 : step === 'otp' ? 2 : 3;
+  const primary =
+    step === 'info' ? (
+      <Button
+        title="Gửi mã xác minh"
+        icon={ArrowUpRight}
+        loading={busy}
+        onPress={() => void sendOtp()}
+      />
+    ) : step === 'otp' ? (
+      <Button title="Xác thực" icon={Check} loading={busy} onPress={() => void verifyOtp()} />
+    ) : (
+      <Button
+        title="Tạo tài khoản"
+        icon={Check}
+        loading={busy}
+        onPress={() => void createAccount()}
+      />
+    );
+  const eye = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+      hitSlop={10}
+      onPress={() => setShowPassword(!showPassword)}
+    >
+      {showPassword ? (
+        <EyeOff size={18} color={colors.dim} strokeWidth={2} />
+      ) : (
+        <Eye size={18} color={colors.dim} strokeWidth={2} />
+      )}
+    </Pressable>
+  );
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-          <View style={styles.top}>
-            <Brand />
-            <IconButton
-              name="arrow-back"
-              label="Về đăng nhập"
-              onPress={() => router.replace('/login')}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <Screen footer={primary}>
+        <PageHeader title="Tạo tài khoản học viên" subtitle={`Bước ${index}/3`} onBack={back} />
+        <Segments total={3} filled={index} />
+
+        {step === 'info' && (
+          <>
+            <Text variant="caps" style={styles.section}>
+              THÔNG TIN CỦA BẠN
+            </Text>
+            <Field
+              label="Họ và tên"
+              icon={User}
+              placeholder="Nguyễn Văn A"
+              value={fullName}
+              onChangeText={setFullName}
+              autoComplete="name"
             />
-          </View>
-
-          {registered ? (
-            <View style={styles.result}>
-              <Ionicons name="checkmark-circle" size={66} color={colors.green} />
-              <Text variant="title" style={styles.center}>
-                Đã tạo tài khoản
+            <Field
+              label="Email"
+              icon={MessageSquare}
+              placeholder="ban@vidu.com"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+            />
+            <View style={{ gap: 6 }}>
+              <Field
+                label="Username"
+                icon={User}
+                placeholder="nguyen.van.a"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text variant="small" dim style={{ fontSize: 11 }}>
+                3–30 ký tự: chữ thường, số, . _ -
               </Text>
-              <Text muted style={styles.center}>
-                Tài khoản học viên đã sẵn sàng. Hãy đăng nhập bằng email và mật khẩu vừa tạo.
-              </Text>
-              <Button title="Đi đến đăng nhập" onPress={() => router.replace('/login')} />
             </View>
-          ) : verificationEmail ? (
-            <View style={styles.form}>
-              <Text variant="title">Xác minh email</Text>
-              <Text muted>
-                Nhập mã 6 chữ số đã gửi tới {verificationEmail}. Mã có hiệu lực 10 phút.
+            <View style={styles.pair}>
+              <View style={{ flex: 1 }}>
+                <Field
+                  label="Ngày sinh"
+                  placeholder="YYYY-MM-DD"
+                  value={dob}
+                  onChangeText={setDob}
+                  autoCapitalize="none"
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+              <SelectField
+                label="Giới tính"
+                value={gender}
+                options={genderOptions}
+                onChange={setGender}
+              />
+            </View>
+            <Field
+              label="Số điện thoại (tùy chọn)"
+              icon={Smartphone}
+              placeholder="09xx xxx xxx"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+            />
+          </>
+        )}
+
+        {step === 'otp' && (
+          <>
+            <Text variant="title">Nhập mã 6 số</Text>
+            <Text muted>Mã đã gửi tới {verificationEmail}, có hiệu lực 10 phút.</Text>
+            <OtpInput value={otp} onChange={setOtp} onSubmit={() => void verifyOtp()} />
+            <View style={styles.resend}>
+              <Text muted style={{ fontSize: 13 }}>
+                Chưa nhận được mã?
               </Text>
-              <View style={styles.field}>
-                <Text variant="label">Username</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="at-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Username xác minh"
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-              <View style={styles.field}>
-                <Text variant="label">Mã xác minh</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="key-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Mã xác minh"
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoComplete="one-time-code"
-                    style={styles.input}
-                    onSubmitEditing={completeRegistration}
-                  />
-                </View>
-              </View>
-              {!!error && <Notice error>{error}</Notice>}
-              <Button title="Xác thực và đăng ký" loading={busy} onPress={completeRegistration} />
-              <Button
-                title="Gửi lại mã"
-                variant="secondary"
-                disabled={busy}
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy || resendIn > 0}
                 onPress={() => void resendOtp()}
-              />
-              <Button
-                title="Sửa thông tin"
-                variant="ghost"
-                disabled={busy}
-                onPress={() => {
-                  setVerificationEmail(null);
-                  setOtp('');
-                  setError('');
-                  setRegistrationToken(null);
-                }}
-              />
+              >
+                <Text style={[styles.resendLink, resendIn > 0 && { color: colors.dim }]}>
+                  {resendIn > 0
+                    ? `Gửi lại sau 00:${String(resendIn).padStart(2, '0')}`
+                    : 'Gửi lại mã'}
+                </Text>
+              </Pressable>
             </View>
-          ) : (
-            <View style={styles.form}>
-              <View style={styles.intro}>
-                <Text variant="title">Tạo tài khoản học viên</Text>
-                <Text muted>Nhập thông tin để đăng ký và bắt đầu trải nghiệm Fire3D.</Text>
-              </View>
+          </>
+        )}
 
-              <View style={styles.field}>
-                <Text variant="label">Họ và tên</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="person-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Họ và tên"
-                    placeholder="Nguyễn Văn A"
-                    placeholderTextColor={colors.muted}
-                    value={fullName}
-                    onChangeText={setFullName}
-                    autoComplete="name"
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Email</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="mail-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Email"
-                    placeholder="ban@example.com"
-                    placeholderTextColor={colors.muted}
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    autoComplete="email"
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Username</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="at-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Username"
-                    placeholder="nguyen.van.a"
-                    placeholderTextColor={colors.muted}
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Ngày sinh (tùy chọn)</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="calendar-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Ngày sinh"
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.muted}
-                    value={dob}
-                    onChangeText={setDob}
-                    autoCapitalize="none"
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Giới tính (tùy chọn)</Text>
-                <View style={styles.genderChoices}>
-                  {genderOptions.map((option) => (
-                    <Pressable
-                      key={option.label}
-                      accessibilityRole="button"
-                      accessibilityLabel={option.label}
-                      accessibilityState={{ selected: gender === option.value }}
-                      onPress={() => setGender(option.value)}
-                      style={[
-                        styles.genderChoice,
-                        gender === option.value && styles.genderChoiceSelected,
-                      ]}
-                    >
-                      <Text variant="small">{option.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Số điện thoại (tùy chọn)</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="call-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Số điện thoại"
-                    placeholder="Nhập số điện thoại"
-                    placeholderTextColor={colors.muted}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    keyboardType="phone-pad"
-                    autoComplete="tel"
-                    style={styles.input}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Mật khẩu</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="lock-closed-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Mật khẩu mới"
-                    placeholder="Từ 12 đến 128 ký tự"
-                    placeholderTextColor={colors.muted}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoComplete="new-password"
-                    style={styles.input}
-                  />
-                  <IconButton
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                    onPress={() => setShowPassword(!showPassword)}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <Text variant="label">Xác nhận mật khẩu</Text>
-                <View style={styles.inputRow}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.muted} />
-                  <TextInput
-                    accessibilityLabel="Xác nhận mật khẩu"
-                    placeholder="Nhập lại mật khẩu"
-                    placeholderTextColor={colors.muted}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoComplete="new-password"
-                    style={styles.input}
-                    onSubmitEditing={register}
-                  />
-                </View>
-              </View>
-
-              {!!error && <Notice error>{error}</Notice>}
-              <Button title="Gửi mã xác minh" loading={busy} onPress={register} />
-              <Button
-                title="Đã có tài khoản? Đăng nhập"
-                variant="ghost"
-                disabled={busy}
-                onPress={() => router.replace('/login')}
-              />
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        {step === 'password' && (
+          <>
+            <Text variant="caps" style={styles.section}>
+              ĐẶT MẬT KHẨU
+            </Text>
+            <Field
+              label="Mật khẩu"
+              icon={Lock}
+              placeholder="Từ 12 đến 128 ký tự"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="new-password"
+              trailing={eye}
+            />
+            <PasswordStrength password={password} />
+            <Field
+              label="Xác nhận mật khẩu"
+              icon={Lock}
+              placeholder="Nhập lại mật khẩu"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="new-password"
+              trailing={eye}
+              onSubmitEditing={() => void createAccount()}
+            />
+            <Checkbox checked={acknowledged} onChange={setAcknowledged}>
+              Mình hiểu đây là công cụ học tập, không phải chứng nhận an toàn PCCC.
+            </Checkbox>
+          </>
+        )}
+        {!!error && <Notice error>{error}</Notice>}
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  content: {
-    paddingHorizontal: 26,
-    paddingTop: 18,
-    paddingBottom: 28,
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-  },
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  form: { gap: 16, marginTop: 32 },
-  intro: { gap: 8, marginBottom: 4 },
-  field: { gap: 7 },
-  inputRow: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: 15,
-    paddingRight: 4,
-    gap: 10,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#D5D2C9',
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 14,
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  genderChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  genderChoice: {
-    minHeight: 42,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  genderChoiceSelected: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-  result: { gap: 16, alignItems: 'center', marginTop: 96 },
+  section: { letterSpacing: 1.5 },
+  pair: { flexDirection: 'row', gap: 10 },
+  resend: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  resendLink: { fontFamily: fonts.black, fontSize: 13, lineHeight: 18, color: colors.ember },
+  done: { alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   center: { textAlign: 'center' },
 });

@@ -1,13 +1,23 @@
 import { useState } from 'react';
-import { Platform, StyleSheet, TextInput, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Brand, Button } from '@/components/ui/Button';
+import { ArrowUpRight, Eye, EyeOff, Lock, MessageSquare } from 'lucide-react-native';
+import { Button } from '@/components/ui/Button';
+import { Diorama, Field, Ribbon } from '@/components/ui/Game';
 import { Notice } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { ApiError } from '@/api';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
+const dioramaLogin = require('../../../../assets/images/diorama-login.png');
 
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
@@ -23,6 +33,7 @@ export default function LoginScreen() {
   const { signInWithPassword, signInWithGoogle } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -58,89 +69,121 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.content}>
-        <Brand />
-        <View style={styles.heading}>
-          <Text variant="title">Đăng nhập Fire3D</Text>
-          <Text muted>Trainee hoặc OrganizationUser dùng cho playtest.</Text>
-        </View>
-        <Text variant="label">Email</Text>
-        <TextInput
-          accessibilityLabel="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          autoComplete="email"
-          style={styles.input}
-          placeholder="ban@example.com"
-        />
-        <Text variant="label">Mật khẩu</Text>
-        <TextInput
-          accessibilityLabel="Mật khẩu"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoCapitalize="none"
-          style={styles.input}
-          placeholder="Mật khẩu"
-        />
-        {!!error && <Notice error>{error}</Notice>}
-        <Button title="Đăng nhập" loading={busy} onPress={() => void passwordLogin()} />
-        {Platform.OS === 'android' && (
-          <Button
-            title="Đăng nhập với Google"
-            icon="logo-google"
-            variant="secondary"
-            disabled={busy}
-            onPress={() => void googleLogin()}
-          />
-        )}
-        <Button
-          title="Xem Learn không cần đăng nhập"
-          variant="secondary"
-          disabled={busy}
-          onPress={() => router.push('/learn')}
-        />
-        <Button
-          title="Quên mật khẩu?"
-          variant="ghost"
-          disabled={busy}
-          onPress={() => router.push('/forgot-password')}
-        />
-        <Button
-          title="Chưa có tài khoản? Đăng ký"
-          variant="ghost"
-          disabled={busy}
-          onPress={() => router.push('/register')}
-        />
-      </View>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ flexGrow: 1 }}
+          bounces={false}
+        >
+          <Diorama source={dioramaLogin} />
+          <View style={styles.form}>
+            <Ribbon label="Đăng nhập" />
+            <Text variant="title" accessibilityRole="header">
+              Chào mừng trở lại!
+            </Text>
+            <Field
+              label="Email"
+              icon={MessageSquare}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+              placeholder="ban@vidu.com"
+            />
+            <Field
+              label="Mật khẩu"
+              icon={Lock}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="current-password"
+              placeholder="Mật khẩu"
+              onSubmitEditing={() => void passwordLogin()}
+              trailing={
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  hitSlop={10}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} color={colors.dim} strokeWidth={2} />
+                  ) : (
+                    <Eye size={18} color={colors.dim} strokeWidth={2} />
+                  )}
+                </Pressable>
+              }
+            />
+            <Button
+              title="Quên mật khẩu?"
+              variant="ghost"
+              disabled={busy}
+              style={{ alignSelf: 'flex-end' }}
+              onPress={() => router.push('/forgot-password')}
+            />
+            {!!error && <Notice error>{error}</Notice>}
+            <Button
+              title="Vào game"
+              icon={ArrowUpRight}
+              loading={busy}
+              onPress={() => void passwordLogin()}
+            />
+            {Platform.OS === 'android' && (
+              <Button
+                title="Tiếp tục với Google"
+                variant="secondary"
+                size="sm"
+                disabled={busy}
+                onPress={() => void googleLogin()}
+              />
+            )}
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={() => router.push('/register')}
+              style={styles.linkRow}
+            >
+              <Text muted style={{ fontSize: 13 }}>
+                Chưa có tài khoản?
+              </Text>
+              <Text style={styles.link}>Đăng ký</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busy}
+              onPress={() => router.push('/learn')}
+              style={styles.linkRow}
+            >
+              <Text style={styles.guest}>Xem Learn không cần đăng nhập</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  content: {
+  safe: { flex: 1, backgroundColor: colors.bg },
+  form: {
     flex: 1,
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    padding: 24,
-    gap: 12,
-    justifyContent: 'center',
+    padding: 22,
+    gap: 14,
+    backgroundColor: colors.bg,
+    borderWidth: 2,
+    borderBottomWidth: 0,
+    borderColor: colors.lineStrong,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
   },
-  heading: { gap: 6, marginVertical: 20 },
-  input: {
-    minHeight: 54,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    fontFamily: fonts.regular,
-    color: colors.ink,
-  },
+  linkRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingVertical: 2 },
+  link: { fontFamily: fonts.black, fontSize: 13, lineHeight: 18, color: colors.ember },
+  guest: { fontFamily: fonts.bold, fontSize: 12, lineHeight: 17, color: colors.dim },
 });
