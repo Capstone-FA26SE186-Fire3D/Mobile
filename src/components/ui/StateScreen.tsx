@@ -26,7 +26,7 @@ export function StateView({
   icon: LucideIcon;
   tone?: HexTone;
   ribbon?: string;
-  title: string;
+  title?: string;
   body?: string;
   children?: ReactNode;
 }) {
@@ -35,9 +35,11 @@ export function StateView({
     <View style={styles.state}>
       <HexBadge icon={icon} tone={tone} size={140} />
       {!!ribbon && <Ribbon label={ribbon} color={r?.color} shadow={r?.shadow} />}
-      <Text style={styles.title} accessibilityRole="header">
-        {title}
-      </Text>
+      {!!title && (
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+      )}
       {!!body && (
         <Text muted style={styles.body}>
           {body}
