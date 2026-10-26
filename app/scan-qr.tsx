@@ -5,7 +5,12 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Button } from '@/components/ui/Button';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { parseHandoffCode, parseQrToken } from '@/features/qr/qr-token';
+import {
+  parseHandoffCode,
+  parseQrToken,
+  scanMismatch,
+  scanMismatchText,
+} from '@/features/qr/qr-token';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -22,11 +27,8 @@ export default function ScanQrScreen() {
     if (locked.current) return;
     const code = handoff ? parseHandoffCode(value) : parseQrToken(value);
     if (!code) {
-      setError(
-        handoff
-          ? 'Đây không phải mã bàn giao playtest. Quét QR trong tab Playtest trên Web (mã có hạn 5 phút).'
-          : 'Mã QR phải là token 43 ký tự hoặc URL HTTPS dạng /qr/<token>.',
-      );
+      const expecting = handoff ? 'handoff' : 'building';
+      setError(scanMismatchText(scanMismatch(value, expecting), expecting));
       return;
     }
     locked.current = true;
