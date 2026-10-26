@@ -1,5 +1,14 @@
-import { useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { Check, ChevronDown } from 'lucide-react-native';
 import { colors, fonts } from '@/theme/tokens';
 import { Raised, Segments } from './Game';
@@ -145,6 +154,39 @@ export function SelectField<T>({
   );
 }
 
+/** Bottom sheet with a grabber and title; content scrolls above the keyboard. */
+export function Sheet({
+  visible,
+  title,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={{ flex: 1 }} accessibilityLabel="Đóng" onPress={onClose} />
+        <View style={[styles.sheet, { maxHeight: '88%' }]}>
+          <View style={styles.grabber} />
+          <Text style={styles.sheetTitle} accessibilityRole="header">
+            {title}
+          </Text>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 14 }}>
+            {children}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 /** Rough strength hint for the 12+ character rule; BE still validates the password. */
 export function PasswordStrength({ password }: { password: string }) {
   if (!password) return null;
@@ -235,6 +277,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.lineStrong,
     backgroundColor: colors.surface,
+  },
+  grabber: {
+    alignSelf: 'center',
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.lineStrong,
   },
   sheetTitle: { fontFamily: fonts.black, fontSize: 17, lineHeight: 23, marginBottom: 4 },
   option: {
