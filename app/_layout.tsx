@@ -8,7 +8,6 @@ import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600S
 import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
 import { BeVietnamPro_800ExtraBold } from '@expo-google-fonts/be-vietnam-pro/800ExtraBold';
 import { BeVietnamPro_900Black } from '@expo-google-fonts/be-vietnam-pro/900Black';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from '@/store/SessionProvider';
 import { colors, scheme } from '@/theme/tokens';
@@ -83,7 +82,6 @@ export default function Layout() {
     BeVietnamPro_700Bold,
     BeVietnamPro_800ExtraBold,
     BeVietnamPro_900Black,
-    ...Ionicons.font,
   });
   return (
     <SafeAreaProvider>
