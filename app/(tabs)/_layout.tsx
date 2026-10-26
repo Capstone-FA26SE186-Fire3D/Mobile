@@ -1,44 +1,18 @@
 import { Tabs } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { colors, fonts } from '@/theme/tokens';
+import { GameTabBar } from '@/components/ui/TabBar';
+import { colors } from '@/theme/tokens';
 
+// Figma v2: Nhà · Learn · [Quét QR — centre button] · Kết quả · Tôi. The scan button opens /scan-qr.
 export default function TabsLayout() {
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.ink,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          minHeight: 76,
-          paddingTop: 10,
-          paddingBottom: 12,
-        },
-        tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11, marginTop: 4 },
-      }}
+      tabBar={(props) => <GameTabBar {...props} />}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Trang chủ',
-          tabBarAccessibilityLabel: 'Mở trang chủ',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={23} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Tài khoản',
-          tabBarAccessibilityLabel: 'Mở tài khoản',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={23} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Nhà' }} />
+      <Tabs.Screen name="learn" options={{ title: 'Learn' }} />
+      <Tabs.Screen name="results" options={{ title: 'Kết quả' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Tôi' }} />
     </Tabs>
   );
 }

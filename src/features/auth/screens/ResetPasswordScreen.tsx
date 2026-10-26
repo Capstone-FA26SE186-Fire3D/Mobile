@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Keyboard, StyleSheet, TextInput } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
+import { ArrowUpRight, Check, Lock } from 'lucide-react-native';
 import { resetPassword } from '@/api/auth';
 import { ApiError } from '@/api';
 import { Button } from '@/components/ui/Button';
+import { PasswordStrength } from '@/components/ui/Form';
+import { Callout, Field } from '@/components/ui/Game';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
-import { colors, fonts } from '@/theme/tokens';
 import { useSession } from '@/store/SessionProvider';
 
 export default function ResetPasswordScreen() {
@@ -52,54 +54,62 @@ export default function ResetPasswordScreen() {
     }
   }
 
+  const toLogin = () => router.replace('/login');
   return (
-    <Screen>
-      <PageHeader title="Đặt lại mật khẩu" onBack={() => router.replace('/login')} />
-      {done ? (
-        <Notice>Đã đặt lại mật khẩu. Hãy đăng nhập bằng mật khẩu mới.</Notice>
-      ) : validToken ? (
-        <>
-          <Text muted>Nhập mật khẩu mới cho tài khoản Fire3D.</Text>
-          <TextInput
-            accessibilityLabel="Mật khẩu mới"
-            placeholder="Mật khẩu mới, từ 12 ký tự"
-            placeholderTextColor={colors.muted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          <TextInput
-            accessibilityLabel="Xác nhận mật khẩu mới"
-            placeholder="Xác nhận mật khẩu mới"
-            placeholderTextColor={colors.muted}
-            value={confirmed}
-            onChangeText={setConfirmed}
-            secureTextEntry
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          <Button title="Lưu mật khẩu mới" loading={busy} onPress={() => void submit()} />
-        </>
-      ) : (
-        <Notice error>Liên kết đặt lại mật khẩu thiếu mã hợp lệ.</Notice>
-      )}
-      {!!error && <Notice error>{error}</Notice>}
-      <Button title="Về đăng nhập" variant="secondary" onPress={() => router.replace('/login')} />
-    </Screen>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <Screen
+        footer={
+          validToken && !done ? (
+            <Button
+              title="Lưu mật khẩu mới"
+              icon={Check}
+              loading={busy}
+              onPress={() => void submit()}
+            />
+          ) : (
+            <Button title="Về đăng nhập" icon={ArrowUpRight} onPress={toLogin} />
+          )
+        }
+      >
+        <PageHeader title="Đặt lại mật khẩu" onBack={toLogin} />
+        {done ? (
+          <Callout tone="success" title="Đã đặt lại mật khẩu">
+            Hãy đăng nhập bằng mật khẩu mới.
+          </Callout>
+        ) : validToken ? (
+          <>
+            <Text muted>Nhập mật khẩu mới cho tài khoản FET3D.</Text>
+            <Field
+              label="Mật khẩu mới"
+              icon={Lock}
+              placeholder="Từ 12 đến 128 ký tự"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="new-password"
+            />
+            <PasswordStrength password={password} />
+            <Field
+              label="Xác nhận mật khẩu mới"
+              icon={Lock}
+              placeholder="Nhập lại mật khẩu"
+              value={confirmed}
+              onChangeText={setConfirmed}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="new-password"
+              onSubmitEditing={() => void submit()}
+            />
+          </>
+        ) : (
+          <Notice error>Liên kết đặt lại mật khẩu thiếu mã hợp lệ.</Notice>
+        )}
+        {!!error && <Notice error>{error}</Notice>}
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  input: {
-    minHeight: 52,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    fontFamily: fonts.regular,
-    color: colors.ink,
-  },
-});

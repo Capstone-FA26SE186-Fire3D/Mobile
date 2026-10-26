@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Platform, StyleSheet, View } from 'react-native';
+import {
+  Check,
+  Info,
+  Lock,
+  MessageSquare,
+  RefreshCw,
+  Smartphone,
+  Upload,
+  User,
+} from 'lucide-react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -11,10 +21,12 @@ import {
 } from '@/api/auth';
 import { ApiError } from '@/api';
 import { Button } from '@/components/ui/Button';
+import { PasswordStrength, SelectField, Sheet } from '@/components/ui/Form';
+import { Callout, Card, Field, HexBadge, ListRow } from '@/components/ui/Game';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { useSession } from '@/store/SessionProvider';
-import { colors, fonts } from '@/theme/tokens';
+import { colors } from '@/theme/tokens';
 
 const genderLabels: Record<UserGender, string> = {
   Male: 'Nam',
@@ -60,6 +72,9 @@ export default function AccountSettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [sheet, setSheet] = useState<
+    'profile' | 'details' | 'avatar' | 'password' | 'logout' | 'google' | null
+  >(null);
 
   useEffect(() => {
     if (!account) return;
@@ -214,136 +229,234 @@ export default function AccountSettingsScreen() {
     return (
       <Screen>
         <PageHeader title="Cài đặt tài khoản" onBack={() => router.back()} />
-        <Notice>Chỉ tài khoản Trainee thật mới có thể cập nhật hồ sơ.</Notice>
+        <Notice>Chỉ tài khoản học viên thật mới có thể cập nhật hồ sơ.</Notice>
       </Screen>
     );
 
+  const close = () => {
+    setSheet(null);
+    setError('');
+  };
+  const feedback = (
+    <>
+      {!!error && <Notice error>{error}</Notice>}
+      {!!message && <Callout tone="success">{message}</Callout>}
+    </>
+  );
+  const details = [account.dob, account.gender && genderLabels[account.gender], account.phoneNumber]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
-    <Screen>
+    <Screen contentStyle={{ padding: 16, gap: 12 }}>
       <PageHeader title="Cài đặt tài khoản" onBack={() => router.back()} />
-      <View style={styles.section}>
-        <Text variant="heading">Hồ sơ</Text>
-        {avatarUrl && (
-          <Image
-            source={{ uri: avatarUrl }}
-            style={styles.avatar}
-            accessibilityLabel="Ảnh đại diện"
+      {!sheet && feedback}
+      <Text variant="caps" style={styles.section}>
+        HỒ SƠ
+      </Text>
+      <Card padding={8}>
+        <ListRow
+          icon={User}
+          tone="info"
+          title="Họ tên, username"
+          subtitle={[account.fullName, account.username].filter(Boolean).join(' · ')}
+          onPress={() => setSheet('profile')}
+        />
+        <ListRow
+          icon={Smartphone}
+          tone="info"
+          title="Ngày sinh, giới tính, SĐT"
+          subtitle={details || 'Chưa cập nhật'}
+          onPress={() => setSheet('details')}
+        />
+        <ListRow
+          icon={Upload}
+          tone="warning"
+          title="Ảnh đại diện"
+          subtitle="Chọn ảnh từ máy (≤ 5 MB)"
+          onPress={() => setSheet('avatar')}
+        />
+      </Card>
+      <Text variant="caps" style={styles.section}>
+        BẢO MẬT
+      </Text>
+      <Card padding={8}>
+        <ListRow
+          icon={Lock}
+          tone="danger"
+          title="Đổi mật khẩu"
+          subtitle="Sẽ đăng xuất mọi thiết bị"
+          onPress={() => setSheet('password')}
+        />
+        <ListRow
+          icon={RefreshCw}
+          tone="danger"
+          title="Đăng xuất mọi thiết bị"
+          subtitle="Thu hồi mọi phiên đăng nhập"
+          onPress={() => setSheet('logout')}
+        />
+        {Platform.OS === 'android' && (
+          <ListRow
+            icon={MessageSquare}
+            tone="info"
+            title="Liên kết Google"
+            subtitle="Dùng Google để đăng nhập tài khoản này"
+            onPress={() => setSheet('google')}
           />
         )}
-        <Text muted>Email: {account.email}</Text>
-        <Text muted>Email đã xác minh: {account.emailVerifiedAt ? 'Có' : 'Chưa'}</Text>
-        <Text variant="label">Họ và tên</Text>
-        <TextInput
-          accessibilityLabel="Sửa họ và tên"
-          value={fullName}
-          onChangeText={setFullName}
-          autoComplete="name"
-          style={styles.input}
-        />
-        <Text variant="label">Username</Text>
-        <TextInput
-          accessibilityLabel="Sửa username"
+      </Card>
+      {Platform.OS === 'android' && (
+        <>
+          <Text variant="caps" style={styles.section}>
+            THÔNG BÁO
+          </Text>
+          <Card padding={8}>
+            <ListRow
+              icon={Info}
+              tone="success"
+              title="Nhận thông báo"
+              subtitle="Kết quả, nhắc đồng bộ"
+              trailing={
+                <Button
+                  title="Bật"
+                  variant="ghost"
+                  disabled={busy}
+                  onPress={() =>
+                    void run(async () => {
+                      const enabled = await retryDeviceBinding();
+                      if (!enabled) throw new Error('Chưa cấp quyền thông báo cho ứng dụng.');
+                    }, 'Đã đăng ký thiết bị nhận thông báo.')
+                  }
+                />
+              }
+            />
+          </Card>
+        </>
+      )}
+      <Text variant="small" dim style={{ textAlign: 'center' }}>
+        {account.email} · {account.emailVerifiedAt ? 'Email đã xác minh' : 'Email chưa xác minh'}
+      </Text>
+
+      <Sheet visible={sheet === 'profile'} title="Họ tên, username" onClose={close}>
+        <Field label="Họ và tên" value={fullName} onChangeText={setFullName} autoComplete="name" />
+        <Field
+          label="Username"
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
-          style={styles.input}
+          autoCorrect={false}
         />
-        <Text variant="label">Ngày sinh (YYYY-MM-DD)</Text>
-        <TextInput
-          accessibilityLabel="Sửa ngày sinh"
-          value={dob}
-          onChangeText={setDob}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-        />
-        <Text variant="label">Giới tính</Text>
-        <View style={styles.options}>
-          {([null, 'Male', 'Female', 'Other', 'PreferNotToSay'] as const).map((value) => (
-            <Pressable
-              key={value ?? 'none'}
-              accessibilityRole="button"
-              accessibilityLabel={value ? genderLabels[value] : 'Không chọn'}
-              accessibilityState={{ selected: gender === value }}
-              onPress={() => setGender(value)}
-              style={[styles.option, gender === value && styles.optionSelected]}
-            >
-              <Text variant="small">{value ? genderLabels[value] : 'Không chọn'}</Text>
-            </Pressable>
-          ))}
+        {feedback}
+        <Button title="Lưu hồ sơ" icon={Check} loading={busy} onPress={saveProfile} />
+      </Sheet>
+
+      <Sheet visible={sheet === 'details'} title="Ngày sinh, giới tính, SĐT" onClose={close}>
+        <View style={styles.pair}>
+          <View style={{ flex: 1 }}>
+            <Field
+              label="Ngày sinh"
+              value={dob}
+              onChangeText={setDob}
+              placeholder="YYYY-MM-DD"
+              keyboardType="numbers-and-punctuation"
+            />
+          </View>
+          <SelectField
+            label="Giới tính"
+            value={gender}
+            options={genderOptions}
+            onChange={setGender}
+          />
         </View>
-        <Text variant="label">Số điện thoại</Text>
-        <TextInput
-          accessibilityLabel="Sửa số điện thoại"
+        <Field
+          label="Số điện thoại"
+          icon={Smartphone}
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           keyboardType="phone-pad"
-          style={styles.input}
         />
-        <Button title="Lưu hồ sơ" loading={busy} onPress={saveProfile} />
-      </View>
-      <View style={styles.section}>
-        <Text variant="heading">Ảnh đại diện</Text>
-        <Text muted>Chọn ảnh JPEG, PNG hoặc WebP, tối đa 5 MB.</Text>
+        {feedback}
+        <Button title="Lưu hồ sơ" icon={Check} loading={busy} onPress={saveProfile} />
+      </Sheet>
+
+      <Sheet visible={sheet === 'avatar'} title="Ảnh đại diện" onClose={close}>
+        <View style={{ alignItems: 'center' }}>
+          {avatarUrl ? (
+            <Image
+              source={{ uri: avatarUrl }}
+              style={styles.avatar}
+              accessibilityLabel="Ảnh đại diện"
+            />
+          ) : (
+            <HexBadge icon={User} size={96} />
+          )}
+        </View>
+        <Text variant="small" muted style={{ textAlign: 'center' }}>
+          Chọn ảnh JPEG, PNG hoặc WebP, tối đa 5 MB.
+        </Text>
+        {feedback}
         <Button
           title="Chọn ảnh từ thiết bị"
-          variant="secondary"
+          icon={Upload}
           disabled={busy}
           onPress={() => void chooseAvatar()}
         />
         {uploadedAvatar && (
           <Button
             title="Xóa ảnh đã tải lên"
-            variant="ghost"
+            variant="danger"
+            size="sm"
             disabled={busy}
             onPress={removeAvatar}
           />
         )}
-      </View>
-      <View style={styles.section}>
-        <Text variant="heading">Đổi mật khẩu</Text>
-        <TextInput
-          accessibilityLabel="Mật khẩu hiện tại"
-          placeholder="Mật khẩu hiện tại"
-          placeholderTextColor={colors.muted}
+      </Sheet>
+
+      <Sheet visible={sheet === 'password'} title="Đổi mật khẩu" onClose={close}>
+        <Field
+          label="Mật khẩu hiện tại"
+          icon={Lock}
           value={currentPassword}
           onChangeText={setCurrentPassword}
           secureTextEntry
           autoCapitalize="none"
-          style={styles.input}
         />
-        <TextInput
-          accessibilityLabel="Mật khẩu mới"
-          placeholder="Mật khẩu mới, từ 12 ký tự"
-          placeholderTextColor={colors.muted}
+        <Field
+          label="Mật khẩu mới"
+          icon={Lock}
+          placeholder="Từ 12 ký tự"
           value={newPassword}
           onChangeText={setNewPassword}
           secureTextEntry
           autoCapitalize="none"
-          style={styles.input}
         />
-        <TextInput
-          accessibilityLabel="Xác nhận mật khẩu mới"
-          placeholder="Xác nhận mật khẩu mới"
-          placeholderTextColor={colors.muted}
+        <PasswordStrength password={newPassword} />
+        <Field
+          label="Xác nhận mật khẩu mới"
+          icon={Lock}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           secureTextEntry
           autoCapitalize="none"
-          style={styles.input}
         />
-        <Text variant="small" muted>
+        <Callout tone="warning">
           Đổi mật khẩu thành công sẽ đăng xuất mọi phiên. Hãy đăng nhập lại.
+        </Callout>
+        {feedback}
+        <Button title="Đổi mật khẩu" icon={Check} loading={busy} onPress={savePassword} />
+      </Sheet>
+
+      <Sheet visible={sheet === 'logout'} title="Đăng xuất mọi thiết bị" onClose={close}>
+        <Text muted>
+          Thu hồi các phiên trên mọi thiết bị rồi đăng nhập lại. Phiên tập huấn đã bắt đầu vẫn được
+          đồng bộ sau khi đăng nhập.
         </Text>
-        <Button title="Đổi mật khẩu" loading={busy} onPress={savePassword} />
-      </View>
-      <View style={styles.section}>
-        <Text variant="heading">Phiên đăng nhập</Text>
-        <Text muted>Thu hồi các phiên trên mọi thiết bị rồi đăng nhập lại.</Text>
+        {feedback}
         <Button
           title="Đăng xuất mọi thiết bị"
-          variant="secondary"
-          disabled={busy}
+          icon={RefreshCw}
+          variant="danger"
+          loading={busy}
           onPress={() =>
             void run(async () => {
               await logoutEverywhere();
@@ -351,74 +464,56 @@ export default function AccountSettingsScreen() {
             }, 'Đã thu hồi mọi phiên đăng nhập.')
           }
         />
-      </View>
-      {Platform.OS === 'android' && (
-        <View style={styles.section}>
-          <Text variant="heading">Google</Text>
-          <Text muted>
-            Liên kết Google với tài khoản Fire3D hiện tại. Sau lần liên kết đầu tiên, bạn cần đăng
-            nhập lại.
-          </Text>
-          <TextInput
-            accessibilityLabel="Mật khẩu để liên kết Google"
-            value={linkPassword}
-            onChangeText={setLinkPassword}
-            secureTextEntry
-            autoCapitalize="none"
-            placeholder="Mật khẩu Fire3D hiện tại"
-            style={styles.input}
-          />
-          <Button
-            title="Liên kết Google"
-            variant="secondary"
-            disabled={busy || !linkPassword}
-            onPress={() =>
-              void run(async () => {
-                const requiresLogin = await linkGoogle(linkPassword);
-                setLinkPassword('');
-                if (requiresLogin) router.replace('/login');
-              }, 'Đã liên kết Google.')
-            }
-          />
-        </View>
-      )}
-      {Platform.OS === 'android' && (
-        <View style={styles.section}>
-          <Text variant="heading">Thông báo</Text>
-          <Text muted>Cho phép thông báo để đăng ký FCM trên thiết bị này.</Text>
-          <Button
-            title="Bật hoặc cập nhật thông báo"
-            variant="secondary"
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                const enabled = await retryDeviceBinding();
-                if (!enabled) throw new Error('Chưa cấp quyền thông báo cho ứng dụng.');
-              }, 'Đã đăng ký thiết bị nhận thông báo.')
-            }
-          />
-        </View>
-      )}
-      {!!error && <Notice error>{error}</Notice>}
-      {!!message && <Notice>{message}</Notice>}
+      </Sheet>
+
+      <Sheet visible={sheet === 'google'} title="Liên kết Google" onClose={close}>
+        <Text muted>
+          Liên kết Google với tài khoản FET3D hiện tại. Sau lần liên kết đầu tiên, bạn cần đăng nhập
+          lại.
+        </Text>
+        <Field
+          label="Mật khẩu FET3D hiện tại"
+          icon={Lock}
+          value={linkPassword}
+          onChangeText={setLinkPassword}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+        {feedback}
+        <Button
+          title="Liên kết Google"
+          icon={Check}
+          disabled={busy || !linkPassword}
+          onPress={() =>
+            void run(async () => {
+              const requiresLogin = await linkGoogle(linkPassword);
+              setLinkPassword('');
+              if (requiresLogin) router.replace('/login');
+            }, 'Đã liên kết Google.')
+          }
+        />
+      </Sheet>
     </Screen>
   );
 }
 
+const genderOptions: { label: string; value: UserGender | null }[] = [
+  { label: 'Không chọn', value: null },
+  ...(Object.keys(genderLabels) as UserGender[]).map((value) => ({
+    label: genderLabels[value],
+    value,
+  })),
+];
+
 const styles = StyleSheet.create({
-  section: { gap: 12, padding: 16, borderRadius: 16, backgroundColor: colors.surface },
-  input: {
-    minHeight: 52,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.background,
-    fontFamily: fonts.regular,
-    color: colors.ink,
+  section: { letterSpacing: 1.5 },
+  pair: { flexDirection: 'row', gap: 10 },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    borderWidth: 3,
+    borderColor: colors.hardShadow,
+    backgroundColor: colors.surfaceRaised,
   },
-  avatar: { width: 82, height: 82, borderRadius: 28 },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  option: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 10 },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
 });

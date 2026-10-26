@@ -6,13 +6,14 @@ import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Re
 import { BeVietnamPro_500Medium } from '@expo-google-fonts/be-vietnam-pro/500Medium';
 import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600SemiBold';
 import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { BeVietnamPro_800ExtraBold } from '@expo-google-fonts/be-vietnam-pro/800ExtraBold';
+import { BeVietnamPro_900Black } from '@expo-google-fonts/be-vietnam-pro/900Black';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from '@/store/SessionProvider';
-import { colors } from '@/theme/tokens';
+import { colors, scheme } from '@/theme/tokens';
 import { FontsReady } from '@/components/ui/Text';
-import { Brand } from '@/components/ui/Button';
 import { Notice } from '@/components/ui/Screen';
+import { Splash } from '@/components/ui/Splash';
 import { startTrainingRuntime } from '@/features/training/training-runtime';
 
 function Navigation() {
@@ -28,20 +29,14 @@ function Navigation() {
         : undefined,
     [accountId, role],
   );
-  if (!ready)
-    return (
-      <View style={styles.loading}>
-        <Brand />
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
+  if (!ready) return <Splash />;
   return (
     <View style={styles.app}>
       {!!error && <Notice error>{error}</Notice>}
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: colors.background },
+          contentStyle: { backgroundColor: colors.bg },
           animation: reduceMotion ? 'none' : 'fade',
           animationDuration: 280,
         }}
@@ -85,16 +80,20 @@ export default function Layout() {
     BeVietnamPro_500Medium,
     BeVietnamPro_600SemiBold,
     BeVietnamPro_700Bold,
-    ...Ionicons.font,
+    BeVietnamPro_800ExtraBold,
+    BeVietnamPro_900Black,
   });
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar
+        barStyle={scheme === 'light' ? 'dark-content' : 'light-content'}
+        backgroundColor={colors.bg}
+      />
       <FontsReady.Provider value={loaded}>
         <SessionProvider>
           {!loaded && !error ? (
             <View style={styles.loading}>
-              <ActivityIndicator color={colors.primary} />
+              <ActivityIndicator color={colors.ember} />
             </View>
           ) : (
             <Navigation />
@@ -106,12 +105,12 @@ export default function Layout() {
 }
 
 const styles = StyleSheet.create({
-  app: { flex: 1, backgroundColor: colors.background },
+  app: { flex: 1, backgroundColor: colors.bg },
   loading: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 24,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
 });

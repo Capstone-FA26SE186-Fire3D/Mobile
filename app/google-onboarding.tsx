@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { StyleSheet, TextInput } from 'react-native';
+import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Check, User } from 'lucide-react-native';
 import { Button } from '@/components/ui/Button';
+import { Field, Segments } from '@/components/ui/Game';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { useSession } from '@/store/SessionProvider';
 import { traineeUsername } from '@/api/google.contract';
-import { colors, fonts } from '@/theme/tokens';
 
 export default function GoogleOnboardingScreen() {
   const { onboardingToken, completeOnboarding } = useSession();
@@ -32,37 +33,54 @@ export default function GoogleOnboardingScreen() {
     }
   }
   return (
-    <Screen>
-      <PageHeader title="Hoàn tất tài khoản" onBack={() => router.replace('/login')} />
-      {onboardingToken ? (
-        <>
-          <Text muted>Chọn username cho tài khoản Trainee Fire3D của bạn.</Text>
-          <TextInput
-            accessibilityLabel="Username Trainee"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
-          {!!error && <Notice error>{error}</Notice>}
-          <Button title="Hoàn tất đăng ký Google" loading={busy} onPress={() => void submit()} />
-        </>
-      ) : (
-        <Notice error>Phiên Google đã hết. Hãy đăng nhập lại.</Notice>
-      )}
-    </Screen>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <Screen
+        footer={
+          onboardingToken ? (
+            <Button
+              title="Hoàn tất đăng ký Google"
+              icon={Check}
+              loading={busy}
+              onPress={() => void submit()}
+            />
+          ) : (
+            <Button title="Về đăng nhập" onPress={() => router.replace('/login')} />
+          )
+        }
+      >
+        <PageHeader
+          title="Hoàn tất tài khoản"
+          subtitle="Đăng ký bằng Google"
+          onBack={() => router.replace('/login')}
+        />
+        <Segments total={3} filled={3} />
+        {onboardingToken ? (
+          <>
+            <Text muted>Chọn username cho tài khoản học viên FET3D của bạn.</Text>
+            <View style={{ gap: 6 }}>
+              <Field
+                label="Username"
+                icon={User}
+                placeholder="nguyen.van.a"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={() => void submit()}
+              />
+              <Text variant="small" dim style={{ fontSize: 11 }}>
+                3–30 ký tự: chữ thường, số, . _ -
+              </Text>
+            </View>
+            {!!error && <Notice error>{error}</Notice>}
+          </>
+        ) : (
+          <Notice error>Phiên Google đã hết. Hãy đăng nhập lại.</Notice>
+        )}
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
-const styles = StyleSheet.create({
-  input: {
-    minHeight: 54,
-    paddingHorizontal: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    fontFamily: fonts.regular,
-    color: colors.ink,
-  },
-});
