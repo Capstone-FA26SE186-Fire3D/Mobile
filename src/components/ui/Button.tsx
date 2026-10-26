@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   View,
@@ -10,6 +11,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 import { colors } from '@/theme/tokens';
 import { Text } from './Text';
+const logoMark = require('../../../assets/images/logo-mark.png');
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 type Props = {
   title: string;
@@ -89,14 +91,16 @@ export function IconButton({
 }
 export function Brand({ small = false }: { small?: boolean }) {
   return (
-    <View style={styles.brand}>
-      <View style={[styles.mark, small && { width: 31, height: 35 }]}>
-        <Ionicons name="flame" color={colors.ink} size={small ? 21 : 26} />
-      </View>
-      <Text variant="heading" style={{ fontSize: small ? 20 : 24 }}>
-        fire
+    <View style={styles.brand} accessible accessibilityRole="image" accessibilityLabel="FET3D">
+      <Image
+        source={logoMark}
+        style={[styles.mark, small && styles.markSmall]}
+        resizeMode="contain"
+      />
+      <Text variant="heading" style={{ fontSize: small ? 20 : 24, letterSpacing: 1 }}>
+        FET
         <Text variant="heading" style={{ color: '#A74723', fontSize: small ? 20 : 24 }}>
-          3d
+          3D
         </Text>
       </Text>
     </View>
@@ -130,13 +134,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  mark: {
-    width: 38,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    transform: [{ rotate: '-7deg' }],
-  },
+  // Source asset is 818×742; keep that ratio so the isometric mark is not cropped.
+  mark: { width: 46, height: 42 },
+  markSmall: { width: 35, height: 32 },
 });
