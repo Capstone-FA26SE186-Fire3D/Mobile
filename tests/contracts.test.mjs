@@ -9,7 +9,12 @@ import {
 } from '../src/api/google.contract.ts';
 import { base64Url } from '../src/services/device-identity.ts';
 import { putDeviceBinding, deleteDeviceBinding } from '../src/services/device-api.ts';
-import { parseHandoffCode, parseQrToken } from '../src/features/qr/qr-token.ts';
+import {
+  parseHandoffCode,
+  parseQrToken,
+  scanMismatch,
+  scanMismatchText,
+} from '../src/features/qr/qr-token.ts';
 import { validatePackageManifest } from '../src/features/training/package-contract.ts';
 
 test('QR accepts only the published URL shape or a bare 43-character token', () => {
@@ -33,6 +38,22 @@ test('Playtest handoff QR accepts the Web deep link, its HTTPS form or the bare 
   assert.equal(parseHandoffCode(`https://evil.example/playtest/handoff?code=${code}`), null);
   assert.equal(parseHandoffCode(`https://fet3d.io.vn/qr/${code}`), null);
   assert.equal(parseHandoffCode('b'.repeat(42)), null);
+});
+
+test('a wrong QR is explained in plain words: playtest QR for a Trainee, Building QR for an organization, other pages', () => {
+  const token = 'c'.repeat(43);
+  assert.equal(
+    scanMismatch(`https://fet3d.io.vn/playtest/handoff?code=${token}`, 'building'),
+    'handoff',
+  );
+  assert.equal(scanMismatch(`fet3d://playtest/handoff?code=${token}`, 'building'), 'handoff');
+  assert.equal(scanMismatch(`https://fet3d.io.vn/qr/${token}`, 'handoff'), 'building');
+  assert.equal(scanMismatch('https://fet3d.io.vn/learn', 'building'), 'site');
+  assert.equal(scanMismatch('https://example.com/x', 'building'), 'unknown');
+  for (const kind of ['handoff', 'building', 'site', 'unknown']) {
+    const text = scanMismatchText(kind, 'building');
+    assert.doesNotMatch(text, /token|43 ký tự|<|>/);
+  }
 });
 
 test('Unity package manifest pins provenance and rejects path traversal', () => {
