@@ -1,17 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowUpRight, BookOpen, History, Lock } from 'lucide-react-native';
+import { BookOpen, History, Lock } from 'lucide-react-native';
 import { ApiError } from '@/api';
 import {
   getAiQuota,
@@ -22,7 +14,8 @@ import {
   type AiRequest,
 } from '@/api/trainee-ai';
 import { IconButton } from '@/components/ui/Button';
-import { Callout, Pill, Raised } from '@/components/ui/Game';
+import { Bubble, Composer } from '@/components/ui/Chat';
+import { Callout, Pill } from '@/components/ui/Game';
 import { Notice, PageHeader } from '@/components/ui/Screen';
 import { StateView } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
@@ -45,21 +38,6 @@ function describe(issue: unknown): string {
 const PENDING = ['Accepted', 'Processing'];
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-function Bubble({ mine, children }: { mine?: boolean; children: React.ReactNode }) {
-  return (
-    <View style={[styles.bubbleRow, mine && { justifyContent: 'flex-end' }]}>
-      <Raised
-        depth={3}
-        radius={18}
-        style={{ maxWidth: '80%' }}
-        faceStyle={[styles.bubble, mine && styles.mine]}
-      >
-        {children}
-      </Raised>
-    </View>
-  );
-}
 
 function Answer({ request }: { request: AiRequest }) {
   if (request.resultWithheld)
@@ -245,55 +223,31 @@ export default function AiScreen() {
           {!!error && <Notice error>{error}</Notice>}
         </ScrollView>
         {account && (
-          <View style={styles.composer}>
-            <View style={styles.inputRow}>
-              <TextInput
-                accessibilityLabel="Câu hỏi AI"
-                value={question}
-                editable={!blocked && !exhausted}
-                onChangeText={(value) => {
-                  setQuestion(value);
-                  keyRef.current = null;
-                }}
-                multiline
-                placeholder={
-                  blocked
-                    ? 'Đang khóa trong Assessment'
-                    : exhausted
-                      ? 'Hết lượt — chờ sang ngày mới'
-                      : 'Hỏi về bài học, kết quả của bạn…'
-                }
-                placeholderTextColor={colors.dim}
-                selectionColor={colors.ember}
-                style={styles.input}
-              />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Gửi câu hỏi"
-                accessibilityState={{ disabled: !canSend, busy }}
-                disabled={!canSend}
-                onPress={() => void submit()}
-                style={!canSend && { opacity: 0.45 }}
-              >
-                {({ pressed }) => (
-                  <Raised
-                    depth={3}
-                    shadow={colors.emberShadow}
-                    radius={14}
-                    pressed={pressed}
-                    faceStyle={styles.send}
-                  >
-                    <ArrowUpRight size={18} color={colors.emberForeground} strokeWidth={2.5} />
-                  </Raised>
-                )}
-              </Pressable>
-            </View>
-            <Text style={styles.footnote}>
-              {tooLong
+          <Composer
+            label="Câu hỏi AI"
+            sendLabel="Gửi câu hỏi"
+            value={question}
+            editable={!blocked && !exhausted}
+            onChangeText={(value) => {
+              setQuestion(value);
+              keyRef.current = null;
+            }}
+            onSend={() => void submit()}
+            canSend={canSend}
+            busy={busy}
+            placeholder={
+              blocked
+                ? 'Đang khóa trong Assessment'
+                : exhausted
+                  ? 'Hết lượt — chờ sang ngày mới'
+                  : 'Hỏi về bài học, kết quả của bạn…'
+            }
+            footnote={
+              tooLong
                 ? `Câu hỏi tối đa ${quota?.maxInputChars} ký tự.`
-                : `Mỗi câu hỏi dùng khoảng ${quota?.estimatedReserve ?? 1} lượt · AI có thể sai, hãy kiểm tra nguồn`}
-            </Text>
-          </View>
+                : `Mỗi câu hỏi dùng khoảng ${quota?.estimatedReserve ?? 1} lượt · AI có thể sai, hãy kiểm tra nguồn`
+            }
+          />
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -312,53 +266,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgSoft,
   },
   thread: { padding: 16, gap: 12, flexGrow: 1 },
-  bubbleRow: { flexDirection: 'row' },
-  bubble: {
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 2,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.surface,
-  },
-  mine: { borderColor: colors.ember, backgroundColor: colors.emberSoft },
   text: { fontSize: 14, lineHeight: 21 },
   citations: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   dots: { flexDirection: 'row', gap: 6, paddingVertical: 4 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.ember },
-  composer: {
-    gap: 6,
-    padding: 12,
-    backgroundColor: colors.surface,
-    borderTopWidth: 2,
-    borderColor: colors.lineStrong,
-  },
-  inputRow: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingLeft: 14,
-    paddingRight: 6,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bgSoft,
-  },
-  input: {
-    flex: 1,
-    maxHeight: 110,
-    paddingVertical: 12,
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    color: colors.text,
-  },
-  send: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.ember,
-  },
-  footnote: { fontSize: 10, lineHeight: 14, textAlign: 'center', color: colors.dim },
 });
