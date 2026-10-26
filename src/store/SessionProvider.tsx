@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type PropsWithChildren,
 } from 'react';
@@ -114,13 +115,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
     };
   }, [account?.id]);
 
-  async function clearLocal() {
+  const clearLocal = useCallback(async () => {
     await clearSession();
     await clearGoogleIdentity();
     setAccount(null);
     setOnboardingToken(null);
     setError('');
-  }
+  }, []);
 
   const setPendingQrToken = useCallback(async (token: string | null) => {
     if (token) await AsyncStorage.setItem(PENDING_QR_KEY, token);
@@ -133,98 +134,109 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setPendingHandoffCodeState(code);
   }, []);
 
-  return (
-    <Context.Provider
-      value={{
-        account,
-        ready,
-        reduceMotion,
-        error,
-        onboardingToken,
-        pendingQrToken,
-        setPendingQrToken,
-        pendingHandoffCode,
-        setPendingHandoffCode,
-        signInWithPassword: async (email, password) => {
-          const user = await loginWithPassword(email, password);
-          setError('');
-          setOnboardingToken(null);
-          setAccount(user);
-        },
-        signInWithGoogle: async () => {
-          const idToken = await firebaseIdTokenFromGoogle();
-          try {
-            const result = await loginWithFirebase(idToken);
-            if (result.status === 'OnboardingRequired') {
-              setOnboardingToken(result.onboardingToken!);
-              return 'onboarding';
-            }
-            setError('');
-            setAccount(result.authentication!.user);
-            return 'authenticated';
-          } catch (issue) {
-            await clearGoogleIdentity();
-            throw issue;
+  // One stable object between state changes: consumers re-render only when something they can read has changed.
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      account,
+      ready,
+      reduceMotion,
+      error,
+      onboardingToken,
+      pendingQrToken,
+      setPendingQrToken,
+      pendingHandoffCode,
+      setPendingHandoffCode,
+      signInWithPassword: async (email, password) => {
+        const user = await loginWithPassword(email, password);
+        setError('');
+        setOnboardingToken(null);
+        setAccount(user);
+      },
+      signInWithGoogle: async () => {
+        const idToken = await firebaseIdTokenFromGoogle();
+        try {
+          const result = await loginWithFirebase(idToken);
+          if (result.status === 'OnboardingRequired') {
+            setOnboardingToken(result.onboardingToken!);
+            return 'onboarding';
           }
-        },
-        completeOnboarding: async (username) => {
-          if (!onboardingToken)
-            throw new Error('Phiên tạo tài khoản Google đã hết. Hãy đăng nhập Google lại.');
-          const user = await completeGoogleOnboarding(onboardingToken, username);
-          setOnboardingToken(null);
-          setAccount(user);
-        },
-        linkGoogle: async (currentPassword) => {
-          let revoked = false;
-          try {
-            const token = await firebaseIdTokenFromGoogle();
-            if (account) {
-              await revokeDevice(account.id);
-              revoked = true;
-            }
-            const result = await linkCurrentGoogle(token, currentPassword);
-            if (result.requiresLogin) await clearLocal();
-            else {
-              setAccount(result.user);
-              await bindDevice(result.user.id).catch((issue) => {
-                setError(`Không đăng ký được thông báo: ${message(issue)}`);
-              });
-            }
-            return result.requiresLogin;
-          } catch (issue) {
-            if (revoked && account) await bindDevice(account.id).catch(() => {});
-            throw issue;
-          } finally {
-            await clearGoogleIdentity();
-          }
-        },
-        refreshAccount: async () => setAccount(await getCurrentAccount()),
-        updateProfile: async (input) => setAccount(await updateCurrentProfile(input)),
-        retryDeviceBinding: async () => {
-          if (account?.role !== 'Trainee') return false;
-          const bound = await bindDevice(account.id);
           setError('');
-          return bound;
-        },
-        revokeCurrentDevice: async () => {
-          if (account?.role === 'Trainee') await revokeDevice(account.id);
-        },
-        signOut: async () => {
-          if (account?.role === 'Trainee') await revokeDevice(account.id);
-          await logoutSession();
-          await clearLocal();
-        },
-        logoutEverywhere: async () => {
-          if (account?.role === 'Trainee') await revokeDevice(account.id);
-          await logoutAllSessions();
-          await clearLocal();
-        },
-        clearLocal,
-      }}
-    >
-      {children}
-    </Context.Provider>
+          setAccount(result.authentication!.user);
+          return 'authenticated';
+        } catch (issue) {
+          await clearGoogleIdentity();
+          throw issue;
+        }
+      },
+      completeOnboarding: async (username) => {
+        if (!onboardingToken)
+          throw new Error('Phiên tạo tài khoản Google đã hết. Hãy đăng nhập Google lại.');
+        const user = await completeGoogleOnboarding(onboardingToken, username);
+        setOnboardingToken(null);
+        setAccount(user);
+      },
+      linkGoogle: async (currentPassword) => {
+        let revoked = false;
+        try {
+          const token = await firebaseIdTokenFromGoogle();
+          if (account) {
+            await revokeDevice(account.id);
+            revoked = true;
+          }
+          const result = await linkCurrentGoogle(token, currentPassword);
+          if (result.requiresLogin) await clearLocal();
+          else {
+            setAccount(result.user);
+            await bindDevice(result.user.id).catch((issue) => {
+              setError(`Không đăng ký được thông báo: ${message(issue)}`);
+            });
+          }
+          return result.requiresLogin;
+        } catch (issue) {
+          if (revoked && account) await bindDevice(account.id).catch(() => {});
+          throw issue;
+        } finally {
+          await clearGoogleIdentity();
+        }
+      },
+      refreshAccount: async () => setAccount(await getCurrentAccount()),
+      updateProfile: async (input) => setAccount(await updateCurrentProfile(input)),
+      retryDeviceBinding: async () => {
+        if (account?.role !== 'Trainee') return false;
+        const bound = await bindDevice(account.id);
+        setError('');
+        return bound;
+      },
+      revokeCurrentDevice: async () => {
+        if (account?.role === 'Trainee') await revokeDevice(account.id);
+      },
+      signOut: async () => {
+        if (account?.role === 'Trainee') await revokeDevice(account.id);
+        await logoutSession();
+        await clearLocal();
+      },
+      logoutEverywhere: async () => {
+        if (account?.role === 'Trainee') await revokeDevice(account.id);
+        await logoutAllSessions();
+        await clearLocal();
+      },
+      clearLocal,
+    }),
+    [
+      account,
+      ready,
+      reduceMotion,
+      error,
+      onboardingToken,
+      pendingQrToken,
+      pendingHandoffCode,
+      setPendingQrToken,
+      setPendingHandoffCode,
+      clearLocal,
+    ],
   );
+
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
 export function useSession(): SessionContextValue {

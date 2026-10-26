@@ -42,7 +42,7 @@ const json = (body: unknown, status = 200) => ({
 async function login(page: Page) {
   await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
-  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await page.getByRole('button', { name: 'Vào game', exact: true }).click();
 }
 
 test('QR → training → mode → prepare; web without Unity explains instead of crashing', async ({
@@ -99,13 +99,13 @@ test('QR → training → mode → prepare; web without Unity explains instead o
   await page.getByRole('button', { name: 'Đăng nhập và tiếp tục' }).click();
   await login(page);
   await expect(page.getByText('Tòa nhà B')).toBeVisible();
-  await expect(page.getByText(/Học \(Learn\) • Đánh giá \(Assessment\)/)).toBeVisible();
+  await expect(page.getByText('Assessment', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Mở bài tập Thoát hiểm tầng 3' }).click();
 
-  await expect(page.getByText('Chọn chế độ')).toBeVisible();
+  await expect(page.getByText('CHỌN CÁCH CHƠI')).toBeVisible();
   const prepare = page.getByRole('button', { name: 'Chuẩn bị phiên' });
   await expect(prepare).toBeDisabled();
-  await page.getByRole('radio', { name: 'Đánh giá (Assessment)' }).click();
+  await page.getByRole('radio', { name: 'Đánh giá' }).click();
   await prepare.click();
 
   await expect(page.getByText(/Cần ứng dụng Fire3D cho Android có tích hợp Unity/)).toBeVisible();
@@ -118,8 +118,8 @@ test('QR → training → mode → prepare; web without Unity explains instead o
   // Coming back restores the same preparation from the persisted attempt: no second prepare.
   await page.getByRole('button', { name: 'Quay lại' }).click();
   await page.getByRole('button', { name: 'Mở bài tập Thoát hiểm tầng 3' }).click();
-  await page.getByRole('radio', { name: 'Đánh giá (Assessment)' }).click();
-  await expect(page.getByText('Phiên đã chuẩn bị')).toBeVisible();
+  await page.getByRole('radio', { name: 'Đánh giá' }).click();
+  await expect(page.getByText('Sẵn sàng tải gói nhiệm vụ')).toBeVisible();
   await expect(page.getByText(/Cần ứng dụng Fire3D cho Android/)).toBeVisible();
   expect(prepareCalls).toHaveLength(1);
   expect(errors).toEqual([]);
@@ -194,15 +194,16 @@ test('result screen waits for sync, then shows the server result', async ({ page
 
   await page.goto('/login');
   await login(page);
-  await page.getByRole('button', { name: 'Lịch sử và kết quả' }).click();
-  await page.getByRole('button', { name: 'Xem trạng thái đồng bộ' }).click();
+  await page.getByRole('tab', { name: 'Kết quả' }).click();
+  await page.getByRole('button', { name: /Chờ đồng bộ/ }).click();
   await expect(page.getByText('Đang chờ đồng bộ')).toBeVisible();
   await expect(page.getByText(/chờ đủ sự kiện/)).toBeVisible();
 
   completed = true;
   await page.getByRole('button', { name: 'Đồng bộ lại' }).click();
-  await expect(page.getByText('Đạt', { exact: true })).toBeVisible();
-  await expect(page.getByText('Điểm: 85% / ngưỡng 70%')).toBeVisible();
+  await expect(page.getByText('ĐẠT', { exact: true })).toBeVisible();
+  await expect(page.getByText('85%', { exact: true })).toBeVisible();
+  await expect(page.getByText(/ngưỡng 70%/)).toBeVisible();
   await expect(page.getByText(/Đến lối thoát/)).toBeVisible();
   await expect(page.getByText('Đang chờ đồng bộ')).toHaveCount(0);
 });

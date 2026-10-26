@@ -3,10 +3,11 @@ import { Text as NativeText, type TextProps, StyleSheet } from 'react-native';
 import { colors, fonts } from '@/theme/tokens';
 export const FontsReady = createContext(false);
 type Props = TextProps & {
-  variant?: 'body' | 'small' | 'label' | 'title' | 'heading';
+  variant?: 'body' | 'small' | 'caption' | 'label' | 'title' | 'heading' | 'caps' | 'strong';
   muted?: boolean;
+  dim?: boolean;
 };
-export function Text({ variant = 'body', muted, style, ...props }: Props) {
+export function Text({ variant = 'body', muted, dim, style, ...props }: Props) {
   const ready = useContext(FontsReady);
   return (
     <NativeText
@@ -14,18 +15,29 @@ export function Text({ variant = 'body', muted, style, ...props }: Props) {
       style={[
         styles.base,
         styles[variant],
-        !ready && { fontFamily: undefined },
         muted && { color: colors.muted },
+        dim && { color: colors.dim },
         style,
+        !ready && { fontFamily: undefined },
       ]}
     />
   );
 }
 const styles = StyleSheet.create({
-  base: { color: colors.ink, fontFamily: fonts.regular, fontSize: 15, lineHeight: 23 },
+  base: { color: colors.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22 },
   body: {},
-  small: { fontSize: 12, lineHeight: 19 },
-  label: { fontFamily: fonts.semibold, fontSize: 14, lineHeight: 21 },
-  title: { fontFamily: fonts.bold, fontSize: 29, lineHeight: 39, letterSpacing: -1 },
-  heading: { fontFamily: fonts.semibold, fontSize: 20, lineHeight: 29, letterSpacing: -0.5 },
+  small: { fontSize: 12, lineHeight: 17 },
+  caption: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 17 },
+  label: { fontFamily: fonts.extrabold, fontSize: 13, lineHeight: 18 },
+  strong: { fontFamily: fonts.extrabold, fontSize: 16, lineHeight: 22 },
+  title: { fontFamily: fonts.black, fontSize: 24, lineHeight: 31 },
+  heading: { fontFamily: fonts.black, fontSize: 18, lineHeight: 24 },
+  // Section/field labels: uppercase Black with tracking, e.g. "NHIỆM VỤ ĐANG DỞ", "EMAIL".
+  caps: {
+    fontFamily: fonts.black,
+    fontSize: 11,
+    lineHeight: 15,
+    letterSpacing: 1.2,
+    color: colors.dim,
+  },
 });

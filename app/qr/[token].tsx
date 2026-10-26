@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ArrowUpRight,
+  Check,
+  ChevronRight,
+  Lock,
+  Play,
+  ScanLine,
+  Search,
+  X,
+} from 'lucide-react-native';
 import { ApiError } from '@/api';
 import {
   getQrTrainings,
@@ -11,27 +21,48 @@ import {
   type Training,
 } from '@/api/qr';
 import { Button } from '@/components/ui/Button';
-import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
+import { BackButton, Callout, Card, Diorama, Field, HexBadge, Pill } from '@/components/ui/Game';
+import { Notice } from '@/components/ui/Screen';
+import { StateScreen } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
 import { parseQrToken } from '@/features/qr/qr-token';
-import { MODE_LABELS, allowedTrainingModes } from '@/features/training/session-contract';
+import { allowedTrainingModes, type TrainingMode } from '@/features/training/session-contract';
 import { useSession } from '@/store/SessionProvider';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, type HexTone } from '@/theme/tokens';
+const dioramaWide = require('../../assets/images/diorama-login.png');
 
+type Failure = 'revoked' | 'missing' | null;
+function failureOf(error: unknown): Failure {
+  if (!(error instanceof ApiError)) return null;
+  if (error.status === 410 || error.payload?.code === 'QR_REVOKED') return 'revoked';
+  if (error.status === 404 || error.payload?.code === 'QR_NOT_FOUND') return 'missing';
+  return null;
+}
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 410 || error.payload?.code === 'QR_REVOKED')
-      return 'Mã QR này đã bị thu hồi. Hãy xin mã mới từ tổ chức.';
-    if (error.status === 404 || error.payload?.code === 'QR_NOT_FOUND')
-      return 'Không tìm thấy mã QR hoặc Building không còn khả dụng.';
     if (error.payload?.code === 'BUILDING_ACCESS_REQUIRED')
-      return 'Hãy nhập mã tham gia Building Private.';
+      return 'Hãy nhập mã tham gia của tòa nhà riêng tư.';
     if (error.payload?.code === 'PARTICIPATION_CODE_INVALID')
       return 'Mã tham gia không đúng hoặc đã bị đổi/thu hồi.';
     return error.message;
   }
   return error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
 }
+
+export const MODE_PILL: Record<TrainingMode, 'success' | 'info' | 'warning'> = {
+  Learn: 'success',
+  Guided: 'info',
+  Assessment: 'warning',
+};
+const MISSION_TONES: HexTone[] = ['ember', 'warning', 'info'];
+const SERVICE: Record<
+  BuildingQrResolution['serviceStatus'],
+  { label: string; tone: 'success' | 'danger' | 'warning' }
+> = {
+  Active: { label: 'Hoạt động', tone: 'success' },
+  Expired: { label: 'Hết hạn', tone: 'danger' },
+  NotPurchased: { label: 'Chưa kích hoạt', tone: 'warning' },
+};
 
 export default function QrBuildingScreen() {
   const params = useLocalSearchParams<{ token: string }>();
@@ -42,11 +73,13 @@ export default function QrBuildingScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [failure, setFailure] = useState<Failure>(null);
 
   const load = useCallback(async () => {
     if (!account || !token) return;
     setBusy(true);
     setError('');
+    setFailure(null);
     try {
       const resolved = await resolveBuildingQr(token);
       setBuilding(resolved);
@@ -54,7 +87,9 @@ export default function QrBuildingScreen() {
       if (resolved.hasAccess) setTrainings(await getQrTrainings(token));
       else setTrainings([]);
     } catch (issue) {
-      setError(describe(issue));
+      const kind = failureOf(issue);
+      if (kind) setFailure(kind);
+      else setError(describe(issue));
     } finally {
       setBusy(false);
     }
@@ -85,115 +120,212 @@ export default function QrBuildingScreen() {
     }
   }
 
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const home = () => {
+    void setPendingQrToken(null).then(() => router.replace('/(tabs)'));
+  };
+  const rescan = () => router.replace('/scan-qr');
+
+  if (!token || failure === 'missing')
+    return (
+      <StateScreen
+        header="Quét QR tòa nhà"
+        onBack={back}
+        icon={Search}
+        tone="neutral"
+        ribbon="Không tìm thấy"
+        title="Không tìm thấy tòa nhà"
+        body="Mã QR không khớp với tòa nhà nào trong hệ thống. Kiểm tra lại mã hoặc liên hệ tổ chức."
+        actions={
+          <>
+            <Button title="Quét lại" icon={ScanLine} onPress={rescan} />
+            <Button title="Về trang chủ" variant="secondary" size="sm" onPress={home} />
+          </>
+        }
+      />
+    );
+  if (failure === 'revoked')
+    return (
+      <StateScreen
+        header="Quét QR tòa nhà"
+        onBack={back}
+        icon={X}
+        tone="danger"
+        ribbon="QR không còn hiệu lực"
+        title="Mã QR này đã bị thu hồi"
+        body="Tổ chức đã thay mã mới cho tòa nhà. Hãy quét mã QR mới đang dán tại tòa nhà."
+        actions={
+          <>
+            <Button title="Quét lại" icon={ScanLine} onPress={rescan} />
+            <Button title="Về trang chủ" variant="secondary" size="sm" onPress={home} />
+          </>
+        }
+      />
+    );
+
+  const service = building ? SERVICE[building.serviceStatus] : null;
+  const closed = !!building && !building.canStartNewSessions;
   return (
-    <Screen>
-      <PageHeader title="Building từ QR" onBack={() => router.back()} />
-      {!token ? (
-        <Notice error>Mã QR không hợp lệ.</Notice>
-      ) : !account ? (
-        <>
-          <Text>Đăng nhập để xem Building và các bài tập được cấp quyền.</Text>
-          <Button title="Đăng nhập và tiếp tục" onPress={() => void login()} />
-        </>
-      ) : (
-        <>
-          {busy && <ActivityIndicator color={colors.primary} />}
-          {!!error && <Notice error>{error}</Notice>}
-          {building && (
-            <View style={styles.section}>
-              <Text variant="title">{building.buildingName}</Text>
-              <Text muted>Trạng thái dịch vụ: {building.serviceStatus}</Text>
-              {building.serviceStatus !== 'Active' && (
-                <Notice>Dịch vụ Building chưa hoạt động; hiện không thể bắt đầu phiên mới.</Notice>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+        <View>
+          <Diorama source={dioramaWide} height={230} />
+          <View style={styles.back}>
+            <BackButton onPress={back} />
+          </View>
+        </View>
+        <View style={styles.body}>
+          {!account ? (
+            <>
+              <Text variant="title">Tòa nhà từ mã QR</Text>
+              <Text muted>Đăng nhập để xem tòa nhà và các bài tập được cấp quyền.</Text>
+              <Button
+                title="Đăng nhập và tiếp tục"
+                icon={ArrowUpRight}
+                onPress={() => void login()}
+              />
+            </>
+          ) : (
+            <>
+              {busy && !building && (
+                <ActivityIndicator color={colors.ember} style={{ marginTop: 24 }} />
               )}
-              {!building.hasAccess && building.visibility === 'Private' && (
+              {building && (
                 <>
-                  <Text variant="label">Mã tham gia Building Private</Text>
-                  <TextInput
-                    accessibilityLabel="Mã tham gia Building Private"
-                    value={code}
-                    onChangeText={setCode}
-                    autoCapitalize="characters"
-                    style={styles.input}
-                  />
-                  <Button
-                    title="Xác minh mã tham gia"
-                    disabled={busy || !code.trim()}
-                    onPress={() => void verify()}
-                  />
-                </>
-              )}
-              {building.hasAccess && (
-                <>
-                  <Text variant="heading">Bài tập được phép</Text>
-                  {trainings.length === 0 && !busy ? (
-                    <Text muted>Chưa có bài tập được phát hành.</Text>
-                  ) : null}
-                  {trainings.map((training) => {
-                    const modes = allowedTrainingModes(training.allowedModes);
-                    return (
-                      <Pressable
-                        key={training.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Mở bài tập ${training.name}`}
-                        disabled={modes.length === 0}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/training/[trainingId]',
-                            params: { trainingId: training.id, qr: token },
-                          })
-                        }
-                        style={({ pressed }) => [
-                          styles.training,
-                          pressed && { opacity: 0.8 },
-                          modes.length === 0 && { opacity: 0.5 },
-                        ]}
-                      >
-                        <View style={styles.trainingHead}>
-                          <Text variant="label" style={{ flex: 1 }}>
-                            {training.name}
+                  <View style={styles.titleRow}>
+                    <Text variant="title" style={{ flex: 1 }}>
+                      {building.buildingName}
+                    </Text>
+                    {service && <Pill label={service.label} tone={service.tone} />}
+                  </View>
+                  <Text variant="small" muted>
+                    {building.visibility === 'Private' ? 'Riêng tư' : 'Công khai'}
+                    {building.serviceEndsAt
+                      ? ` · Dịch vụ đến ${new Date(building.serviceEndsAt).toLocaleDateString('vi-VN')}`
+                      : ''}
+                  </Text>
+                  {!building.hasAccess && building.visibility === 'Private' ? (
+                    <Card contentStyle={{ gap: 12 }}>
+                      <View style={styles.row}>
+                        <HexBadge icon={Lock} tone="warning" size={60} />
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <Text variant="heading">Tòa nhà riêng tư</Text>
+                          <Text variant="small" muted style={{ lineHeight: 18 }}>
+                            Nhập mã tham gia do tổ chức cung cấp để mở bảng nhiệm vụ.
                           </Text>
-                          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
                         </View>
-                        {!!training.description && <Text muted>{training.description}</Text>}
-                        <Text variant="small" muted>
-                          {modes.length > 0
-                            ? `Chế độ: ${modes.map((mode) => MODE_LABELS[mode].title).join(' • ')}`
-                            : 'Chưa mở chế độ nào.'}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                      </View>
+                      <Field
+                        label="Mã tham gia"
+                        value={code}
+                        onChangeText={setCode}
+                        autoCapitalize="characters"
+                        placeholder="VD: FIRE-2026"
+                        onSubmitEditing={() => void verify()}
+                      />
+                      {!!error && <Notice error>{error}</Notice>}
+                      <Button
+                        title="Xác minh mã"
+                        icon={Check}
+                        loading={busy}
+                        disabled={!code.trim()}
+                        onPress={() => void verify()}
+                      />
+                    </Card>
+                  ) : (
+                    <>
+                      {closed && (
+                        <Callout tone="warning">
+                          {building.serviceStatus === 'Expired'
+                            ? 'Dịch vụ của tòa nhà đã hết hạn nên chưa thể bắt đầu phiên mới. Bạn vẫn xem được bảng nhiệm vụ.'
+                            : 'Tòa nhà chưa mở phiên mới. Bạn vẫn xem được bảng nhiệm vụ.'}
+                        </Callout>
+                      )}
+                      {!!error && <Notice error>{error}</Notice>}
+                      <Text variant="caps" style={{ letterSpacing: 1.5 }}>
+                        BẢNG NHIỆM VỤ
+                      </Text>
+                      {trainings.length === 0 && !busy && (
+                        <Text muted>Chưa có bài tập được phát hành.</Text>
+                      )}
+                      {trainings.map((training, index) => {
+                        const modes = allowedTrainingModes(training.allowedModes);
+                        return (
+                          <Card
+                            key={training.id}
+                            accessibilityLabel={`Mở bài tập ${training.name}`}
+                            style={(closed || modes.length === 0) && { opacity: 0.6 }}
+                            contentStyle={{ gap: 10 }}
+                            onPress={
+                              modes.length === 0
+                                ? undefined
+                                : () =>
+                                    router.push({
+                                      pathname: '/training/[trainingId]',
+                                      params: { trainingId: training.id, qr: token },
+                                    })
+                            }
+                          >
+                            <View style={styles.row}>
+                              <HexBadge icon={Play} tone={MISSION_TONES[index % 3]} size={56} />
+                              <View style={{ flex: 1, gap: 3 }}>
+                                <Text variant="strong">{training.name}</Text>
+                                {!!training.description && (
+                                  <Text variant="small" muted numberOfLines={2}>
+                                    {training.description}
+                                  </Text>
+                                )}
+                              </View>
+                              <ChevronRight size={18} color={colors.dim} strokeWidth={2.5} />
+                            </View>
+                            <View style={styles.pills}>
+                              {modes.length > 0 ? (
+                                modes.map((mode) => (
+                                  <Pill key={mode} label={mode} tone={MODE_PILL[mode]} />
+                                ))
+                              ) : (
+                                <Pill label="Chưa mở chế độ nào" tone="neutral" />
+                              )}
+                            </View>
+                          </Card>
+                        );
+                      })}
+                    </>
+                  )}
                 </>
               )}
-            </View>
+              {!building && !busy && (
+                <>
+                  {!!error && <Notice error>{error}</Notice>}
+                  <Button
+                    title="Thử lại"
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => void load()}
+                  />
+                </>
+              )}
+            </>
           )}
-          <Button title="Thử lại" variant="secondary" disabled={busy} onPress={() => void load()} />
-          <Button
-            title="Về trang chủ"
-            variant="ghost"
-            onPress={() => {
-              void setPendingQrToken(null).then(() => router.replace('/(tabs)'));
-            }}
-          />
-        </>
-      )}
-    </Screen>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: 14 },
-  training: { gap: 6, padding: 16, borderRadius: 14, backgroundColor: colors.surface },
-  trainingHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: {
-    minHeight: 54,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    fontFamily: fonts.regular,
-    color: colors.ink,
+  safe: { flex: 1, backgroundColor: colors.bg },
+  back: { position: 'absolute', top: 16, left: 16 },
+  body: {
+    flex: 1,
+    gap: 12,
+    padding: 16,
+    paddingBottom: 32,
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
 });

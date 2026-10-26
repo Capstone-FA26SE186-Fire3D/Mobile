@@ -53,11 +53,11 @@ test('QR survives login, verifies private code and loads allowed trainings', asy
   await page.getByRole('button', { name: 'Đăng nhập và tiếp tục' }).click();
   await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
-  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await page.getByRole('button', { name: 'Vào game', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/qr/${token}$`));
   await expect(page.getByText('Building A')).toBeVisible();
-  await page.getByRole('textbox', { name: 'Mã tham gia Building Private' }).fill('ABCD');
-  await page.getByRole('button', { name: 'Xác minh mã tham gia' }).click();
+  await page.getByRole('textbox', { name: 'Mã tham gia' }).fill('ABCD');
+  await page.getByRole('button', { name: 'Xác minh mã' }).click();
   await expect(page.getByText('Thoát hiểm')).toBeVisible();
 });
 
@@ -79,9 +79,9 @@ test('revoked QR shows its own error', async ({ page }) => {
   await page.goto('/login');
   await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
-  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-  await page.getByRole('button', { name: 'Quét QR hoặc nhập mã Building' }).click();
-  await page.getByRole('textbox', { name: 'URL QR hoặc token' }).fill(token);
-  await page.getByRole('button', { name: 'Mở Building' }).click();
+  await page.getByRole('button', { name: 'Vào game', exact: true }).click();
+  await page.getByRole('button', { name: 'Quét QR tòa nhà' }).click();
+  await page.getByRole('textbox', { name: 'Liên kết hoặc mã QR' }).fill(token);
+  await page.getByRole('button', { name: 'Mở tòa nhà' }).click();
   await expect(page.getByText(/đã bị thu hồi/)).toBeVisible();
 });

@@ -1,14 +1,19 @@
 {
   "expo": {
-    "name": "FETD3D",
+    "name": "FET3D",
     "slug": "rag-assistant",
     "version": "0.1.0",
     "scheme": ["fet3d", "fire3d"],
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "backgroundColor": "#F7F3EA",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#141719",
+    "icon": "./assets/images/icon.png",
     "android": {
       "package": "com.fet3d.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#F7F3EA"
+      },
       "googleServicesFile": "./google-services.json",
       "intentFilters": [
         {
@@ -23,7 +28,8 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "name": "FETD3D"
+      "name": "FET3D",
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
