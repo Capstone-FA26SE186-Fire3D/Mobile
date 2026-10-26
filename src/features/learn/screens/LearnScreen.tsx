@@ -1,17 +1,45 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import { Bookmark, Building2, CircleAlert, Play, Search, Sparkle } from 'lucide-react-native';
 import { listLearnPosts, type LearnSummary } from '@/api/learn';
-import { Button } from '@/components/ui/Button';
-import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
+import { Button, IconButton } from '@/components/ui/Button';
+import {
+  Card,
+  Cover,
+  FilterChips,
+  Ribbon,
+  SearchField,
+  type LucideIcon,
+} from '@/components/ui/Game';
+import { Notice, PageHeader, Screen, ScreenTitle } from '@/components/ui/Screen';
+import { AiFab } from '@/components/ui/TabBar';
 import { Text } from '@/components/ui/Text';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, type HexTone } from '@/theme/tokens';
 import { useSession } from '@/store/SessionProvider';
 
-export default function LearnIndex() {
+type Kind = LearnSummary['kind'];
+export const KIND: Record<Kind, { label: string; icon: LucideIcon; tone: HexTone }> = {
+  Article: { label: 'Bài viết', icon: Building2, tone: 'warning' },
+  Tip: { label: 'Mẹo', icon: CircleAlert, tone: 'danger' },
+  Video: { label: 'Video', icon: Play, tone: 'info' },
+};
+const FILTERS = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'Article', label: 'Bài viết' },
+  { value: 'Tip', label: 'Mẹo' },
+  { value: 'Video', label: 'Video' },
+] as const;
+
+function open(post: LearnSummary) {
+  router.push(`/learn/${encodeURIComponent(post.slug)}`);
+}
+
+export default function LearnScreen({ standalone = false }: { standalone?: boolean }) {
   const { account } = useSession();
   const [posts, setPosts] = useState<LearnSummary[]>([]);
   const [query, setQuery] = useState('');
+  const [kind, setKind] = useState<(typeof FILTERS)[number]['value']>('all');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -36,68 +64,129 @@ export default function LearnIndex() {
     void load(1, '');
   }, [load]);
 
+  const search = query.trim();
+  const shown = kind === 'all' ? posts : posts.filter((post) => post.kind === kind);
+  const [featured, ...rest] = shown;
+  const bookmarks = account && (
+    <IconButton
+      icon={Bookmark}
+      label="Bài đã lưu"
+      onPress={() => router.push('/learn/bookmarks')}
+    />
+  );
+
   return (
-    <Screen>
-      <PageHeader title="Learn" onBack={() => router.back()} />
-      <Text muted>Nội dung học công khai về an toàn và ứng phó sự cố.</Text>
-      {account && (
-        <Button
-          title="Bài đã lưu"
-          variant="secondary"
-          onPress={() => router.push('/learn/bookmarks')}
-        />
-      )}
-      <View style={styles.search}>
-        <TextInput
+    <View style={{ flex: 1 }}>
+      <Screen contentStyle={styles.content}>
+        {standalone ? (
+          <PageHeader title="Learn" onBack={() => router.back()}>
+            {bookmarks}
+          </PageHeader>
+        ) : (
+          <ScreenTitle right={bookmarks}>Learn</ScreenTitle>
+        )}
+        <SearchField
           accessibilityLabel="Tìm bài Learn"
+          icon={Search}
           value={query}
           onChangeText={setQuery}
-          placeholder="Tìm theo tiêu đề hoặc tóm tắt"
-          style={styles.input}
+          placeholder="Tìm bài, mẹo, video…"
+          returnKeyType="search"
+          onSubmitEditing={() => {
+            if (!search || search.length >= 2) void load(1, search);
+          }}
         />
-        <Button
-          title="Tìm"
-          disabled={busy || (!!query.trim() && query.trim().length < 2)}
-          onPress={() => void load(1, query.trim())}
-        />
-      </View>
-      {!!error && <Notice error>{error}</Notice>}
-      {busy && <ActivityIndicator color={colors.primary} />}
-      {!busy && posts.length === 0 && <Text muted>Chưa có bài Learn phù hợp.</Text>}
-      {posts.map((post) => (
-        <View key={post.id} style={styles.card}>
-          <Text variant="heading">{post.title}</Text>
-          <Text muted>{post.summary}</Text>
-          <Text variant="small">{post.kind}</Text>
+        <FilterChips options={FILTERS} value={kind} onChange={setKind} />
+        {!!error && <Notice error>{error}</Notice>}
+        {busy && posts.length === 0 && <ActivityIndicator color={colors.ember} />}
+        {!busy && shown.length === 0 && (
+          <Text muted style={{ textAlign: 'center' }}>
+            {search ? `Không tìm thấy bài nào cho “${search}”.` : 'Chưa có bài Learn phù hợp.'}
+          </Text>
+        )}
+        {featured && (
+          <Card
+            radius={22}
+            padding={0}
+            onPress={() => open(featured)}
+            accessibilityLabel={featured.title}
+          >
+            {featured.coverImageUrl ? (
+              <Image source={{ uri: featured.coverImageUrl }} style={styles.featuredCover} />
+            ) : (
+              <Cover icon={Sparkle} tone="ember" height={150} badge={82} />
+            )}
+            <View style={styles.featuredBody}>
+              <Ribbon label="Nổi bật" />
+              <Text style={styles.featuredTitle}>{featured.title}</Text>
+              <Text variant="small" muted numberOfLines={2} style={{ lineHeight: 18 }}>
+                {featured.summary}
+              </Text>
+            </View>
+          </Card>
+        )}
+        {rest.map((post) => {
+          const meta = KIND[post.kind] ?? KIND.Article;
+          return (
+            <Card
+              key={post.id}
+              padding={10}
+              onPress={() => open(post)}
+              accessibilityLabel={post.title}
+              contentStyle={styles.row}
+            >
+              {post.coverImageUrl ? (
+                <Image source={{ uri: post.coverImageUrl }} style={styles.thumb} />
+              ) : (
+                <Cover
+                  icon={meta.icon}
+                  tone={meta.tone}
+                  height={84}
+                  width={84}
+                  style={styles.thumbCover}
+                />
+              )}
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={styles.kind}>{meta.label.toUpperCase()}</Text>
+                <Text style={styles.rowTitle} numberOfLines={2}>
+                  {post.title}
+                </Text>
+                <Text variant="small" dim numberOfLines={1}>
+                  {post.summary}
+                </Text>
+              </View>
+            </Card>
+          );
+        })}
+        {posts.length < total && (
           <Button
-            title="Đọc bài"
+            title="Xem thêm"
             variant="secondary"
-            onPress={() => router.push(`/learn/${encodeURIComponent(post.slug)}`)}
+            size="sm"
+            loading={busy}
+            onPress={() => void load(page + 1, search)}
           />
-        </View>
-      ))}
-      {posts.length < total && (
-        <Button
-          title="Xem thêm"
-          disabled={busy}
-          onPress={() => void load(page + 1, query.trim())}
-        />
-      )}
-    </Screen>
+        )}
+      </Screen>
+      {!standalone && <AiFab />}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  search: { gap: 10 },
-  input: {
-    minHeight: 54,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    fontFamily: fonts.regular,
-    color: colors.ink,
+  content: { padding: 16, gap: 14, paddingBottom: 80 },
+  featuredCover: { height: 150, width: '100%', backgroundColor: colors.surfaceRaised },
+  featuredBody: { padding: 14, gap: 6 },
+  featuredTitle: { fontFamily: fonts.black, fontSize: 18, lineHeight: 24 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  thumb: { width: 84, height: 84, borderRadius: 14, backgroundColor: colors.surfaceRaised },
+  thumbCover: { borderRadius: 14 },
+  kind: {
+    fontFamily: fonts.black,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 1,
+    color: colors.ember,
   },
-  card: { gap: 9, backgroundColor: colors.surface, borderRadius: 16, padding: 16 },
+  rowTitle: { fontFamily: fonts.extrabold, fontSize: 14, lineHeight: 19 },
 });
