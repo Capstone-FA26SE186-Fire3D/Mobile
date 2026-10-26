@@ -71,7 +71,9 @@ export default function ResultsScreen({ standalone = false }: { standalone?: boo
     setError('');
     try {
       const result = await getTrainingHistory(nextPage);
-      setItems((current) => (nextPage === 1 ? result.items : [...current, ...result.items]));
+      setItems((current) =>
+        nextPage === 1 ? (result.items ?? []) : [...current, ...(result.items ?? [])],
+      );
       setPage(nextPage);
       setTotal(result.totalCount);
     } catch (issue) {

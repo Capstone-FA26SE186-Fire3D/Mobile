@@ -40,11 +40,16 @@ export default function ProfileScreen() {
         });
       // Row subtitles are informative only; a failed lookup just leaves the default text.
       listBookmarks(1)
-        .then((page) => active && setSummary((s) => ({ ...s, bookmarks: page.total })))
+        .then(
+          (page) =>
+            active &&
+            typeof page?.total === 'number' &&
+            setSummary((s) => ({ ...s, bookmarks: page.total })),
+        )
         .catch(() => undefined);
       getAiQuota()
         .then((quota) => {
-          if (!active) return;
+          if (!active || typeof quota?.remainingUnits !== 'number') return;
           const ai = !quota.policyActive
             ? 'Chưa bật cho tài khoản'
             : quota.dailyUnits
@@ -60,7 +65,9 @@ export default function ProfileScreen() {
             active &&
             setSummary((s) => ({
               ...s,
-              openTickets: tickets.filter((t) => !CLOSED.test(t.status)).length,
+              openTickets: Array.isArray(tickets)
+                ? tickets.filter((t) => !CLOSED.test(t.status)).length
+                : undefined,
             })),
         )
         .catch(() => undefined);

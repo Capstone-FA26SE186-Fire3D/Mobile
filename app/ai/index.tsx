@@ -97,7 +97,7 @@ export default function AiScreen() {
     try {
       const [nextQuota, page] = await Promise.all([getAiQuota(), listAiRequests()]);
       setQuota(nextQuota);
-      setRequests(page.items);
+      setRequests(page.items ?? []);
     } catch (issue) {
       setError(describe(issue));
     }

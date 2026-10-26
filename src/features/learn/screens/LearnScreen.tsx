@@ -50,7 +50,9 @@ export default function LearnScreen({ standalone = false }: { standalone?: boole
     setError('');
     try {
       const result = await listLearnPosts(nextPage, search || undefined);
-      setPosts((current) => (nextPage === 1 ? result.items : [...current, ...result.items]));
+      setPosts((current) =>
+        nextPage === 1 ? (result.items ?? []) : [...current, ...(result.items ?? [])],
+      );
       setPage(nextPage);
       setTotal(result.total);
     } catch (issue) {

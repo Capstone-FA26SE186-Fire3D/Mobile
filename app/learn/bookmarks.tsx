@@ -21,7 +21,9 @@ export default function BookmarksScreen() {
     setError('');
     try {
       const response = await listBookmarks(nextPage);
-      setItems((current) => (nextPage === 1 ? response.items : [...current, ...response.items]));
+      setItems((current) =>
+        nextPage === 1 ? (response.items ?? []) : [...current, ...(response.items ?? [])],
+      );
       setPage(nextPage);
       setTotal(response.total);
     } catch (issue) {

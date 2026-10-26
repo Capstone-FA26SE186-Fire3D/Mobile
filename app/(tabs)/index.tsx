@@ -54,7 +54,7 @@ export default function HomeScreen() {
       getTrainingHistory(1)
         .then((page) => {
           if (!live) return;
-          setHistory(page.items);
+          setHistory(page.items ?? []);
           setFetchOffline(false);
         })
         .catch((issue) => {

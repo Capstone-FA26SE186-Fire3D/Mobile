@@ -147,6 +147,7 @@ export default function LoginScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={busy}
+              accessibilityLabel="Chưa có tài khoản? Đăng ký"
               onPress={() => router.push('/register')}
               style={styles.linkRow}
             >
