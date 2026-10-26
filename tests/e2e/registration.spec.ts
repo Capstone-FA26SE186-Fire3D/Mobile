@@ -44,19 +44,23 @@ test('trainee registration uses OTP proof before creating the account', async ({
   await page.getByRole('textbox', { name: 'Họ và tên' }).fill('Nguyễn Văn A');
   await page.getByRole('textbox', { name: 'Email' }).fill('NEW@EXAMPLE.TEST');
   await page.getByRole('textbox', { name: 'Username' }).fill('Nguyen.Van.A');
-  await page.getByLabel('Mật khẩu mới').fill('StrongPassword12!');
-  await page.getByLabel('Xác nhận mật khẩu').fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Gửi mã xác minh' }).click();
-  await expect(page.getByText('Xác minh email')).toBeVisible();
+  await expect(page.getByText('Nhập mã 6 số')).toBeVisible();
   expect(requests).toEqual([{ path: 'request-otp', body: { email: 'new@example.test' } }]);
-  await page.getByRole('button', { name: 'Xác thực và đăng ký' }).click();
+  await page.getByRole('button', { name: 'Xác thực', exact: true }).click();
   await expect(page.getByText('Vui lòng nhập mã xác minh gồm 6 chữ số.')).toBeVisible();
   await page.getByRole('textbox', { name: 'Mã xác minh' }).fill('123456');
-  await page.getByRole('button', { name: 'Xác thực và đăng ký' }).click();
+  await page.getByRole('button', { name: 'Xác thực', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Mật khẩu', exact: true }).fill('StrongPassword12!');
+  await page.getByRole('textbox', { name: 'Xác nhận mật khẩu' }).fill('StrongPassword12!');
+  await page.getByRole('checkbox').click();
+  await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
   await expect(page.getByText(/Username này đã được sử dụng/)).toBeVisible();
-  await page.getByRole('textbox', { name: 'Username xác minh' }).fill('nguyen.van.b');
-  await page.getByRole('button', { name: 'Xác thực và đăng ký' }).click();
-  await expect(page.getByText('Đã tạo tài khoản')).toBeVisible();
+  // Back on step 1 with the verified email: only the username changes, no new OTP.
+  await page.getByRole('textbox', { name: 'Username' }).fill('nguyen.van.b');
+  await page.getByRole('button', { name: 'Gửi mã xác minh' }).click();
+  await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
+  await expect(page.getByText('Tài khoản đã sẵn sàng')).toBeVisible();
   expect(requests[1]).toEqual({
     path: 'verify-otp',
     body: { email: 'new@example.test', otp: '123456' },
@@ -109,8 +113,6 @@ test('duplicate email stops before OTP verification', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Họ và tên' }).fill('Nguyễn Văn A');
   await page.getByRole('textbox', { name: 'Email' }).fill('old@example.test');
   await page.getByRole('textbox', { name: 'Username' }).fill('nguyen.van.a');
-  await page.getByLabel('Mật khẩu mới').fill('StrongPassword12!');
-  await page.getByLabel('Xác nhận mật khẩu').fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Gửi mã xác minh' }).click();
   await expect(page.getByText(/Email này đã được đăng ký/)).toBeVisible();
   expect(verificationCalls).toBe(0);
@@ -157,10 +159,11 @@ test('profile update sends the current ETag and preserves omitted fields', async
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(account.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
-  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-  await page.getByRole('button', { name: 'Mở tài khoản' }).click();
+  await page.getByRole('button', { name: 'Vào game', exact: true }).click();
+  await page.getByRole('tab', { name: 'Tôi' }).click();
   await page.getByRole('button', { name: 'Cài đặt tài khoản' }).click();
-  await page.getByRole('textbox', { name: 'Sửa họ và tên' }).fill('Nguyễn Văn B');
+  await page.getByRole('button', { name: 'Họ tên, username' }).click();
+  await page.getByRole('textbox', { name: 'Họ và tên' }).fill('Nguyễn Văn B');
   await page.getByRole('button', { name: 'Lưu hồ sơ' }).click();
   await expect(page.getByText('Đã cập nhật hồ sơ.')).toBeVisible();
   expect(requests).toEqual([
@@ -185,9 +188,9 @@ test('forgot password sends a normalized email', async ({ page }) => {
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Quên mật khẩu?' }).click();
-  await page.getByRole('textbox', { name: 'Email đặt lại mật khẩu' }).fill('TEST@EXAMPLE.COM');
-  await page.getByRole('button', { name: 'Gửi yêu cầu' }).click();
-  await expect(page.getByText(/hệ thống đã nhận yêu cầu/)).toBeVisible();
+  await page.getByRole('textbox', { name: 'Email' }).fill('TEST@EXAMPLE.COM');
+  await page.getByRole('button', { name: 'Gửi liên kết' }).click();
+  await expect(page.getByText('Đã nhận yêu cầu')).toBeVisible();
   expect(submitted).toEqual([{ email: 'test@example.com' }]);
 });
 
