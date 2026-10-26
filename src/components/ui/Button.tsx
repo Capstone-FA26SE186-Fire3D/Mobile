@@ -7,69 +7,110 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import type { ComponentProps } from 'react';
-import { colors } from '@/theme/tokens';
+import type { LucideIcon } from 'lucide-react-native';
+import { colors, fonts } from '@/theme/tokens';
+import { Raised } from './Game';
 import { Text } from './Text';
 const logoMark = require('../../../assets/images/logo-mark.png');
-export type IconName = ComponentProps<typeof Ionicons>['name'];
+
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 type Props = {
   title: string;
   onPress: () => void;
-  icon?: IconName;
-  variant?: 'primary' | 'secondary' | 'ghost';
+  icon?: LucideIcon;
+  variant?: Variant;
+  /** 58px main action or 52px secondary row (Figma "Game button"). */
+  size?: 'md' | 'sm';
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 };
+const LOOK: Record<Exclude<Variant, 'ghost'>, { face: ViewStyle; fg: string; shadow: string }> = {
+  primary: {
+    face: { backgroundColor: colors.ember },
+    fg: colors.emberForeground,
+    shadow: colors.emberShadow,
+  },
+  secondary: {
+    face: { backgroundColor: colors.surfaceRaised, borderWidth: 2, borderColor: colors.lineStrong },
+    fg: colors.text,
+    shadow: colors.hardShadow,
+  },
+  danger: {
+    face: { backgroundColor: colors.dangerSoft, borderWidth: 2, borderColor: colors.danger },
+    fg: colors.danger,
+    shadow: colors.hardShadow,
+  },
+};
+
 export function Button({
   title,
   onPress,
-  icon,
+  icon: Icon,
   variant = 'primary',
+  size = 'md',
   loading,
   disabled,
   style,
   testID,
 }: Props) {
+  const off = disabled || loading;
+  if (variant === 'ghost')
+    return (
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: off, busy: loading }}
+        disabled={off}
+        onPress={onPress}
+        hitSlop={8}
+        style={({ pressed }) => [styles.ghost, (pressed || off) && { opacity: 0.6 }, style]}
+      >
+        {Icon && <Icon size={16} color={colors.ember} strokeWidth={2.5} />}
+        <Text style={styles.ghostLabel}>{title}</Text>
+      </Pressable>
+    );
+  const look = LOOK[variant];
   return (
     <Pressable
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={title}
-      accessibilityState={{ disabled: disabled || loading, busy: loading }}
-      disabled={disabled || loading}
+      accessibilityState={{ disabled: off, busy: loading }}
+      disabled={off}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        styles[variant],
-        pressed && styles.pressed,
-        (disabled || loading) && styles.disabled,
-        style,
-      ]}
+      style={[off && { opacity: 0.55 }, style]}
     >
-      {loading ? (
-        <ActivityIndicator color={colors.ink} />
-      ) : icon ? (
-        <Ionicons name={icon} size={21} color={colors.ink} />
-      ) : null}
-      <Text variant="label" style={styles.label}>
-        {title}
-      </Text>
-      {variant === 'primary' && !loading && (
-        <Ionicons name="arrow-forward" size={19} color={colors.ink} />
+      {({ pressed }) => (
+        <Raised
+          depth={5}
+          shadow={look.shadow}
+          radius={18}
+          pressed={pressed}
+          faceStyle={[styles.face, { minHeight: size === 'md' ? 58 : 52 }, look.face]}
+        >
+          {loading ? (
+            <ActivityIndicator color={look.fg} />
+          ) : (
+            Icon && <Icon size={22} color={look.fg} strokeWidth={2.25} />
+          )}
+          <Text style={[styles.label, { color: look.fg }]}>{title}</Text>
+        </Raised>
       )}
     </Pressable>
   );
 }
+
+/** Square 42px icon button (header actions). */
 export function IconButton({
-  name,
+  icon: Icon,
   label,
   onPress,
   selected = false,
 }: {
-  name: IconName;
+  icon: LucideIcon;
   label: string;
   onPress: () => void;
   selected?: boolean;
@@ -78,63 +119,71 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      hitSlop={6}
       onPress={onPress}
       style={({ pressed }) => [
         styles.iconButton,
-        selected && { backgroundColor: colors.primarySoft },
-        pressed && styles.pressed,
+        selected && { borderColor: colors.ember, backgroundColor: colors.emberSoft },
+        pressed && { opacity: 0.7 },
       ]}
     >
-      <Ionicons name={name} size={22} color={colors.ink} />
+      <Icon size={20} color={selected ? colors.ember : colors.text} strokeWidth={2.25} />
     </Pressable>
   );
 }
-export function Brand({ small = false }: { small?: boolean }) {
+
+const BRAND_SIZE = {
+  sm: { mark: { width: 35, height: 32 }, text: { fontSize: 20, lineHeight: 26 } },
+  md: { mark: { width: 46, height: 42 }, text: { fontSize: 24, lineHeight: 30 } },
+  lg: { mark: { width: 66, height: 60 }, text: { fontSize: 33, lineHeight: 41 } },
+};
+export function Brand({ size = 'md' }: { size?: keyof typeof BRAND_SIZE }) {
+  const s = BRAND_SIZE[size];
   return (
     <View style={styles.brand} accessible accessibilityRole="image" accessibilityLabel="FET3D">
-      <Image
-        source={logoMark}
-        style={[styles.mark, small && styles.markSmall]}
-        resizeMode="contain"
-      />
-      <Text variant="heading" style={{ fontSize: small ? 20 : 24, letterSpacing: 1 }}>
-        FET
-        <Text variant="heading" style={{ color: '#A74723', fontSize: small ? 20 : 24 }}>
-          3D
-        </Text>
+      {/* Source asset is 818×742; the sizes keep that ratio so the isometric mark is not cropped. */}
+      <Image source={logoMark} style={s.mark} resizeMode="contain" />
+      <Text style={[styles.brandText, s.text]}>
+        FET<Text style={[styles.brandText, s.text, { color: colors.ember }]}>3D</Text>
       </Text>
     </View>
   );
 }
 const styles = StyleSheet.create({
-  button: {
-    minHeight: 54,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+  face: {
+    paddingHorizontal: 22,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
   },
-  primary: { backgroundColor: colors.primary, borderBottomWidth: 3, borderBottomColor: '#C2693E' },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  ghost: { backgroundColor: 'transparent' },
-  label: { flexShrink: 1, textAlign: 'center', fontSize: 15 },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
-  disabled: { opacity: 0.5 },
+  label: {
+    flexShrink: 1,
+    textAlign: 'center',
+    fontFamily: fonts.extrabold,
+    fontSize: 16,
+    lineHeight: 22,
+    letterSpacing: 0.3,
+  },
+  ghost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 32,
+  },
+  ghostLabel: { fontFamily: fonts.extrabold, fontSize: 13, lineHeight: 18, color: colors.ember },
   iconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.lineStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  // Source asset is 818×742; keep that ratio so the isometric mark is not cropped.
-  mark: { width: 46, height: 42 },
-  markSmall: { width: 35, height: 32 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandText: { fontFamily: fonts.black, letterSpacing: 1, color: colors.text },
 });
