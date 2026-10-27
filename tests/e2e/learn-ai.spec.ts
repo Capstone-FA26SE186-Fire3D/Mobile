@@ -135,7 +135,7 @@ test('AI keeps the accepted request and polls it without submitting again', asyn
   await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Vào game', exact: true }).click();
-  await page.getByRole('tab', { name: 'Learn' }).click();
+  await page.getByRole('tab', { name: 'Bài học' }).click();
   await page.getByRole('button', { name: 'Hỏi AI' }).click();
   await page.getByRole('textbox', { name: 'Câu hỏi AI' }).fill('Cần làm gì?');
   await page.getByRole('button', { name: 'Gửi câu hỏi' }).click();

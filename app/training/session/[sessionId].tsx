@@ -31,7 +31,7 @@ type View_ =
   | { stage: 'error'; message: string };
 
 const SYNC_WAIT =
-  'Kết quả và sự kiện của phiên vẫn được lưu trên máy. Ứng dụng tự gửi khi có mạng; Fire3D chỉ chấm khi nhận đủ dữ liệu.';
+  'Kết quả và sự kiện của phiên vẫn được lưu trên máy. Ứng dụng tự gửi khi có mạng; FET3D chỉ chấm khi nhận đủ dữ liệu.';
 
 export default function TrainingSessionResultScreen() {
   const params = useLocalSearchParams<{
@@ -92,7 +92,7 @@ export default function TrainingSessionResultScreen() {
           detail:
             local.pendingEvents > 0
               ? `Còn ${local.pendingEvents} sự kiện chưa gửi.`
-              : 'Fire3D đang chờ đủ sự kiện của phiên trước khi chấm.',
+              : 'FET3D đang chờ đủ dữ liệu của phiên trước khi chấm.',
           pending: local.pendingEvents,
           offline: false,
         });

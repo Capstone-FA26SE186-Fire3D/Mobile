@@ -42,7 +42,7 @@ export async function bindDevice(accountId: string): Promise<boolean> {
 async function bindDeviceNow(accountId: string): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
   await Notifications.setNotificationChannelAsync('fire3d', {
-    name: 'Fire3D',
+    name: 'FET3D',
     importance: Notifications.AndroidImportance.DEFAULT,
   });
   const existing = await Notifications.getPermissionsAsync();

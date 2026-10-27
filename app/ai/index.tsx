@@ -26,13 +26,15 @@ function describe(issue: unknown): string {
   if (issue instanceof ApiError) {
     if (issue.payload?.code === 'AI_DAILY_QUOTA_EXHAUSTED') return 'Bạn đã dùng hết lượt hôm nay.';
     if (issue.payload?.code === 'AI_BLOCKED_DURING_ASSESSMENT')
-      return 'Không thể hỏi AI khi phiên Assessment đang mở.';
+      return 'Không thể hỏi AI khi đang làm bài Đánh giá.';
     if (issue.payload?.code === 'AI_CONTEXT_NOT_FOUND')
-      return 'Bài Learn này không còn khả dụng để hỏi AI.';
+      return 'Bài học này không còn khả dụng để hỏi AI.';
     if (issue.payload?.code === 'AI_PROVIDER_UNAVAILABLE') return 'Dịch vụ AI chưa sẵn sàng.';
     return issue.message;
   }
-  return issue instanceof Error ? issue.message : 'Không kết nối được Fire3D API.';
+  return issue instanceof Error
+    ? issue.message
+    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 }
 
 const PENDING = ['Accepted', 'Processing'];
@@ -186,7 +188,7 @@ export default function AiScreen() {
         <View style={styles.context}>
           <BookOpen size={14} color={colors.muted} strokeWidth={2} />
           <Text variant="small" muted style={{ flex: 1 }}>
-            {blocked ? 'Phiên Assessment đang mở' : context}
+            {blocked ? 'Đang làm bài Đánh giá' : context}
           </Text>
         </View>
         <ScrollView
@@ -201,7 +203,7 @@ export default function AiScreen() {
               icon={Lock}
               tone="warning"
               ribbon="AI tạm khóa"
-              body="Bạn không thể hỏi AI khi một phiên Assessment đang mở. Hoàn thành hoặc đóng phiên để hỏi lại."
+              body="Bạn không thể hỏi AI khi đang làm bài Đánh giá. Hoàn thành hoặc đóng phiên để hỏi lại."
             />
           ) : (
             <>
@@ -237,7 +239,7 @@ export default function AiScreen() {
             busy={busy}
             placeholder={
               blocked
-                ? 'Đang khóa trong Assessment'
+                ? 'Đang khóa khi làm bài Đánh giá'
                 : exhausted
                   ? 'Hết lượt — chờ sang ngày mới'
                   : 'Hỏi về bài học, kết quả của bạn…'

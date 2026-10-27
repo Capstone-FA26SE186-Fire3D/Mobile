@@ -1,3 +1,4 @@
+import { modeName } from '@/features/training/mode-ui';
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
@@ -46,7 +47,9 @@ function describe(error: unknown): string {
       return 'Mã tham gia không đúng hoặc đã bị đổi/thu hồi.';
     return error.message;
   }
-  return error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
+  return error instanceof Error
+    ? error.message
+    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 }
 
 export const MODE_PILL: Record<TrainingMode, 'success' | 'info' | 'warning'> = {
@@ -281,7 +284,7 @@ export default function QrBuildingScreen() {
                             <View style={styles.pills}>
                               {modes.length > 0 ? (
                                 modes.map((mode) => (
-                                  <Pill key={mode} label={mode} tone={MODE_PILL[mode]} />
+                                  <Pill key={mode} label={modeName(mode)} tone={MODE_PILL[mode]} />
                                 ))
                               ) : (
                                 <Pill label="Chưa mở chế độ nào" tone="neutral" />

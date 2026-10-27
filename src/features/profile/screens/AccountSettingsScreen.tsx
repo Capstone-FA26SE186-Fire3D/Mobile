@@ -44,7 +44,9 @@ function accountError(error: unknown): string {
       typeof error.payload?.traceId === 'string' ? ` Mã tra cứu: ${error.payload.traceId}.` : '';
     return `Không thực hiện được yêu cầu (HTTP ${error.status}).${trace}`;
   }
-  return error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
+  return error instanceof Error
+    ? error.message
+    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 }
 
 export default function AccountSettingsScreen() {

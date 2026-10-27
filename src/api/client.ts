@@ -9,7 +9,7 @@ import {
 function buildUrl(path: string, query?: ApiQueryParams): string {
   const baseUrl = env.apiBaseUrl.replace(/\/+$/, '');
   if (!baseUrl) {
-    throw new Error('Chưa cấu hình EXPO_PUBLIC_API_BASE_URL để kết nối Fire3D API.');
+    throw new Error('Ứng dụng chưa được cấu hình địa chỉ máy chủ FET3D.');
   }
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const [pathname, existingQuery = ''] = `${baseUrl}${normalizedPath}`.split('?', 2);
@@ -44,20 +44,28 @@ async function readResponseBody(response: Response): Promise<unknown> {
     : response.text();
 }
 
-function errorMessage(payload: unknown, fallback: string): string {
-  if (!isErrorPayload(payload)) {
-    return fallback;
-  }
+/** Vietnamese diacritics: the server already wrote a message meant for people. */
+const VIETNAMESE = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
 
-  if (typeof payload.message === 'string') {
-    return payload.message;
-  }
+/** Plain Vietnamese by HTTP status, used when the server text is English or missing. */
+export function statusMessage(status: number): string {
+  if (status === 400 || status === 422) return 'Thông tin chưa hợp lệ. Hãy kiểm tra lại.';
+  if (status === 401) return 'Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.';
+  if (status === 403) return 'Bạn không có quyền thực hiện thao tác này.';
+  if (status === 404) return 'Không tìm thấy dữ liệu, có thể đã bị xóa hoặc đổi.';
+  if (status === 409 || status === 412) return 'Dữ liệu vừa thay đổi. Hãy tải lại rồi thử lại.';
+  if (status === 429) return 'Bạn thao tác quá nhanh. Hãy chờ một chút rồi thử lại.';
+  if (status >= 500) return 'Máy chủ FET3D đang gặp lỗi. Hãy thử lại sau ít phút.';
+  return 'Không thực hiện được. Hãy thử lại.';
+}
 
-  if (typeof payload.title === 'string') {
-    return payload.title;
+function errorMessage(payload: unknown, status: number): string {
+  if (isErrorPayload(payload)) {
+    for (const text of [payload.message, payload.title, payload.detail]) {
+      if (typeof text === 'string' && VIETNAMESE.test(text)) return text;
+    }
   }
-
-  return typeof payload.detail === 'string' ? payload.detail : fallback;
+  return statusMessage(status);
 }
 
 export const apiClient = {
@@ -91,9 +99,8 @@ export const apiClient = {
     const payload = await readResponseBody(response);
 
     if (!response.ok) {
-      const fallback = response.statusText || `Request failed with status ${response.status}.`;
       throw new ApiError(
-        errorMessage(payload, fallback),
+        errorMessage(payload, response.status),
         response.status,
         isErrorPayload(payload) ? payload : undefined,
       );

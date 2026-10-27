@@ -25,7 +25,7 @@ type UnityNativeModule = {
 const native = requireOptionalNativeModule<UnityNativeModule>('Fire3DUnity');
 
 export const UNITY_UNAVAILABLE_MESSAGE =
-  'Cần ứng dụng Fire3D cho Android có tích hợp Unity để tải gói và vào phiên tập huấn. Trên web hoặc bản build chưa có Unity, bạn chỉ xem được bài tập và kết quả.';
+  'Cần ứng dụng FET3D cho Android có tích hợp Unity để tải gói và vào phiên tập huấn. Trên web hoặc bản build chưa có Unity, bạn chỉ xem được bài tập và kết quả.';
 
 function bridge(): UnityNativeModule {
   if (!native) throw new Error(UNITY_UNAVAILABLE_MESSAGE);

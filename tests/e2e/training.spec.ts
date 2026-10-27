@@ -99,7 +99,7 @@ test('QR → training → mode → prepare; web without Unity explains instead o
   await page.getByRole('button', { name: 'Đăng nhập và tiếp tục' }).click();
   await login(page);
   await expect(page.getByText('Tòa nhà B')).toBeVisible();
-  await expect(page.getByText('Assessment', { exact: true })).toBeVisible();
+  await expect(page.getByText('Đánh giá', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Mở bài tập Thoát hiểm tầng 3' }).click();
 
   await expect(page.getByText('CHỌN CÁCH CHƠI')).toBeVisible();
@@ -108,7 +108,7 @@ test('QR → training → mode → prepare; web without Unity explains instead o
   await page.getByRole('radio', { name: 'Đánh giá' }).click();
   await prepare.click();
 
-  await expect(page.getByText(/Cần ứng dụng Fire3D cho Android có tích hợp Unity/)).toBeVisible();
+  await expect(page.getByText(/Cần ứng dụng FET3D cho Android có tích hợp Unity/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tải gói tập huấn' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Bắt đầu phiên' })).toHaveCount(0);
   expect(prepareCalls).toHaveLength(1);
@@ -120,7 +120,7 @@ test('QR → training → mode → prepare; web without Unity explains instead o
   await page.getByRole('button', { name: 'Mở bài tập Thoát hiểm tầng 3' }).click();
   await page.getByRole('radio', { name: 'Đánh giá' }).click();
   await expect(page.getByText('Sẵn sàng tải gói nhiệm vụ')).toBeVisible();
-  await expect(page.getByText(/Cần ứng dụng Fire3D cho Android/)).toBeVisible();
+  await expect(page.getByText(/Cần ứng dụng FET3D cho Android/)).toBeVisible();
   expect(prepareCalls).toHaveLength(1);
   expect(errors).toEqual([]);
 });
@@ -197,7 +197,7 @@ test('result screen waits for sync, then shows the server result', async ({ page
   await page.getByRole('tab', { name: 'Kết quả' }).click();
   await page.getByRole('button', { name: /Chờ đồng bộ/ }).click();
   await expect(page.getByText('Đang chờ đồng bộ')).toBeVisible();
-  await expect(page.getByText(/chờ đủ sự kiện/)).toBeVisible();
+  await expect(page.getByText(/chờ đủ dữ liệu/)).toBeVisible();
 
   completed = true;
   await page.getByRole('button', { name: 'Đồng bộ lại' }).click();
