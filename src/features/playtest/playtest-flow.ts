@@ -292,7 +292,7 @@ export function describePlaytestProblem(issue: unknown, fallback: string): strin
     problemCode(issue) ?? (issue as { code?: unknown } | null)?.code?.toString?.() ?? null;
   switch (code) {
     case 'RUNTIME_INCOMPATIBLE':
-      return `Runtime ${APP_RUNTIME_VERSION} của ứng dụng chưa được BE chấp nhận cho package này (chưa kích hoạt trong catalog hoặc không đủ capability). Cần bản Fire3D khớp runtime đang hoạt động.`;
+      return `Runtime ${APP_RUNTIME_VERSION} của ứng dụng chưa được BE chấp nhận cho package này (chưa kích hoạt trong catalog hoặc không đủ capability). Cần bản FET3D khớp runtime đang hoạt động.`;
     case 'PLAYTEST_ENTITLEMENT_REQUIRED':
       return 'Building chưa có gói dịch vụ hoặc đã hết lượt Trial playtest. Gia hạn/mua gói trên Web rồi thử lại.';
     case 'PLAYTEST_SESSION_MISMATCH':
@@ -317,14 +317,14 @@ export function describePlaytestProblem(issue: unknown, fallback: string): strin
     case 'PLAYTEST_HANDOFF_ISSUER_INVALID':
       return 'Phiên Web tạo mã đã đăng xuất. Đăng nhập lại Web và tạo mã mới.';
     case 'PLAYTEST_LAUNCH_UNAVAILABLE':
-      return 'BE chưa bật cấp grant playtest. Liên hệ quản trị Fire3D.';
+      return 'Hệ thống chưa bật chạy thử. Liên hệ quản trị FET3D.';
     case 'PLAYTEST_PACKAGE_REQUIRED':
       return 'Phiên bản kịch bản chưa có package playtest đã được kiểm tra.';
     case 'IDEMPOTENCY_KEY_CONFLICT':
       return 'Yêu cầu trước dùng cùng khóa với nội dung khác. Tải lại trạng thái playtest.';
     case 'RUNTIME_MISMATCH':
     case 'ERR_UNITY_RUNTIME_MISMATCH':
-      return `Unity trong ứng dụng không phải runtime ${APP_RUNTIME_VERSION} (protocol ${BRIDGE_PROTOCOL_VERSION}). Cập nhật ứng dụng Fire3D.`;
+      return `Unity trong ứng dụng không phải runtime ${APP_RUNTIME_VERSION} (protocol ${BRIDGE_PROTOCOL_VERSION}). Cập nhật ứng dụng FET3D.`;
     case 'PACKAGE_SESSION_NOT_ACTIVE':
       return 'Package không còn mở cho phiên này: playtest đã bị hủy/kết thúc hoặc đã chuyển sang phiên khác. Trạng thái bên dưới đã được tải lại.';
     case 'PACKAGE_HASH_MISMATCH':

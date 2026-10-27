@@ -32,7 +32,7 @@ export default function VerifyEmailScreen() {
           ? 'Liên kết xác minh không hợp lệ, đã hết hạn hoặc đã dùng.'
           : issue instanceof ApiError
             ? `Chưa xác minh được email (HTTP ${issue.status}).`
-            : 'Không kết nối được Fire3D API.',
+            : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.',
       );
     } finally {
       setBusy(false);

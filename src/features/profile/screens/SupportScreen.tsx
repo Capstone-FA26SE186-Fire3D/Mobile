@@ -24,7 +24,9 @@ import { colors, fonts } from '@/theme/tokens';
 function messageFor(error: unknown) {
   if (error instanceof ApiError)
     return `Yêu cầu chưa hoàn tất (HTTP ${error.status}). ${error.message}`;
-  return error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
+  return error instanceof Error
+    ? error.message
+    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 }
 
 const STATUS: Record<string, { label: string; tone: 'info' | 'success' | 'neutral' | 'warning' }> =

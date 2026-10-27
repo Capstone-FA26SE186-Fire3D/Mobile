@@ -64,10 +64,10 @@ function registrationError(error: unknown): string {
   if (error instanceof Error && error.message.includes('EXPO_PUBLIC_API_BASE_URL')) {
     return error.message;
   }
-  if (error instanceof Error && error.message.includes('Fire3D API trả dữ liệu')) {
+  if (error instanceof Error && error.message.includes('Máy chủ FET3D trả dữ liệu')) {
     return error.message;
   }
-  return 'Không kết nối được Fire3D API. Vui lòng thử lại.';
+  return 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 }
 
 function validBirthDate(value: string): boolean {

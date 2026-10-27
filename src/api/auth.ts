@@ -128,7 +128,9 @@ async function acceptAuthentication(response: LoginResponse): Promise<Account> {
     !response.user ||
     !['Trainee', 'OrganizationUser'].includes(response.user.role)
   ) {
-    throw new Error('Phiên Fire3D không hợp lệ hoặc vai trò không được hỗ trợ trên Mobile.');
+    throw new Error(
+      'Phiên đăng nhập không hợp lệ hoặc loại tài khoản này chưa dùng được trên ứng dụng.',
+    );
   }
   await saveSession(response);
   await cacheAccount(response.user);
@@ -152,7 +154,7 @@ export async function loginWithPassword(email: string, password: string): Promis
     typeof response.user.id !== 'string' ||
     typeof response.user.email !== 'string'
   ) {
-    throw new Error('Fire3D API trả dữ liệu đăng nhập không hợp lệ. Hãy kiểm tra địa chỉ API.');
+    throw new Error('Máy chủ FET3D trả dữ liệu đăng nhập không hợp lệ. Hãy thử lại sau.');
   }
   return acceptAuthentication(response);
 }
@@ -177,7 +179,7 @@ export async function completeGoogleOnboarding(
     username,
   );
   if (parsed.status !== 'Authenticated')
-    throw new Error('Fire3D API chưa tạo phiên Trainee sau khi hoàn tất Google.');
+    throw new Error('Máy chủ FET3D chưa tạo phiên đăng nhập sau khi hoàn tất Google. Hãy thử lại.');
   return acceptAuthentication(parsed.authentication as LoginResponse);
 }
 
@@ -221,7 +223,7 @@ export async function registerTrainee(input: RegisterTraineeInput): Promise<Acco
     json: input,
   });
   if (!account || typeof account.id !== 'string' || account.role !== 'Trainee') {
-    throw new Error('Fire3D API trả dữ liệu đăng ký không hợp lệ. Hãy kiểm tra địa chỉ API.');
+    throw new Error('Máy chủ FET3D trả dữ liệu đăng ký không hợp lệ. Hãy thử lại sau.');
   }
   return account;
 }
@@ -283,7 +285,7 @@ async function requestWithSessionMeta<T>(
 
 async function currentProfileEtag(): Promise<string> {
   const response = await requestWithSessionMeta<Account>('/api/auth/me');
-  if (!response.etag) throw new Error('Fire3D API chưa trả ETag hồ sơ. Vui lòng thử lại.');
+  if (!response.etag) throw new Error('Chưa tải được phiên bản hồ sơ. Vui lòng thử lại.');
   return response.etag;
 }
 

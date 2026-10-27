@@ -172,7 +172,7 @@ export function TrainingResultView({
             </Card>
           )}
           <Text variant="small" dim style={{ fontSize: 11, lineHeight: 17 }}>
-            Kết quả do Fire3D chấm cho mục đích học tập, không phải chứng nhận an toàn PCCC. Làm lại
+            Kết quả do FET3D chấm cho mục đích học tập, không phải chứng nhận an toàn PCCC. Làm lại
             không giới hạn.
           </Text>
         </View>

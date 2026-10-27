@@ -16,16 +16,16 @@ export type TrainingMode = 'Learn' | 'Guided' | 'Assessment';
 export const TRAINING_MODES: readonly TrainingMode[] = ['Learn', 'Guided', 'Assessment'];
 export const MODE_LABELS: Record<TrainingMode, { title: string; description: string }> = {
   Learn: {
-    title: 'Học (Learn)',
+    title: 'Học',
     description: 'Làm quen tòa nhà và thao tác có hướng dẫn; không chấm Đạt/Chưa đạt.',
   },
   Guided: {
-    title: 'Diễn tập có hướng dẫn (Guided Drill)',
+    title: 'Diễn tập có hướng dẫn',
     description: 'Diễn tập tình huống với gợi ý từng bước; không chấm Đạt/Chưa đạt.',
   },
   Assessment: {
-    title: 'Đánh giá (Assessment)',
-    description: 'Tự xử lý tình huống, không có trợ lý AI; BE chấm theo rubric đã duyệt.',
+    title: 'Đánh giá',
+    description: 'Tự xử lý tình huống, không có trợ lý AI; được chấm theo tiêu chí đã duyệt.',
   },
 };
 
@@ -277,23 +277,23 @@ export function describeTrainingProblem(code: unknown, status: number, fallback:
     case 'BUILDING_ACCESS_REQUIRED':
       return 'Bạn cần mã tham gia Building trước khi tập huấn.';
     case 'BUILDING_ENTITLEMENT_REQUIRED':
-      return 'Building chưa có gói dịch vụ đang hoạt động; hiện không thể bắt đầu phiên mới.';
+      return 'Tòa nhà chưa có gói dịch vụ đang hoạt động; hiện không thể bắt đầu phiên mới.';
     case 'LEARNER_LIMIT_REACHED':
-      return 'Building đã hết suất học viên trong kỳ dịch vụ này.';
+      return 'Tòa nhà đã hết suất học viên trong kỳ dịch vụ này.';
     case 'TRAINING_UNAVAILABLE':
       return 'Bài tập không còn mở để tập huấn.';
     case 'CONTENT_APPROVAL_REQUIRED':
       return 'Kịch bản chưa được duyệt hoặc đã bị gỡ duyệt.';
     case 'RUNTIME_INCOMPATIBLE':
-      return 'Package cần phiên bản ứng dụng khác. Hãy cập nhật Fire3D.';
+      return 'Bài tập cần phiên bản ứng dụng mới hơn. Hãy cập nhật FET3D.';
     case 'MODE_NOT_ALLOWED':
       return 'Chế độ này không được phép cho bài tập.';
     case 'RUBRIC_NOT_SUPPORTED':
-      return 'Bài tập chưa có rubric chấm được cho Assessment.';
+      return 'Bài tập chưa có tiêu chí chấm cho chế độ Đánh giá.';
     case 'PACKAGE_SESSION_NOT_ACTIVE':
       return 'Phiên chuẩn bị đã hết hạn hoặc không còn thuộc lần đăng nhập này. Hãy chuẩn bị lại.';
     case 'PACKAGE_FORMAT_UNSUPPORTED':
-      return 'Package của bài tập chưa được build theo fet3d.package/1.';
+      return 'Gói bài tập chưa đúng định dạng ứng dụng hỗ trợ. Hãy báo tổ chức của bạn.';
     default:
       if (status === 401) return 'Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.';
       return fallback;
