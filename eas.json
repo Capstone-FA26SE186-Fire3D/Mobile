@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": "25.3.0",
+    "appVersionSource": "local"
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "applicationId": "com.fet3d.app",
+        "track": "production",
+        "releaseStatus": "completed",
+        "changesNotSentForReview": false
+      }
+    },
+    "internal": {
+      "android": {
+        "applicationId": "com.fet3d.app",
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    }
+  },
+  "build": {
+    "production": {
+      "distribution": "store",
+      "credentialsSource": "remote",
+      "node": "24.20.0",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}

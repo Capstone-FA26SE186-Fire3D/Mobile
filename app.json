@@ -1,8 +1,12 @@
 {
   "expo": {
     "name": "FET3D",
-    "slug": "rag-assistant",
-    "version": "0.1.0",
+    "slug": "fet3d",
+    "owner": "lazzymoney",
+    "version": "1.0.0",
+    "extra": {
+      "eas": { "projectId": "98768196-bf44-40f1-b245-0839c97e5056" }
+    },
     "scheme": ["fet3d", "fire3d"],
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -52,7 +56,8 @@
         { "android": { "minSdkVersion": 29, "buildArchs": ["arm64-v8a"] } }
       ],
       "./plugins/withUnityLibrary",
-      "./plugins/withWindowsCMake"
+      "./plugins/withWindowsCMake",
+      "./plugins/withAndroidReleaseSigning"
     ]
   }
 }

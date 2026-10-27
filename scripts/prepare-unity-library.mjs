@@ -4,9 +4,10 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 
 import { basename, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import extract from 'extract-zip';
+import portable from '../plugins/unity-portable.js';
 
 // Two sources for vendor/unityLibrary:
-// - pinned (default): the S3 artifact in unity-artifact.lock.json, for CI and release builds;
+// - pinned (default): the GitHub Release or S3 artifact in unity-artifact.lock.json, for CI and release builds;
 // - local: `pnpm unity:prepare --zip <fet3d-unityLibrary-*.zip>` from Unity's "Export Unity Library for Mobile"
 //   (its <zip>.json gives version and SHA-256). The lock file is not touched; the marker records source "local".
 const root = resolve(import.meta.dirname, '..');
@@ -54,6 +55,7 @@ const install = async (zip, version, sha256, source) => {
       }
     };
     await walk(library);
+    portable.verifyPortableRuntime(library, version);
     await writeFile(
       join(library, '.unity-artifact.json'),
       JSON.stringify({ version, sha256, source }) + '\n',
@@ -66,6 +68,9 @@ const install = async (zip, version, sha256, source) => {
 };
 
 const lock = JSON.parse(await readFile(join(root, 'unity-artifact.lock.json'), 'utf8'));
+const pinned = Boolean(lock.version || lock.s3Uri || lock.sha256);
+if (pinned && (!lock.version || !/^[a-f0-9]{64}$/.test(lock.sha256 ?? '')))
+  throw new Error('Pin both version and SHA-256 in unity-artifact.lock.json.');
 
 if (localZip) {
   const zip = resolve(localZip);
@@ -79,13 +84,16 @@ if (localZip) {
     basename(zip)
       .replace(/^fet3d-unityLibrary-/, '')
       .replace(/\.zip$/, '');
+  if (pinned && (version !== lock.version || sha256 !== lock.sha256))
+    throw new Error('Local Unity archive differs from unity-artifact.lock.json.');
   await install(zip, version, sha256, 'local');
   console.log(`Prepared local Unity artifact ${version} (sha256 ${sha256}).`);
   process.exit(0);
 }
 
-const { version, s3Uri, sha256 } = lock;
-const pinned = Boolean(version || s3Uri || sha256);
+const { version, sha256 } = lock;
+// Storage location is deployment configuration; version and digest stay under review in Git.
+const s3Uri = process.env.UNITY_ARTIFACT_S3_URI || lock.s3Uri;
 if (!pinned) {
   const previous = await readMarker();
   if (previous?.source === 'local') {
@@ -96,14 +104,6 @@ if (!pinned) {
     'Pin version, versioned S3 URI and SHA-256 in unity-artifact.lock.json, or run pnpm unity:prepare --zip <archive>.',
   );
 }
-if (
-  !version ||
-  !/^s3:\/\/[a-z0-9.-]+\/[A-Za-z0-9!_.*'()/+-]+\.zip$/.test(s3Uri ?? '') ||
-  !/^[a-f0-9]{64}$/.test(sha256 ?? '') ||
-  !s3Uri.includes(`/${version}/`)
-)
-  throw new Error('unity-artifact.lock.json needs version, a versioned S3 URI and a SHA-256.');
-
 const previous = await readMarker();
 if (previous && previous.version === version && previous.sha256 === sha256) {
   console.log(`Unity artifact ${version} already verified in vendor cache.`);
@@ -114,15 +114,44 @@ if (previous && previous.source !== 'local')
     'vendor/unityLibrary holds a different pinned artifact; move it aside before preparing another version.',
   );
 
+if (
+  !lock.githubRelease &&
+  (!/^s3:\/\/[a-z0-9.-]+\/[A-Za-z0-9!_.*'()/+-]+\.zip$/.test(s3Uri ?? '') ||
+    !s3Uri.includes(`/${version}/`))
+)
+  throw new Error(
+    'Set UNITY_ARTIFACT_S3_URI (or lock.s3Uri) to a versioned S3 ZIP matching the pinned version.',
+  );
+
 await mkdir(vendor, { recursive: true });
 const scratch = await mkdtemp(join(vendor, '.unity-download-'));
 try {
   const zip = join(scratch, 'unityLibrary.zip');
-  const download = spawnSync('aws', ['s3', 'cp', s3Uri, zip, '--only-show-errors'], {
-    stdio: 'inherit',
-  });
-  if (download.error) throw new Error(`AWS CLI is required: ${download.error.message}`);
-  if (download.status !== 0) throw new Error(`S3 download failed (exit ${download.status}).`);
+  const release = lock.githubRelease;
+  if (
+    release &&
+    (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(release.repository ?? '') ||
+      release.tag !== `unity-runtime-${version}` ||
+      release.asset !== `fet3d-unityLibrary-${version}.zip`)
+  )
+    throw new Error('Invalid pinned GitHub runtime release identity.');
+  const command = release ? 'gh' : 'aws';
+  const args = release
+    ? [
+        'release',
+        'download',
+        release.tag,
+        '--repo',
+        release.repository,
+        '--pattern',
+        release.asset,
+        '--output',
+        zip,
+      ]
+    : ['s3', 'cp', s3Uri, zip, '--only-show-errors'];
+  const download = spawnSync(command, args, { stdio: 'inherit' });
+  if (download.error) throw new Error(`${command} CLI is required: ${download.error.message}`);
+  if (download.status !== 0) throw new Error(`Runtime download failed (exit ${download.status}).`);
   if ((await sha256Of(zip)) !== sha256)
     throw new Error('unityLibrary archive SHA-256 does not match the pin.');
   await install(zip, version, sha256, 'pinned');
