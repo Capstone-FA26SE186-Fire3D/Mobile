@@ -53,7 +53,9 @@ type SessionContextValue = {
 const Context = createContext<SessionContextValue | null>(null);
 const PENDING_QR_KEY = 'fire3d.pending-qr.v1';
 const message = (error: unknown) =>
-  error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
+  error instanceof Error
+    ? error.message
+    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [account, setAccount] = useState<Account | null>(null);

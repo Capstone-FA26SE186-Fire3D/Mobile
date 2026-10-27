@@ -56,7 +56,7 @@ export function describeSyncError(issue: unknown): string {
   if (isOfflineError(issue))
     return 'Chưa có mạng. Kết quả vẫn được lưu trên máy và sẽ tự đồng bộ khi có kết nối.';
   if (issue instanceof ApiError && issue.status >= 500)
-    return 'Fire3D API đang bận. Ứng dụng sẽ thử đồng bộ lại.';
+    return 'Máy chủ FET3D đang bận. Ứng dụng sẽ thử đồng bộ lại.';
   return issue instanceof Error ? issue.message : 'Đồng bộ phiên thất bại.';
 }
 

@@ -22,11 +22,13 @@ const dioramaLogin = require('../../../../assets/images/diorama-login.png');
 function describe(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.payload?.code === 'ACCOUNT_LINK_REQUIRED')
-      return 'Email này đã có tài khoản Fire3D. Hãy đăng nhập bằng mật khẩu, rồi liên kết Google trong Cài đặt tài khoản.';
+      return 'Email này đã có tài khoản FET3D. Hãy đăng nhập bằng mật khẩu, rồi liên kết Google trong Cài đặt tài khoản.';
     if (error.status === 401) return 'Email hoặc mật khẩu không đúng.';
     return `Không đăng nhập được (HTTP ${error.status}).${error.payload?.traceId ? ` Mã tra cứu: ${error.payload.traceId}.` : ''}`;
   }
-  return error instanceof Error ? error.message : 'Không kết nối được Fire3D API.';
+  return error instanceof Error
+    ? error.message
+    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 }
 
 export default function LoginScreen() {

@@ -8,6 +8,7 @@ import { Banner, Card, FilterChips, HexBadge, Pill, type LucideIcon } from '@/co
 import { Notice, PageHeader, Screen, ScreenTitle } from '@/components/ui/Screen';
 import { AiFab } from '@/components/ui/TabBar';
 import { Text } from '@/components/ui/Text';
+import { modeName } from '@/features/training/mode-ui';
 import { usePendingSync } from '@/features/training/use-pending-sync';
 import { colors, fonts, type HexTone } from '@/theme/tokens';
 
@@ -52,9 +53,9 @@ const shortDate = (iso: string) => {
 
 const FILTERS = [
   { value: 'all', label: 'Tất cả' },
-  { value: 'Assessment', label: 'Assessment' },
-  { value: 'Guided', label: 'Guided' },
-  { value: 'Learn', label: 'Learn' },
+  { value: 'Assessment', label: modeName('Assessment') },
+  { value: 'Guided', label: modeName('Guided') },
+  { value: 'Learn', label: modeName('Learn') },
 ] as const;
 
 export default function ResultsScreen({ standalone = false }: { standalone?: boolean }) {
@@ -148,7 +149,7 @@ export default function ResultsScreen({ standalone = false }: { standalone?: boo
                   {item.training.name}
                 </Text>
                 <Text style={styles.meta} muted numberOfLines={1}>
-                  {item.building.name} · {item.mode} · {shortDate(item.startedAt)}
+                  {item.building.name} · {modeName(item.mode)} · {shortDate(item.startedAt)}
                 </Text>
                 <Pill label={look.label} tone={look.pill} />
               </View>

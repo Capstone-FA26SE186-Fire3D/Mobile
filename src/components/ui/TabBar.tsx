@@ -19,7 +19,7 @@ type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>
 
 const TABS: Record<string, { label: string; icon: LucideIcon }> = {
   index: { label: 'Nhà', icon: House },
-  learn: { label: 'Learn', icon: BookOpen },
+  learn: { label: 'Bài học', icon: BookOpen },
   results: { label: 'Kết quả', icon: History },
   profile: { label: 'Tôi', icon: User },
 };

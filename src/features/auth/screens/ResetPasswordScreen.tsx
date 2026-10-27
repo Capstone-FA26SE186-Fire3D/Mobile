@@ -47,7 +47,7 @@ export default function ResetPasswordScreen() {
           ? 'Liên kết đặt lại mật khẩu không hợp lệ, đã hết hạn hoặc đã dùng.'
           : issue instanceof ApiError
             ? `Chưa đặt lại được mật khẩu (HTTP ${issue.status}).`
-            : 'Không kết nối được Fire3D API.',
+            : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.',
       );
     } finally {
       setBusy(false);
