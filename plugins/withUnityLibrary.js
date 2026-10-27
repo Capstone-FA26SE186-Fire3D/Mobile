@@ -6,6 +6,8 @@ const {
 } = require('@expo/config-plugins');
 const fs = require('node:fs');
 const path = require('node:path');
+const { relocateUnityLibrary } = require('./unity-gradle-paths');
+const { verifyPortableRuntime } = require('./unity-portable');
 
 /**
  * Unity names its export "<RuntimeCatalog.RuntimeVersion>-<UTC stamp>"; the app reports APP_RUNTIME_VERSION to BE on start,
@@ -40,7 +42,7 @@ module.exports = function withUnityLibrary(config) {
       const marker = path.join(source, '.unity-artifact.json');
       if (!fs.existsSync(marker))
         throw new Error(
-          'Run pnpm unity:prepare (pinned S3 artifact) or pnpm unity:prepare --zip <archive> before Android prebuild.',
+          'Run pnpm unity:prepare (pinned runtime artifact) or pnpm unity:prepare --zip <archive> before Android prebuild.',
         );
       const prepared = JSON.parse(fs.readFileSync(marker, 'utf8'));
       const pinned = Boolean(lock.version || lock.sha256);
@@ -51,9 +53,11 @@ module.exports = function withUnityLibrary(config) {
         throw new Error('Pin unity-artifact.lock.json or prepare a local export with --zip.');
       if (!pinned) console.warn(`Using local Unity artifact ${prepared.version} (not pinned).`);
       embeddedRuntime(root, prepared);
+      verifyPortableRuntime(source, prepared.version);
       fs.cpSync(source, path.join(value.modRequest.platformProjectRoot, 'unityLibrary'), {
         recursive: true,
       });
+      relocateUnityLibrary(path.join(value.modRequest.platformProjectRoot, 'unityLibrary'));
       return value;
     },
   ]);
@@ -91,7 +95,10 @@ module.exports = function withUnityLibrary(config) {
         'keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode',
     });
     // Read by Fire3DUnityBridge.handshake before /start, so a mismatch is reported before Trial is used.
-    const runtime = embeddedRuntime(value.modRequest.projectRoot, preparedArtifact(value.modRequest.projectRoot));
+    const runtime = embeddedRuntime(
+      value.modRequest.projectRoot,
+      preparedArtifact(value.modRequest.projectRoot),
+    );
     application['meta-data'] ??= [];
     const metaName = 'com.fet3d.unity.RUNTIME_VERSION';
     application['meta-data'] = application['meta-data'].filter(

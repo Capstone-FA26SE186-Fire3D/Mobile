@@ -50,7 +50,9 @@ pnpm android:prebuild
 cd android && ./gradlew assembleRelease
 ```
 
-APK: `android/app/build/outputs/apk/release/app-release.apk` (arm64-v8a, ký bằng debug keystore để cài thử). `--zip` kiểm SHA-256 theo file `.json`, không cần S3 và không sửa `unity-artifact.lock.json`. Bản phát hành chính thức thì upload zip lên S3, pin `version`/`s3Uri`/`sha256` trong lock rồi chạy `pnpm unity:prepare` không tham số.
+APK: `android/app/build/outputs/apk/release/app-release.apk` (arm64-v8a, mặc định ký bằng debug keystore để cài thử). `--zip` kiểm SHA-256 theo file `.json` và pin trong `unity-artifact.lock.json`, không cần S3 và không sửa lock. Bản phát hành chính thức dùng export đã pin version/SHA-256, tải từ GitHub Release được chỉ định trong `lock.githubRelease` (không cần AWS), rồi chạy `pnpm unity:prepare` không tham số.
+
+CI/CD Google Play: [hướng dẫn cấu hình và phát hành](docs/google-play-release.md). Merge vào `main` chạy kiểm tra, tự chọn phiên bản từ commit, build AAB trên Expo Linux với runtime Unity portable và upload key đã lưu trên EAS và gửi production bằng EAS Submit. Cần hoàn thành cấu hình Expo/Play, artifact và secrets theo hướng dẫn trước khi kích hoạt. Package tòa nhà vẫn được worker tạo trên S3, app tải sau khi quét QR.
 
 Windows: cần SDK CMake 4.1.2 (`sdkmanager "cmake;4.1.2"`) và bật _long paths_ (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1`). Plugin `withWindowsCMake` ghi `cmake.dir` vào `android/local.properties` khi prebuild: CMake mặc định 3.22.1 đi kèm ninja 1.10 không hỗ trợ đường dẫn dài, nên trong checkout sâu đường dẫn C++ của `react-native-gesture-handler` vượt 260 ký tự và bước `buildCMake` lỗi (`ninja: error: Stat`) dù đã bật long paths; ninja 1.12 của CMake 4.1.2 thì chạy được.
 
@@ -59,6 +61,7 @@ Windows: cần SDK CMake 4.1.2 (`sdkmanager "cmake;4.1.2"`) và bật _long path
 ```sh
 pnpm typecheck
 pnpm test
+pnpm test:release
 pnpm test:e2e
 pnpm format:check
 pnpm exec expo install --check

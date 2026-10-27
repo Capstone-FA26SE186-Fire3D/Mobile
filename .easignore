@@ -1,0 +1,34 @@
+node_modules/
+.expo/
+/android/
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+credentials.json
+google-play-service-account*.json
+/release-plan.json
+/release-notes.md
+/vendor/unityLibrary/
+
+# Codex session notes are machine-local; shared guidance stays trackable.
+/.codex/local/
+/modules/*/android/build/
+/modules/*/android/.cxx/
+/vendor/.unity-*/
+
+# Upload the verified prepared runtime to EAS, without publishing it separately.
+!/vendor/unityLibrary/
+!/vendor/unityLibrary/**
+/.git/
+/.codex/
+/.agents/
+/tests/
+/test-results/
+/playwright-report/
+
+/eas-build-result.json
+/submission/
+
+fire3d-e6b00-*.json
