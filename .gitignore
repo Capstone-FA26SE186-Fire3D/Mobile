@@ -2,6 +2,14 @@ node_modules/
 .expo/
 /android/
 .env
+.env.*
+!.env.example
+*.jks
+*.keystore
+credentials.json
+google-play-service-account*.json
+/release-plan.json
+/release-notes.md
 /vendor/unityLibrary/
 
 # Codex session notes are machine-local; shared guidance stays trackable.
@@ -9,3 +17,8 @@ node_modules/
 /modules/*/android/build/
 /modules/*/android/.cxx/
 /vendor/.unity-*/
+
+/eas-build-result.json
+/submission/
+
+fire3d-e6b00-*.json

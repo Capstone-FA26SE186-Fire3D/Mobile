@@ -1,0 +1,177 @@
+name: Google Play release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: Build only, first internal test, or public release
+        type: choice
+        options: [build, internal, production]
+        default: build
+
+permissions:
+  contents: read
+
+# Serialize submissions/version tags. A running release must finish before the next one starts.
+concurrency:
+  group: fet3d-google-play
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  plan:
+    if: github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_code: ${{ steps.version.outputs.version_code }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
+      destination: ${{ steps.destination.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Choose destination
+        id: destination
+        env:
+          DESTINATION: ${{ github.event_name == 'push' && 'production' || inputs.destination }}
+        run: echo "value=$DESTINATION" >> "$GITHUB_OUTPUT"
+      - name: Compute version from commits since the last submitted release
+        id: version
+        env:
+          ANDROID_VERSION_CODE_BASE: ${{ vars.ANDROID_VERSION_CODE_BASE }}
+        run: node scripts/release/plan.mjs
+      - name: Check deployment configuration
+        if: steps.version.outputs.publish == 'true' || steps.destination.outputs.value != 'production'
+        env:
+          RELEASE_DESTINATION: ${{ steps.destination.outputs.value }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          FET3D_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          FET3D_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          FET3D_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN_FET3D }}
+          EXPO_OWNER: ${{ vars.EXPO_OWNER || 'lazzymoney' }}
+        run: node scripts/release/check-environment.mjs
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-plan
+          path: |
+            release-plan.json
+            release-notes.md
+          retention-days: 30
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true' || needs.plan.outputs.destination != 'production'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN_FET3D }}
+      GH_TOKEN: ${{ github.token }}
+      FET3D_APP_VERSION: ${{ needs.plan.outputs.version }}
+      FET3D_ANDROID_VERSION_CODE: ${{ needs.plan.outputs.version_code }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+      FET3D_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+      FET3D_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+      FET3D_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download and verify the portable Unity runtime
+        run: pnpm unity:prepare
+      - name: Configure version and public app settings for the EAS worker
+        run: node scripts/release/configure-eas.mjs
+      - name: Build Android on Expo and wait for the signed bundle
+        run: pnpm dlx eas-cli@25.3.0 build --platform android --profile production --non-interactive --freeze-credentials --wait --json > eas-build-result.json
+      - name: Download this exact Expo build
+        run: node scripts/release/download-eas-build.mjs
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare expected upload certificate for verification
+        shell: pwsh
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: ./scripts/release/prepare-signing.ps1
+      - name: Verify the Expo bundle identity and signer
+        shell: pwsh
+        run: |
+          gh release download 1.18.3 --repo google/bundletool --pattern bundletool-all-1.18.3.jar --dir $env:RUNNER_TEMP
+          if ($LASTEXITCODE -ne 0) { throw 'bundletool download failed.' }
+          ./scripts/release/verify-bundle.ps1 -Bundle 'submission/app-release.aab' -Bundletool (Join-Path $env:RUNNER_TEMP 'bundletool-all-1.18.3.jar')
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: fet3d-${{ needs.plan.outputs.version }}-${{ needs.plan.outputs.version_code }}
+          path: submission/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove verification keystore
+        if: always()
+        shell: pwsh
+        run: |
+          $signingFile = Join-Path $env:RUNNER_TEMP 'fet3d-upload.jks'
+          if (Test-Path -LiteralPath $signingFile) { Remove-Item -LiteralPath $signingFile -Force }
+
+  submit:
+    needs: [plan, build]
+    if: needs.plan.outputs.destination != 'build'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN_FET3D }}
+      EXPO_OWNER: ${{ vars.EXPO_OWNER || 'lazzymoney' }}
+      EXPO_PROJECT_SLUG: ${{ vars.EXPO_PROJECT_SLUG }}
+      FET3D_APP_VERSION: ${{ needs.plan.outputs.version }}
+      FET3D_ANDROID_VERSION_CODE: ${{ needs.plan.outputs.version_code }}
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+      RELEASE_DESTINATION: ${{ needs.plan.outputs.destination }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: fet3d-${{ needs.plan.outputs.version }}-${{ needs.plan.outputs.version_code }}
+          path: submission
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: release-plan
+      - name: Verify EAS project access
+        run: pnpm dlx eas-cli@25.3.0 project:info
+      - name: Submit this exact bundle and wait for the result
+        run: pnpm dlx eas-cli@25.3.0 submit --platform android --profile "$RELEASE_DESTINATION" --path submission/app-release.aab --non-interactive --wait
+      - name: Record the submitted production version
+        if: needs.plan.outputs.destination == 'production'
+        run: |
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "FET3D $RELEASE_VERSION" --notes-file release-notes.md submission/app-release.aab
+      - name: Submission summary
+        run: |
+          echo "FET3D $RELEASE_VERSION submitted to Google Play ($RELEASE_DESTINATION)." >> "$GITHUB_STEP_SUMMARY"
+          echo 'Google review and Play Console availability are separate from a successful upload.' >> "$GITHUB_STEP_SUMMARY"
