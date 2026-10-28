@@ -26,7 +26,7 @@ import { colors, fonts, type HexTone } from '@/theme/tokens';
 import { Text } from './Text';
 
 export type { LucideIcon };
-const dioramaHero = require('../../../assets/images/diorama.png');
+const dioramaHero = require('../../../assets/images/diorama.webp');
 
 /**
  * Figma's "game" depth: a hard, unblurred shadow offset straight down (box-shadow 0 Npx 0). Android elevation
@@ -337,7 +337,7 @@ export function SearchField({
   );
 }
 
-/** Medium-poly evacuation scene exported from Figma; same artwork in light and dark mode. */
+/** Evacuation scene illustration (people leaving a burning building); same artwork in light and dark mode. */
 export function Diorama({
   height = 210,
   source = dioramaHero,
