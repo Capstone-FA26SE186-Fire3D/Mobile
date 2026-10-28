@@ -17,7 +17,7 @@ import { Text } from '@/components/ui/Text';
 import { ApiError } from '@/api';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
-const dioramaLogin = require('../../../../assets/images/diorama-login.png');
+const dioramaLogin = require('../../../../assets/images/login-evacuation.png');
 
 function describe(error: unknown): string {
   if (error instanceof ApiError) {

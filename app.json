@@ -39,6 +39,19 @@
       "expo-router",
       "expo-font",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo-mark.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#141719",
+          "dark": {
+            "image": "./assets/images/logo-mark.png",
+            "backgroundColor": "#141719"
+          }
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Cho phép Fire3D chọn ảnh đại diện từ thư viện."
