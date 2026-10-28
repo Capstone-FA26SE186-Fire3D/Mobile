@@ -4,7 +4,7 @@ import { colors, fonts } from '@/theme/tokens';
 import { Brand } from './Button';
 import { Diorama, Segments } from './Game';
 import { Text } from './Text';
-const dioramaTower = require('../../../assets/images/diorama-splash.png');
+const dioramaTower = require('../../../assets/images/diorama-splash.webp');
 
 /** Start-up screen (Figma "Mobile · Splash"): tall diorama, brand, tagline, looping segment loader. */
 export function Splash() {
@@ -32,8 +32,9 @@ export function Splash() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  diorama: { flex: 1, maxHeight: 560 },
-  block: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, minHeight: 256 },
+  // The tall artwork keeps its own ratio (941×1050) so the building and the people running out are never cropped.
+  diorama: { width: '100%', aspectRatio: 941 / 1050, maxHeight: 560, marginTop: 'auto' },
+  block: { alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, minHeight: 256, marginBottom: 'auto' },
   tagline: {
     fontFamily: fonts.extrabold,
     fontSize: 19,

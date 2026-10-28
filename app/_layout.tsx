@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StatusBar, StyleSheet, View } from 'react-native';
+import { X } from 'lucide-react-native';
 import { useFonts } from 'expo-font';
 import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Regular';
 import { BeVietnamPro_500Medium } from '@expo-google-fonts/be-vietnam-pro/500Medium';
@@ -8,16 +9,17 @@ import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600S
 import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
 import { BeVietnamPro_800ExtraBold } from '@expo-google-fonts/be-vietnam-pro/800ExtraBold';
 import { BeVietnamPro_900Black } from '@expo-google-fonts/be-vietnam-pro/900Black';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from '@/store/SessionProvider';
 import { colors, scheme } from '@/theme/tokens';
 import { FontsReady } from '@/components/ui/Text';
-import { Notice } from '@/components/ui/Screen';
+import { Callout } from '@/components/ui/Game';
 import { Splash } from '@/components/ui/Splash';
 import { startTrainingRuntime } from '@/features/training/training-runtime';
 
 function Navigation() {
-  const { account, ready, reduceMotion, error } = useSession();
+  const { account, ready, reduceMotion, error, dismissError } = useSession();
+  const insets = useSafeAreaInsets();
   // Device-wide, one receiver for Trainee training and OrganizationUser playtests: ingest Unity callbacks and sync the
   // signed-in account's started sessions (events, completion) on callbacks, app start and foreground.
   const accountId = account?.id;
@@ -32,7 +34,19 @@ function Navigation() {
   if (!ready) return <Splash />;
   return (
     <View style={styles.app}>
-      {!!error && <Notice error>{error}</Notice>}
+      {!!error && (
+        // Floats below the status bar / camera cutout instead of under it, and can be closed.
+        <View style={[styles.notice, { top: insets.top + 8 }]} pointerEvents="box-none">
+          <View style={styles.noticeRow}>
+            <View style={{ flex: 1 }}>
+              <Callout tone="danger" style={{ paddingRight: 40 }}>{error}</Callout>
+            </View>
+            <Pressable onPress={dismissError} accessibilityRole="button" accessibilityLabel="Đóng thông báo" hitSlop={12} style={styles.noticeClose}>
+              <X size={18} color={colors.text} />
+            </Pressable>
+          </View>
+        </View>
+      )}
       <Stack
         screenOptions={{
           headerShown: false,
@@ -106,6 +120,10 @@ export default function Layout() {
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: colors.bg },
+  // Above the screens (they keep their own safe-area padding), so the notice never shifts the layout.
+  notice: { position: 'absolute', left: 12, right: 12, zIndex: 10, elevation: 10 },
+  noticeRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  noticeClose: { position: 'absolute', right: 6, top: 6, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   loading: {
     flex: 1,
     alignItems: 'center',

@@ -32,6 +32,7 @@ type SessionContextValue = {
   ready: boolean;
   reduceMotion: boolean;
   error: string;
+  dismissError: () => void;
   onboardingToken: string | null;
   pendingQrToken: string | null;
   setPendingQrToken: (token: string | null) => Promise<void>;
@@ -56,6 +57,17 @@ const message = (error: unknown) =>
   error instanceof Error
     ? error.message
     : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
+
+/**
+ * Push registration is optional: the app works without it and re-registers on the next start or token change. Say that in
+ * plain words; a lost connection (no DNS, timeout) gets its own line instead of the raw Java exception.
+ */
+const pushNotice = (issue: unknown) => {
+  const raw = issue instanceof Error ? issue.message : '';
+  return /UnknownHost|Unable to resolve host|timeout|Network|SERVICE_NOT_AVAILABLE/i.test(raw)
+    ? 'Chưa bật được thông báo vì mất kết nối mạng. Ứng dụng sẽ tự thử lại khi có mạng.'
+    : 'Chưa bật được thông báo trên máy này. Bạn vẫn dùng ứng dụng bình thường; có thể bật lại trong Tôi › Cài đặt tài khoản.';
+};
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [account, setAccount] = useState<Account | null>(null);
@@ -106,10 +118,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (account?.role !== 'Trainee') return;
     let active = true;
     void bindDevice(account.id).catch((issue) => {
-      if (active) setError(`Không đăng ký được thông báo: ${message(issue)}`);
+      if (active) setError(pushNotice(issue));
     });
     const unsubscribe = listenForDeviceTokenChange(account.id, (issue) => {
-      if (active) setError(`Không cập nhật được FCM token: ${message(issue)}`);
+      if (active) setError(pushNotice(issue));
     });
     return () => {
       active = false;
@@ -143,6 +155,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       ready,
       reduceMotion,
       error,
+      dismissError: () => setError(''),
       onboardingToken,
       pendingQrToken,
       setPendingQrToken,
