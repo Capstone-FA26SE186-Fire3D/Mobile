@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { ActivityIndicator, Pressable, StatusBar, StyleSheet, View } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Regular';
 import { BeVietnamPro_500Medium } from '@expo-google-fonts/be-vietnam-pro/500Medium';
 import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600SemiBold';
@@ -16,6 +17,9 @@ import { FontsReady } from '@/components/ui/Text';
 import { Callout } from '@/components/ui/Game';
 import { Splash } from '@/components/ui/Splash';
 import { startTrainingRuntime } from '@/features/training/training-runtime';
+
+// Keep the native logo visible until fonts and the saved session are ready.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function Navigation() {
   const { account, ready, reduceMotion, error, dismissError } = useSession();
@@ -33,7 +37,12 @@ function Navigation() {
   );
   if (!ready) return <Splash />;
   return (
-    <View style={styles.app}>
+    <View
+      style={styles.app}
+      onLayout={() => {
+        void SplashScreen.hideAsync().catch(() => {});
+      }}
+    >
       {!!error && (
         // Floats below the status bar / camera cutout instead of under it, and can be closed.
         <View style={[styles.notice, { top: insets.top + 8 }]} pointerEvents="box-none">
