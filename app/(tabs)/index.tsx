@@ -1,7 +1,16 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Check, Play, RefreshCw, ScanLine, TriangleAlert, User } from 'lucide-react-native';
+import {
+  Check,
+  ChevronRight,
+  Download,
+  Play,
+  RefreshCw,
+  ScanLine,
+  TriangleAlert,
+  User,
+} from 'lucide-react-native';
 import { getTrainingHistory, type TrainingHistoryItem } from '@/api/training-history';
 import { Button } from '@/components/ui/Button';
 import { Callout, Card, Chip, Diorama, HexBadge, Ribbon } from '@/components/ui/Game';
@@ -39,6 +48,26 @@ function Skeleton() {
         <Text style={styles.loadingText}>Đang tải…</Text>
       </View>
     </View>
+  );
+}
+
+/** Entry to "Bài đã tải"; works offline (the list is local, starting a new play still needs network). */
+function DownloadsEntry({ subtitle }: { subtitle: string }) {
+  return (
+    <Card
+      onPress={() => router.push('/downloads')}
+      accessibilityLabel="Bài đã tải"
+      contentStyle={styles.row}
+    >
+      <HexBadge icon={Download} tone="info" size={48} />
+      <View style={{ flex: 1 }}>
+        <Text variant="strong">Bài đã tải</Text>
+        <Text variant="small" muted>
+          {subtitle}
+        </Text>
+      </View>
+      <ChevronRight size={20} color={colors.muted} strokeWidth={2.5} />
+    </Card>
   );
 }
 
@@ -136,6 +165,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           </Card>
+          <DownloadsEntry subtitle="Xem bài đã lưu trên máy" />
           <Text variant="small" muted style={{ textAlign: 'center' }}>
             Kết quả đã lưu trên máy sẽ tự gửi khi có mạng.
           </Text>
@@ -156,6 +186,7 @@ export default function HomeScreen() {
               />
             </View>
           </Card>
+          <DownloadsEntry subtitle="Chơi lại bài đã tải trên máy" />
 
           {unfinished && (
             <>

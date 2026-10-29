@@ -3,7 +3,17 @@ import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { BookOpen, Check, CircleAlert, House, RefreshCw, Sparkle, X } from 'lucide-react-native';
+import {
+  BookOpen,
+  Check,
+  CircleAlert,
+  House,
+  Minus,
+  RefreshCw,
+  ScanLine,
+  Sparkle,
+  X,
+} from 'lucide-react-native';
 import type { TrainingResult } from '@/api/training-history';
 import { Button } from '@/components/ui/Button';
 import { Card, HexBadge, Ribbon, type LucideIcon } from '@/components/ui/Game';
@@ -11,18 +21,25 @@ import { PageHeader } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { colors, fonts, type HexTone } from '@/theme/tokens';
 import { modeName } from '../mode-ui';
+import { presentResult, type OutcomeKind } from '../result-presentation';
 
-type Outcome = {
-  label: string;
+type Look = {
   icon: LucideIcon;
   tone: HexTone;
   ribbon: string;
   ribbonShadow: string;
   glow: string;
 };
-const OUTCOMES: Record<string, Outcome> = {
+const NEUTRAL_LOOK: Look = {
+  icon: BookOpen,
+  tone: 'neutral',
+  ribbon: colors.hex.neutral,
+  ribbonShadow: '#2A2F31',
+  glow: '#939DA0',
+};
+/** Colours and icons per outcome; the words come from result-presentation. */
+const LOOKS: Record<OutcomeKind, Look> = {
   Passed: {
-    label: 'Đạt',
     icon: Check,
     tone: 'exit',
     ribbon: colors.exit,
@@ -30,7 +47,6 @@ const OUTCOMES: Record<string, Outcome> = {
     glow: '#5FD08A',
   },
   NotPassed: {
-    label: 'Chưa đạt',
     icon: X,
     tone: 'danger',
     ribbon: colors.hex.danger,
@@ -38,21 +54,21 @@ const OUTCOMES: Record<string, Outcome> = {
     glow: '#FF8F8F',
   },
   Incomplete: {
-    label: 'Chưa hoàn thành',
     icon: CircleAlert,
     tone: 'warning',
     ribbon: colors.hex.warning,
     ribbonShadow: '#7A5B12',
     glow: '#F2C14E',
   },
-  NotAssessed: {
-    label: 'Không chấm điểm',
-    icon: BookOpen,
-    tone: 'neutral',
-    ribbon: colors.hex.neutral,
-    ribbonShadow: '#2A2F31',
-    glow: '#939DA0',
+  Pending: {
+    icon: RefreshCw,
+    tone: 'warning',
+    ribbon: colors.hex.warning,
+    ribbonShadow: '#7A5B12',
+    glow: '#F2C14E',
   },
+  NotAssessed: NEUTRAL_LOOK,
+  Unknown: NEUTRAL_LOOK,
 };
 
 export function modeTitle(mode: string): string {
@@ -83,8 +99,9 @@ export function Burst({ color, children }: { color: string; children: ReactNode 
 }
 
 /**
- * Server-computed result screen; Mobile never decides Passed/NotPassed and never shows technical codes.
- * `onRetry` replays the same training; for a NotAssessed result it offers Assessment instead.
+ * Server-computed result screen; Mobile never decides Passed/NotPassed and never shows technical codes (wording in
+ * result-presentation.ts). `onRetry` replays the same training (for NotAssessed `onAssessment` offers Assessment);
+ * without either the learner is sent to scan the Building QR.
  */
 export function TrainingResultView({
   result,
@@ -99,71 +116,66 @@ export function TrainingResultView({
   onRetry?: () => void;
   onAssessment?: () => void;
 }) {
-  const outcome =
-    OUTCOMES[result.outcome] ??
-    ({ ...OUTCOMES.NotAssessed, label: result.outcome } satisfies Outcome);
-  const notAssessed = result.outcome === 'NotAssessed';
-  const meta = [
-    result.passThresholdPercent !== null ? `ngưỡng ${result.passThresholdPercent}%` : null,
-    modeName(result.mode),
-    shortDate(result.createdAt),
-  ]
+  const view = presentResult(result, { canReplay: !!(onRetry || onAssessment) });
+  const look = LOOKS[view.outcome.kind];
+  const meta = [view.thresholdText, modeName(result.mode), shortDate(result.createdAt)]
     .filter(Boolean)
     .join(' · ');
-  const retry = notAssessed ? (onAssessment ?? onRetry) : onRetry;
+  const primary =
+    view.primary.intent === 'assessment'
+      ? (onAssessment ?? onRetry)
+      : view.primary.intent === 'retry'
+        ? (onRetry ?? onAssessment)
+        : () => router.push('/scan-qr');
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <Burst color={outcome.glow}>
+        <Burst color={look.glow}>
           <PageHeader title="Kết quả phiên" subtitle={subtitle} onBack={onClose} backIcon={X} />
           <View style={styles.hero}>
-            <HexBadge icon={outcome.icon} tone={outcome.tone} size={150} />
-            <Ribbon label={outcome.label} color={outcome.ribbon} shadow={outcome.ribbonShadow} />
-            {result.scorePercent !== null && (
-              <Text style={styles.score}>{result.scorePercent}%</Text>
-            )}
-            {notAssessed ? (
-              <Text variant="small" muted style={{ textAlign: 'center' }}>
-                Học và Diễn tập không chấm Đạt/Chưa đạt. Chọn Đánh giá để được chấm.
-              </Text>
-            ) : result.outcome === 'Incomplete' ? (
-              <Text variant="small" muted>
-                Phiên kết thúc trước khi hoàn thành tình huống.
-              </Text>
-            ) : (
-              <Text variant="small" muted>
-                {meta}
-              </Text>
-            )}
+            <HexBadge icon={look.icon} tone={look.tone} size={150} />
+            <Ribbon label={view.outcome.label} color={look.ribbon} shadow={look.ribbonShadow} />
+            {view.scoreText !== null && <Text style={styles.score}>{view.scoreText}</Text>}
+            <Text variant="small" muted style={styles.center}>
+              {view.headline}
+            </Text>
+            <Text variant="small" dim style={styles.center}>
+              {meta}
+            </Text>
           </View>
         </Burst>
         <View style={styles.body}>
-          {!!result.criteria?.length && (
+          {view.criteria.length > 0 && (
             <Card contentStyle={{ gap: 6 }}>
               <Text variant="caps" style={{ letterSpacing: 1.5 }}>
                 TIÊU CHÍ
               </Text>
-              {result.criteria.map((item) => (
-                <View key={item.id} style={styles.criterion}>
-                  <View
-                    style={[
-                      styles.tick,
-                      item.passed
-                        ? { borderColor: colors.success, backgroundColor: colors.successSoft }
-                        : { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
-                    ]}
-                  >
-                    {item.passed ? (
+              {view.criteria.map((item) => (
+                <View
+                  key={item.id}
+                  style={styles.criterion}
+                  accessibilityLabel={`${item.label}: ${
+                    item.state === 'passed'
+                      ? 'đạt'
+                      : item.state === 'failed'
+                        ? 'chưa đạt'
+                        : item.note
+                  }`}
+                >
+                  <View style={[styles.tick, TICKS[item.state].box]}>
+                    {item.state === 'passed' ? (
                       <Check size={13} color={colors.success} strokeWidth={3} />
-                    ) : (
+                    ) : item.state === 'failed' ? (
                       <X size={13} color={colors.danger} strokeWidth={3} />
+                    ) : (
+                      <Minus size={13} color={colors.dim} strokeWidth={3} />
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.criterionTitle}>{item.label ?? item.metric}</Text>
-                    {!!item.reason && (
+                    <Text style={styles.criterionTitle}>{item.label}</Text>
+                    {!!item.note && (
                       <Text variant="small" muted>
-                        {item.reason}
+                        {item.note}
                       </Text>
                     )}
                   </View>
@@ -172,17 +184,16 @@ export function TrainingResultView({
             </Card>
           )}
           <Text variant="small" dim style={{ fontSize: 11, lineHeight: 17 }}>
-            Kết quả do FET3D chấm cho mục đích học tập, không phải chứng nhận an toàn PCCC. Làm lại
-            không giới hạn.
+            {view.disclaimer}
           </Text>
         </View>
       </ScrollView>
       <View style={styles.actions}>
-        {retry && (
+        {primary && (
           <Button
-            title={notAssessed ? 'Thử Đánh giá' : 'Làm lại bài'}
-            icon={RefreshCw}
-            onPress={retry}
+            title={view.primary.label}
+            icon={view.primary.intent === 'scan' ? ScanLine : RefreshCw}
+            onPress={primary}
           />
         )}
         <View style={styles.pair}>
@@ -198,6 +209,7 @@ export function TrainingResultView({
           />
           <Button
             title="Trang chủ"
+            accessibilityLabel="Về trang chủ"
             icon={House}
             variant="secondary"
             size="sm"
@@ -210,10 +222,17 @@ export function TrainingResultView({
   );
 }
 
+const TICKS = {
+  passed: { box: { borderColor: colors.success, backgroundColor: colors.successSoft } },
+  failed: { box: { borderColor: colors.danger, backgroundColor: colors.dangerSoft } },
+  unavailable: { box: { borderColor: colors.dim, backgroundColor: 'transparent' } },
+} as const;
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   burst: { paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
   hero: { alignItems: 'center', gap: 6, paddingVertical: 10 },
+  center: { textAlign: 'center' },
   score: { fontFamily: fonts.black, fontSize: 44, lineHeight: 54 },
   body: { padding: 16, gap: 12 },
   criterion: { flexDirection: 'row', gap: 10, paddingVertical: 4 },

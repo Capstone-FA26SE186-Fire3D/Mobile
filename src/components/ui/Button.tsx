@@ -25,6 +25,8 @@ type Props = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** Screen-reader name when several buttons share a title (defaults to the title). */
+  accessibilityLabel?: string;
 };
 const LOOK: Record<Exclude<Variant, 'ghost'>, { face: ViewStyle; fg: string; shadow: string }> = {
   primary: {
@@ -54,6 +56,7 @@ export function Button({
   disabled,
   style,
   testID,
+  accessibilityLabel,
 }: Props) {
   const off = disabled || loading;
   if (variant === 'ghost')
@@ -61,7 +64,7 @@ export function Button({
       <Pressable
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={title}
+        accessibilityLabel={accessibilityLabel ?? title}
         accessibilityState={{ disabled: off, busy: loading }}
         disabled={off}
         onPress={onPress}
@@ -77,7 +80,7 @@ export function Button({
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled: off, busy: loading }}
       disabled={off}
       onPress={onPress}
