@@ -173,14 +173,14 @@ test('result screen waits for sync, then shows the server result', async ({ page
             sessionId,
             mode: 'Assessment',
             outcome: 'Passed',
-            reason: 'ALL_CRITERIA_MET',
+            reason: 'ALL_REQUIREMENTS_MET',
             scorePercent: 85,
             passThresholdPercent: 70,
             criteria: [
               {
                 id: 'c1',
                 label: 'Đến lối thoát',
-                metric: 'reachedExit',
+                metric: 'reached_exit',
                 passed: true,
                 reason: null,
               },
@@ -196,14 +196,178 @@ test('result screen waits for sync, then shows the server result', async ({ page
   await login(page);
   await page.getByRole('tab', { name: 'Kết quả' }).click();
   await page.getByRole('button', { name: /Chờ đồng bộ/ }).click();
-  await expect(page.getByText('Đang chờ đồng bộ')).toBeVisible();
-  await expect(page.getByText(/chờ đủ dữ liệu/)).toBeVisible();
+  await expect(page.getByText('Đang xử lý kết quả')).toBeVisible();
+  await expect(page.getByText(/sự kiện|Unity|%/)).toHaveCount(0);
 
   completed = true;
   await page.getByRole('button', { name: 'Đồng bộ lại' }).click();
   await expect(page.getByText('ĐẠT', { exact: true })).toBeVisible();
   await expect(page.getByText('85%', { exact: true })).toBeVisible();
-  await expect(page.getByText(/ngưỡng 70%/)).toBeVisible();
+  await expect(page.getByText(/Mức yêu cầu 70%/)).toBeVisible();
+  await expect(page.getByText('Bạn đạt mọi yêu cầu của bài đánh giá.')).toBeVisible();
   await expect(page.getByText(/Đến lối thoát/)).toBeVisible();
-  await expect(page.getByText('Đang chờ đồng bộ')).toHaveCount(0);
+  await expect(page.getByText('Đang xử lý kết quả')).toHaveCount(0);
+  await expect(page.getByText(/ALL_REQUIREMENTS_MET|reached_exit/)).toHaveCount(0);
+});
+
+type ResultCase = {
+  name: string;
+  result: Record<string, unknown>;
+  visible: (string | RegExp)[];
+  hidden: RegExp;
+  primary: string;
+};
+
+const RESULT_CASES: ResultCase[] = [
+  {
+    name: 'not passed: both numbers, Vietnamese metric names, missing data is not a mistake',
+    result: {
+      outcome: 'NotPassed',
+      reason: 'BELOW_PASS_THRESHOLD',
+      scorePercent: 60,
+      passThresholdPercent: 70,
+      criteria: [
+        { id: 'c1', label: null, metric: 'wrong_exits', passed: false, reason: null },
+        {
+          id: 'c2',
+          label: null,
+          metric: 'hazard_exposure',
+          passed: false,
+          reason: 'METRIC_UNAVAILABLE',
+        },
+      ],
+    },
+    visible: [
+      'CHƯA ĐẠT',
+      'Điểm 60% thấp hơn mức yêu cầu 70%.',
+      'Số lần đi nhầm lối',
+      'Mức tiếp xúc nguy hiểm',
+      'Chưa đủ dữ liệu đánh giá',
+    ],
+    hidden: /wrong_exits|hazard_exposure|METRIC_UNAVAILABLE|BELOW_PASS_THRESHOLD/,
+    primary: 'Quét QR để chơi lại',
+  },
+  {
+    name: 'incomplete',
+    result: {
+      outcome: 'Incomplete',
+      reason: 'ENDED_BEFORE_COMPLETION',
+      scorePercent: null,
+      criteria: null,
+    },
+    visible: ['CHƯA HOÀN THÀNH', 'Phiên kết thúc trước khi hoàn thành tình huống.'],
+    hidden: /ENDED_BEFORE_COMPLETION|Incomplete/,
+    primary: 'Quét QR để chơi lại',
+  },
+  {
+    name: 'practice mode is not scored',
+    result: {
+      mode: 'Guided',
+      outcome: 'NotAssessed',
+      reason: 'MODE_NOT_ASSESSED',
+      scorePercent: null,
+      passThresholdPercent: null,
+      criteria: null,
+    },
+    visible: ['KHÔNG CHẤM ĐIỂM', /Chọn Đánh giá để được chấm/],
+    hidden: /MODE_NOT_ASSESSED|NotAssessed/,
+    primary: 'Quét QR để chơi lại',
+  },
+  {
+    name: 'unknown outcome, reason and metric stay neutral',
+    result: {
+      outcome: 'Certified',
+      reason: 'SOMETHING_NEW',
+      criteria: [{ id: 'c1', label: null, metric: 'zz_metric', passed: true, reason: 'ODD' }],
+    },
+    visible: [
+      'KẾT QUẢ CHƯA XÁC ĐỊNH',
+      'Kết quả do FET3D chấm theo tiêu chí của bài.',
+      'Tiêu chí của bài',
+    ],
+    hidden: /Certified|SOMETHING_NEW|zz_metric|ODD/,
+    primary: 'Quét QR để chơi lại',
+  },
+];
+
+for (const item of RESULT_CASES)
+  test(`history result: ${item.name}`, async ({ page }) => {
+    await page.route('**/api/auth/login', (route) =>
+      route.fulfill(json({ accessToken: 'access', refreshToken: 'refresh', user })),
+    );
+    await page.route('**/api/me/avatar', (route) => route.fulfill({ status: 404, body: '' }));
+    await page.route(`**/api/training/sessions/${sessionId}/result`, (route) =>
+      route.fulfill(
+        json({
+          sessionId,
+          mode: 'Assessment',
+          scorePercent: 85,
+          passThresholdPercent: 70,
+          lastEventSequence: 42,
+          createdAt: '2026-10-19T08:20:00Z',
+          ...item.result,
+        }),
+      ),
+    );
+    await page.goto('/login');
+    await login(page);
+    await page.goto(`/history/${sessionId}?trainingId=${trainingId}`);
+    for (const text of item.visible)
+      await expect(
+        typeof text === 'string' ? page.getByText(text, { exact: true }) : page.getByText(text),
+      ).toBeVisible();
+    await expect(page.getByText(item.hidden)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: item.primary })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Về trang chủ' })).toBeVisible();
+  });
+
+test('history result offers replay when the training is in "Bài đã tải"', async ({ page }) => {
+  await page.route('**/api/auth/login', (route) =>
+    route.fulfill(json({ accessToken: 'access', refreshToken: 'refresh', user })),
+  );
+  await page.route('**/api/me/avatar', (route) => route.fulfill({ status: 404, body: '' }));
+  await page.route(`**/api/training/sessions/${sessionId}/result`, (route) =>
+    route.fulfill(
+      json({
+        sessionId,
+        mode: 'Assessment',
+        outcome: 'Passed',
+        reason: 'ALL_REQUIREMENTS_MET',
+        scorePercent: 90,
+        passThresholdPercent: 70,
+        criteria: [],
+        lastEventSequence: 42,
+        createdAt: '2026-10-19T08:20:00Z',
+      }),
+    ),
+  );
+  await page.route(`**/api/qr/${token}`, (route) =>
+    route.fulfill(json({ code: 'QR_REVOKED', title: 'Gone' }, 410)),
+  );
+  await page.goto('/login');
+  await page.evaluate(([key, value]) => window.localStorage.setItem(key, value), [
+    `fire3d.training.downloads.v1.${user.id}`,
+    JSON.stringify({
+      version: 1,
+      items: [
+        {
+          trainingId,
+          trainingName: 'Thoát hiểm tầng 3',
+          buildingId,
+          buildingName: 'Tòa nhà B',
+          qrToken: token,
+          releaseId: '33333333-3333-4333-8333-333333333333',
+          manifestHash: hash('b'),
+          runtimeVersion: '2.0.2',
+          savedAt: '2026-10-29T08:00:00.000Z',
+        },
+      ],
+    }),
+  ] as const);
+  await login(page);
+  await page.goto(`/history/${sessionId}?trainingId=${trainingId}`);
+  await page.getByRole('button', { name: 'Chơi lại' }).click();
+  await expect(page).toHaveURL(new RegExp(`/training/${trainingId}`));
+  // Replay re-checks the QR online: a revoked QR never opens the downloaded game.
+  await expect(page.getByText('Mã QR này đã bị thu hồi')).toBeVisible();
 });

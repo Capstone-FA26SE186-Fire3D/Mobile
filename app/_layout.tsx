@@ -48,9 +48,17 @@ function Navigation() {
         <View style={[styles.notice, { top: insets.top + 8 }]} pointerEvents="box-none">
           <View style={styles.noticeRow}>
             <View style={{ flex: 1 }}>
-              <Callout tone="danger" style={{ paddingRight: 40 }}>{error}</Callout>
+              <Callout tone="danger" style={{ paddingRight: 40 }}>
+                {error}
+              </Callout>
             </View>
-            <Pressable onPress={dismissError} accessibilityRole="button" accessibilityLabel="Đóng thông báo" hitSlop={12} style={styles.noticeClose}>
+            <Pressable
+              onPress={dismissError}
+              accessibilityRole="button"
+              accessibilityLabel="Đóng thông báo"
+              hitSlop={12}
+              style={styles.noticeClose}
+            >
               <X size={18} color={colors.text} />
             </Pressable>
           </View>
@@ -85,6 +93,7 @@ function Navigation() {
           <Stack.Screen name="ai/index" />
           <Stack.Screen name="history/index" />
           <Stack.Screen name="history/[sessionId]" />
+          <Stack.Screen name="downloads/index" />
           <Stack.Screen name="training/[trainingId]" />
           <Stack.Screen name="training/session/[sessionId]" />
           <Stack.Screen name="learn/bookmarks" />
@@ -132,7 +141,15 @@ const styles = StyleSheet.create({
   // Above the screens (they keep their own safe-area padding), so the notice never shifts the layout.
   notice: { position: 'absolute', left: 12, right: 12, zIndex: 10, elevation: 10 },
   noticeRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  noticeClose: { position: 'absolute', right: 6, top: 6, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  noticeClose: {
+    position: 'absolute',
+    right: 6,
+    top: 6,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   loading: {
     flex: 1,
     alignItems: 'center',

@@ -9,6 +9,7 @@ import { Notice, PageHeader, Screen, ScreenTitle } from '@/components/ui/Screen'
 import { AiFab } from '@/components/ui/TabBar';
 import { Text } from '@/components/ui/Text';
 import { modeName } from '@/features/training/mode-ui';
+import { presentOutcome, type OutcomeKind } from '@/features/training/result-presentation';
 import { usePendingSync } from '@/features/training/use-pending-sync';
 import { colors, fonts, type HexTone } from '@/theme/tokens';
 
@@ -18,27 +19,32 @@ type Look = {
   hex: HexTone;
   pill: 'success' | 'danger' | 'warning' | 'neutral';
 };
-/** Outcome labels are BE's; Mobile never decides Passed/NotPassed. */
+const ICONS: Record<OutcomeKind, LucideIcon> = {
+  Passed: Check,
+  NotPassed: X,
+  Incomplete: CircleAlert,
+  NotAssessed: BookOpen,
+  Pending: RefreshCw,
+  Unknown: BookOpen,
+};
+
+/** Outcome labels are BE's, worded by result-presentation; Mobile never decides Passed/NotPassed. */
 export function outcomeLook(item: Pick<TrainingHistoryItem, 'resultStatus'>): Look {
-  switch (item.resultStatus) {
-    case 'Passed':
-      return { label: 'Đạt', icon: Check, hex: 'success', pill: 'success' };
-    case 'NotPassed':
-      return { label: 'Chưa đạt', icon: X, hex: 'danger', pill: 'danger' };
-    case 'Incomplete':
-      return { label: 'Chưa hoàn thành', icon: CircleAlert, hex: 'danger', pill: 'danger' };
-    case 'NotAssessed':
-      return { label: 'Không chấm', icon: BookOpen, hex: 'neutral', pill: 'neutral' };
-    case null:
-    case undefined:
-      return { label: 'Chờ đồng bộ', icon: RefreshCw, hex: 'warning', pill: 'warning' };
-    default:
-      return { label: item.resultStatus, icon: BookOpen, hex: 'neutral', pill: 'neutral' };
-  }
+  const outcome = presentOutcome(item.resultStatus);
+  return {
+    label: outcome.label,
+    icon: ICONS[outcome.kind],
+    hex: outcome.tone,
+    pill: outcome.tone,
+  };
 }
 
 export function openHistoryItem(item: TrainingHistoryItem) {
-  if (item.resultStatus) router.push(`/history/${item.sessionId}`);
+  if (item.resultStatus)
+    router.push({
+      pathname: '/history/[sessionId]',
+      params: { sessionId: item.sessionId, trainingId: item.training.id },
+    });
   else
     router.push({
       pathname: '/training/session/[sessionId]',
