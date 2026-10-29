@@ -77,20 +77,31 @@ function folders(pin: PackagePin) {
   };
 }
 
-/** Absolute manifest path when this exact pinned package is already verified in the cache; never downloads. */
+/**
+ * Absolute manifest path when this exact pinned package is already verified in the cache; never downloads. A cache that
+ * fails verification goes back to staging instead of being deleted, so [prepareVerifiedPackage] re-downloads only the
+ * files that no longer match rather than the whole package.
+ */
 export async function cachedPackagePath(pin: PackagePin): Promise<string | null> {
-  const { final } = folders(pin);
+  const { final, staging } = folders(pin);
   if (!final.exists) return null;
   try {
     const manifestFile = new File(final, 'manifest.json');
-    if (!(await matches(manifestFile, manifestFile.size, pin.manifestHash))) throw new Error();
+    if (!(await matches(manifestFile, manifestFile.size, pin.manifestHash)))
+      throw new Error('manifest.json');
     const manifest = await readManifest(manifestFile, pin);
     for (const entry of manifest.files)
       if (!(await matches(fileIn(final, entry.path), entry.size, entry.sha256)))
         throw new Error(entry.path);
     return manifestPathOf(final);
-  } catch {
-    final.delete();
+  } catch (issue) {
+    console.warn('[package-cache] cached package failed verification; resuming download', issue);
+    try {
+      if (staging.exists) staging.delete();
+      await final.move(staging);
+    } catch {
+      if (final.exists) final.delete();
+    }
     return null;
   }
 }
