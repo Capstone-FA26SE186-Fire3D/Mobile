@@ -44,6 +44,7 @@ import { ModeCard } from '@/features/training/components/PrepareParts';
 import { getLaunch } from '@/features/training/event-queue.native';
 import {
   PackageDownloadCancelled,
+  PackageNotReady,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
 import { formatBytes, type TrainingMode } from '@/features/training/session-contract';
@@ -223,7 +224,11 @@ export default function PlaytestScreen() {
       setStatus(current);
       await launchPlaytest(current, mode, account.id, prepared.manifestPath);
     } catch (issue) {
-      setError(describePlaytestProblem(issue, 'Không mở được playtest.'));
+      if (issue instanceof PackageNotReady) {
+        // Back to "Chuẩn bị": downloading again resumes from the files that still match.
+        setPrepared(null);
+        setError(issue.message);
+      } else setError(describePlaytestProblem(issue, 'Không mở được playtest.'));
     } finally {
       working.current = false;
       setBusy(false);
