@@ -17,6 +17,7 @@ import {
   saveLaunch,
 } from '@/features/training/event-queue.native';
 import {
+  assertPackageReady,
   prepareVerifiedPackage,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
@@ -121,6 +122,17 @@ export async function startTrainingSession(
   return response;
 }
 
+/**
+ * Re-checks the downloaded package right before /start and before Unity gets the path: a package that is no longer
+ * complete throws `PackageNotReady` (nothing is deleted; downloading again resumes from the files that still match).
+ */
+export function assertTrainingPackageReady(
+  session: TrainingSession,
+  manifestPath: string,
+): Promise<void> {
+  return assertPackageReady(pinFromSession(session), manifestPath);
+}
+
 /** Records the launch locally (for the Launched reconcile) and hands the verified package to Unity. */
 export async function launchStartedSession(
   started: StartTrainingResponse,
@@ -129,6 +141,7 @@ export async function launchStartedSession(
   accountId: string | null = null,
 ): Promise<void> {
   const session = started.session;
+  if (unityBridge.available) await assertTrainingPackageReady(session, manifestPath);
   await saveLaunch(
     session.id,
     'Training',

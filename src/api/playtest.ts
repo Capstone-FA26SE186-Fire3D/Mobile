@@ -23,6 +23,7 @@ import {
 } from '@/features/training/event-queue.native';
 import { launchBelongsTo } from '@/features/training/launch-owner';
 import {
+  assertPackageReady,
   cachedPackagePath,
   prepareVerifiedPackage,
   readPackageScenario,
@@ -151,6 +152,8 @@ export async function launchPlaytest(
   if (!status.launchSession) throw new Error('Phiên Mobile này không có quyền mở playtest.');
   const mismatch = checkUnityHandshake(await unityBridge.handshake());
   if (mismatch) throw new UnityRuntimeMismatch(mismatch);
+  // Before the grant: a package that is no longer complete must not use the Trial or open Unity.
+  await assertPackageReady(playtestPin(status), manifestPath);
   const grant = await acquirePlaytestGrant(
     { getStatus: getPlaytest, start: postStart, reissue: postReissue },
     playtestKeys,

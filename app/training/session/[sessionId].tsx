@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Play, RefreshCw } from 'lucide-react-native';
+import { CloudUpload, Hourglass, Play, RefreshCw } from 'lucide-react-native';
 import { ApiError } from '@/api';
 import { getTrainingSession } from '@/api/training';
 import { getTrainingResult, type TrainingResult } from '@/api/training-history';
 import { Button } from '@/components/ui/Button';
-import { Card, HexBadge, Pill, ProgressRing, Ribbon } from '@/components/ui/Game';
+import { Card, HexBadge, Ribbon } from '@/components/ui/Game';
 import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { clearAttempt } from '@/features/training/attempt-store';
 import { TrainingResultView } from '@/features/training/components/TrainingResultCard';
+import { readDownload } from '@/features/training/downloads-store';
 import { localSessionState } from '@/features/training/event-queue.native';
+import { presentWaiting, type WaitingView } from '@/features/training/result-presentation';
 import { TRAINING_MODES, type TrainingMode } from '@/features/training/session-contract';
 import {
   describeSyncError,
@@ -21,17 +23,14 @@ import {
 } from '@/features/training/training-runtime';
 import { unityBridge } from '@/features/training/unity-bridge.native';
 import { useSession } from '@/store/SessionProvider';
-import { colors, fonts } from '@/theme/tokens';
+import { colors } from '@/theme/tokens';
 
 type View_ =
   | { stage: 'loading' }
   | { stage: 'completed'; result: TrainingResult }
-  | { stage: 'awaiting'; detail: string; pending: number; offline: boolean }
+  | { stage: 'awaiting'; waiting: WaitingView }
   | { stage: 'running' }
   | { stage: 'error'; message: string };
-
-const SYNC_WAIT =
-  'Kết quả và sự kiện của phiên vẫn được lưu trên máy. Ứng dụng tự gửi khi có mạng; FET3D chỉ chấm khi nhận đủ dữ liệu.';
 
 export default function TrainingSessionResultScreen() {
   const params = useLocalSearchParams<{
@@ -42,13 +41,29 @@ export default function TrainingSessionResultScreen() {
   }>();
   const sessionId = typeof params.sessionId === 'string' ? params.sessionId : '';
   const trainingId = typeof params.trainingId === 'string' ? params.trainingId : '';
-  const qr = typeof params.qr === 'string' ? params.qr : '';
+  const qrParam = typeof params.qr === 'string' ? params.qr : '';
   const mode = TRAINING_MODES.includes(params.mode as TrainingMode)
     ? (params.mode as TrainingMode)
     : null;
   const { account } = useSession();
   const [view, setView] = useState<View_>({ stage: 'loading' });
   const [busy, setBusy] = useState(false);
+  const [savedQr, setSavedQr] = useState('');
+  const qr = qrParam || savedQr;
+
+  // Opened from history without a QR: a saved download of this training still allows replay.
+  useEffect(() => {
+    if (qrParam || !account || !trainingId) return;
+    let active = true;
+    readDownload(account.id, trainingId)
+      .then((record) => {
+        if (active && record) setSavedQr(record.qrToken);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [qrParam, account?.id, trainingId]);
 
   const load = useCallback(async () => {
     if (!sessionId) return;
@@ -59,19 +74,16 @@ export default function TrainingSessionResultScreen() {
         await pumpTrainingRuntime();
         local = await localSessionState(sessionId);
       }
-      const localWaiting =
-        local.pendingEvents > 0 || (local.completion !== null && local.completion !== 'completed');
+      const completionPending = local.completion !== null && local.completion !== 'completed';
+      const localWaiting = local.pendingEvents > 0 || completionPending;
+      const waiting = (offline: boolean) =>
+        presentWaiting({ pendingEvents: local.pendingEvents, completionPending, offline });
       let session;
       try {
         session = await getTrainingSession(sessionId);
       } catch (issue) {
         if (isOfflineError(issue) && (localWaiting || local.launched)) {
-          setView({
-            stage: 'awaiting',
-            detail: describeSyncError(issue),
-            pending: local.pendingEvents,
-            offline: true,
-          });
+          setView({ stage: 'awaiting', waiting: waiting(true) });
           return;
         }
         throw issue;
@@ -87,15 +99,7 @@ export default function TrainingSessionResultScreen() {
         }
       }
       if (session.status === 'AwaitingSync' || session.status === 'Completed' || localWaiting)
-        setView({
-          stage: 'awaiting',
-          detail:
-            local.pendingEvents > 0
-              ? `Còn ${local.pendingEvents} sự kiện chưa gửi.`
-              : 'FET3D đang chờ đủ dữ liệu của phiên trước khi chấm.',
-          pending: local.pendingEvents,
-          offline: false,
-        });
+        setView({ stage: 'awaiting', waiting: waiting(false) });
       else setView({ stage: 'running' });
     } catch (issue) {
       setView({ stage: 'error', message: describeSyncError(issue) });
@@ -116,13 +120,12 @@ export default function TrainingSessionResultScreen() {
     [sessionId, load],
   );
 
+  const canReplay = !!(trainingId && qr);
   const retrain = (nextMode: TrainingMode | null = mode) =>
-    trainingId && qr
-      ? router.replace({
-          pathname: '/training/[trainingId]',
-          params: { trainingId, qr, mode: nextMode ?? '' },
-        })
-      : router.replace('/(tabs)');
+    router.replace({
+      pathname: '/training/[trainingId]',
+      params: { trainingId, qr, mode: nextMode ?? '' },
+    });
   const home = () => router.replace('/(tabs)');
 
   if (view.stage === 'completed')
@@ -130,8 +133,8 @@ export default function TrainingSessionResultScreen() {
       <TrainingResultView
         result={view.result}
         onClose={home}
-        onRetry={() => retrain()}
-        onAssessment={() => retrain('Assessment')}
+        onRetry={canReplay ? () => retrain() : undefined}
+        onAssessment={canReplay ? () => retrain('Assessment') : undefined}
       />
     );
 
@@ -155,71 +158,28 @@ export default function TrainingSessionResultScreen() {
       {view.stage === 'loading' && (
         <View style={styles.center}>
           <ActivityIndicator color={colors.ember} />
-          <Text muted>Đang đồng bộ kết quả…</Text>
+          <Text muted>Đang tải kết quả…</Text>
         </View>
       )}
       {view.stage === 'awaiting' && (
-        <>
-          <View style={styles.center}>
-            <ProgressRing
-              value={view.pending > 0 ? 0.6 : 0.85}
-              size={180}
-              stroke={20}
-              color={colors.hex.info}
-            >
-              {view.pending > 0 ? (
-                <>
-                  <Text style={styles.count}>{view.pending}</Text>
-                  <Text variant="small" muted>
-                    sự kiện còn lại
-                  </Text>
-                </>
-              ) : (
-                <RefreshCw size={44} color={colors.hex.info} strokeWidth={2} />
-              )}
-            </ProgressRing>
-            <Ribbon label="Đang chờ đồng bộ" color={colors.hex.info} shadow="#2A2F31" />
-            <Text muted style={styles.body}>
-              {SYNC_WAIT}
-            </Text>
-          </View>
-          <Card contentStyle={{ gap: 12 }}>
-            <View style={styles.row}>
-              <Text muted style={styles.key}>
-                Phiên
-              </Text>
-              <Pill label="Đã hoàn tất trên máy" tone="success" />
-            </View>
-            <View style={styles.row}>
-              <Text muted style={styles.key}>
-                Sự kiện
-              </Text>
-              <Pill
-                label={view.pending > 0 ? `${view.pending} chờ gửi` : 'Đã gửi hết'}
-                tone={view.pending > 0 ? 'warning' : 'success'}
-              />
-            </View>
-            <View style={styles.row}>
-              <Text muted style={styles.key}>
-                Kết nối
-              </Text>
-              <Pill
-                label={view.offline ? 'Chưa có mạng' : 'Đang chờ máy chủ chấm'}
-                tone={view.offline ? 'danger' : 'info'}
-              />
-            </View>
-          </Card>
-          <Text variant="small" dim style={{ textAlign: 'center' }}>
-            {view.detail}
+        <Card accent contentStyle={[styles.center, { padding: 20 }]}>
+          <HexBadge
+            icon={view.waiting.kind === 'saved-offline' ? CloudUpload : Hourglass}
+            tone="info"
+            size={110}
+          />
+          <Ribbon label={view.waiting.title} color={colors.hex.info} shadow="#2A2F31" />
+          <Text muted style={styles.body}>
+            {view.waiting.body}
           </Text>
-        </>
+        </Card>
       )}
       {view.stage === 'running' && (
         <Card accent contentStyle={[styles.center, { padding: 20 }]}>
           <HexBadge icon={Play} size={96} />
           <Ribbon label="Phiên chưa kết thúc" />
           <Text muted style={styles.body}>
-            Unity chưa gửi hoàn tất cho phiên này. Nếu Unity còn mở, bạn có thể chơi tiếp.
+            Phiên chưa kết thúc. Nếu màn chơi còn mở, bạn có thể chơi tiếp.
           </Text>
           {unityBridge.available && (
             <Button
@@ -238,8 +198,5 @@ export default function TrainingSessionResultScreen() {
 
 const styles = StyleSheet.create({
   center: { alignItems: 'center', gap: 12, paddingVertical: 8 },
-  count: { fontFamily: fonts.black, fontSize: 40, lineHeight: 50 },
   body: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  key: { flex: 1, fontSize: 13 },
 });

@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { ArrowUpRight, Check, Info, Play, RefreshCw, User } from 'lucide-react-native';
+import {
+  ArrowUpRight,
+  Check,
+  Info,
+  KeyRound,
+  Play,
+  RefreshCw,
+  ScanLine,
+  User,
+} from 'lucide-react-native';
 import { ApiError } from '@/api';
 import {
   getQrTrainings,
@@ -10,6 +19,7 @@ import {
   type Training,
 } from '@/api/qr';
 import {
+  assertTrainingPackageReady,
   downloadTrainingPackage,
   getTrainingSession,
   launchStartedSession,
@@ -33,6 +43,7 @@ import {
 import {
   cachedPackagePath,
   PackageDownloadCancelled,
+  PackageNotReady,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
 import {
@@ -45,6 +56,8 @@ import {
 import { isOfflineError, subscribeTrainingRuntime } from '@/features/training/training-runtime';
 import { UNITY_UNAVAILABLE_MESSAGE, unityBridge } from '@/features/training/unity-bridge.native';
 import { useSession } from '@/store/SessionProvider';
+import { QR_PROBLEM_TEXT, qrProblemOf, type QrProblem } from '@/features/qr/qr-problems';
+import { isNewerRelease, readDownload, upsertDownload } from '@/features/training/downloads-store';
 import { ModeCard, PrepareSteps, SummaryRows } from '@/features/training/components/PrepareParts';
 import { modeName } from '@/features/training/mode-ui';
 import { colors, fonts } from '@/theme/tokens';
@@ -83,6 +96,9 @@ export default function TrainingScreen() {
   const [notice, setNotice] = useState('');
   const [offline, setOffline] = useState(false);
   const [seatsFull, setSeatsFull] = useState(false);
+  const [problem, setProblem] = useState<QrProblem>(null);
+  const [newVersion, setNewVersion] = useState(false);
+  const [removed, setRemoved] = useState(false);
   const [launched, setLaunched] = useState(false);
   const [packageBytes, setPackageBytes] = useState<number | null>(null);
   const attempt = useRef<TrainingAttempt | null>(null);
@@ -97,12 +113,23 @@ export default function TrainingScreen() {
     }
     setLoading(true);
     setError('');
+    setProblem(null);
     try {
-      const [resolved, list] = await Promise.all([resolveBuildingQr(qr), getQrTrainings(qr)]);
+      // Always online: a downloaded package never grants access, the QR and the allowed list are checked again.
+      const resolved = await resolveBuildingQr(qr);
       setBuilding(resolved);
+      if (!resolved.hasAccess) {
+        setProblem('needs-code');
+        return;
+      }
+      const list = await getQrTrainings(qr);
       const found = list.find((item) => item.id === trainingId) ?? null;
       setTraining(found);
-      if (!found) setError('Bài tập không còn trong danh sách được phép của Building.');
+      setRemoved(!found);
+      if (!found) setError('Bài tập không còn trong danh sách được phép của tòa nhà.');
+      const saved =
+        found && account ? await readDownload(account.id, found.id).catch(() => null) : null;
+      setNewVersion(!!(found && saved && isNewerRelease(saved, found)));
       const allowed = allowedTrainingModes(found?.allowedModes);
       setMode((current) =>
         current && allowed.includes(current)
@@ -114,15 +141,20 @@ export default function TrainingScreen() {
               : null,
       );
     } catch (issue) {
-      setError(describe(issue, 'Không tải được bài tập.'));
+      const kind = qrProblemOf(issue);
+      if (kind) setProblem(kind);
+      else setError(describe(issue, 'Không tải được bài tập.'));
     } finally {
       setLoading(false);
     }
-  }, [qr, trainingId, params.mode]);
+  }, [qr, trainingId, params.mode, account?.id]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Leaving the screen stops the download; verified files stay on the device and the next visit resumes from them.
+  useEffect(() => () => abort.current?.abort(), []);
 
   /** Restores an unfinished attempt of this mode (crash, back navigation) without creating anything. */
   useEffect(() => {
@@ -152,11 +184,29 @@ export default function TrainingScreen() {
     };
   }, [account?.id, trainingId, mode]);
 
+  /** "Bài đã tải": remembered only after the package is verified on this device; never URLs, codes or grants. */
+  async function rememberDownload(session: TrainingSession) {
+    if (!account || !training || !building) return;
+    const pin = pinFromSession(session);
+    await upsertDownload(account.id, {
+      trainingId: training.id,
+      trainingName: training.name,
+      buildingId: building.buildingId,
+      buildingName: building.buildingName,
+      qrToken: qr,
+      releaseId: pin.releaseId,
+      manifestHash: pin.manifestHash,
+      runtimeVersion: pin.runtimeVersion,
+      savedAt: new Date().toISOString(),
+    }).catch(() => undefined);
+  }
+
   async function showPrepared(session: TrainingSession) {
     pinFromSession(session);
     if (unityBridge.available) {
       const cached = await cachedPackagePath(pinFromSession(session)).catch(() => null);
       if (cached) {
+        void rememberDownload(session);
         setPhase({ name: 'ready', session, manifestPath: cached });
         return;
       }
@@ -194,6 +244,7 @@ export default function TrainingScreen() {
   }
 
   async function download(session: TrainingSession) {
+    if (abort.current) return;
     const controller = new AbortController();
     abort.current = controller;
     setError('');
@@ -206,10 +257,11 @@ export default function TrainingScreen() {
           setPhase({ name: 'downloading', session, progress });
         },
       });
+      void rememberDownload(session);
       setPhase({ name: 'ready', session, manifestPath });
     } catch (issue) {
       setPhase({ name: 'prepared', session });
-      setError(describe(issue, 'Không tải được package.'));
+      setError(describe(issue, 'Không tải được gói nhiệm vụ.'));
     } finally {
       abort.current = null;
     }
@@ -223,6 +275,7 @@ export default function TrainingScreen() {
     setOffline(false);
     setLaunched(false);
     try {
+      if (unityBridge.available) await assertTrainingPackageReady(session, manifestPath);
       const started = await startTrainingSession(session, attempt.current.startKey, async () => {
         attempt.current = await rotateStartKey(account.id, attempt.current!);
         return attempt.current.startKey!;
@@ -230,6 +283,11 @@ export default function TrainingScreen() {
       setPhase({ name: 'playing', session: started.session, manifestPath });
       await launchStartedSession(started, manifestPath, 0, account.id);
     } catch (issue) {
+      if (issue instanceof PackageNotReady) {
+        setPhase({ name: 'prepared', session });
+        setError(issue.message);
+        return;
+      }
       setPhase({ name: 'ready', session, manifestPath });
       if (isOfflineError(issue)) setOffline(true);
       else if (issue instanceof ApiError && issue.payload?.code === 'LEARNER_LIMIT_REACHED')
@@ -265,8 +323,12 @@ export default function TrainingScreen() {
       else if (message.type === 'Error') {
         const payload = (message.payload ?? {}) as { code?: string; message?: string };
         if (payload.code === 'LAUNCH_CANCELLED') setNotice('Đã hủy mở màn chơi.');
-        else
-          setError(`Unity báo lỗi ${payload.code ?? ''}: ${payload.message ?? 'không rõ'}`.trim());
+        else {
+          console.warn('[training] game error', payload.code, payload.message);
+          setError(
+            'Màn chơi gặp lỗi và đã dừng. Hãy thử lại; nếu vẫn lỗi, hãy tải lại gói nhiệm vụ.',
+          );
+        }
         if (!launched)
           setPhase({ name: 'ready', session: current.session, manifestPath: current.manifestPath });
       } else if (message.type === 'Exited') {
@@ -280,7 +342,7 @@ export default function TrainingScreen() {
   async function backToUnity() {
     try {
       if (!(await unityBridge.show())) {
-        setNotice('Unity đã đóng. Dữ liệu đã ghi được giữ trên máy và sẽ được đồng bộ.');
+        setNotice('Màn chơi đã đóng. Dữ liệu đã ghi được giữ trên máy và sẽ được đồng bộ.');
         if (playingId)
           router.replace({
             pathname: '/training/session/[sessionId]',
@@ -288,7 +350,7 @@ export default function TrainingScreen() {
           });
       }
     } catch (issue) {
-      setError(describe(issue, 'Không mở lại được Unity.'));
+      setError(describe(issue, 'Không mở lại được màn chơi.'));
     }
   }
 
@@ -300,6 +362,43 @@ export default function TrainingScreen() {
       : 0;
   const title = training?.name ?? 'Chuẩn bị tập huấn';
   const back = () => router.back();
+
+  if (problem) {
+    const text = QR_PROBLEM_TEXT[problem];
+    return (
+      <StateScreen
+        header={title}
+        onBack={back}
+        icon={problem === 'needs-code' ? KeyRound : ScanLine}
+        tone="warning"
+        ribbon={text.ribbon}
+        title={text.title}
+        body={text.body}
+        actions={
+          <>
+            {problem === 'needs-code' ? (
+              <Button
+                title="Nhập mã tham gia"
+                icon={KeyRound}
+                onPress={() => router.replace(`/qr/${encodeURIComponent(qr)}`)}
+              />
+            ) : (
+              <Button
+                title="Quét lại mã QR"
+                icon={ScanLine}
+                onPress={() => router.replace('/scan-qr')}
+              />
+            )}
+            <Button
+              title="Về trang chủ"
+              variant="ghost"
+              onPress={() => router.replace('/(tabs)')}
+            />
+          </>
+        }
+      />
+    );
+  }
 
   if (seatsFull)
     return (
@@ -323,7 +422,7 @@ export default function TrainingScreen() {
   if (phase.name === 'playing' && !launched)
     return (
       <View style={styles.opening}>
-        <ProgressRing value={0.35} size={160} stroke={20} />
+        <ActivityIndicator color={colors.ember} size="large" />
         <Text style={styles.openingTitle}>Đang mở màn chơi…</Text>
         <Text muted style={{ fontSize: 13 }}>
           {[training?.name, building?.buildingName].filter(Boolean).join(' · ')}
@@ -387,8 +486,21 @@ export default function TrainingScreen() {
           Không có mạng. Gói đã sẵn sàng; hãy kết nối để bắt đầu phiên.
         </Callout>
       )}
+      {newVersion && phase.name === 'pick' && (
+        <Callout tone="info">
+          Bài có phiên bản mới. Khi chuẩn bị phiên, ứng dụng sẽ tải gói mới thay cho bản đã tải.
+        </Callout>
+      )}
       {!!error && <Notice error>{error}</Notice>}
       {!!notice && <Notice>{notice}</Notice>}
+      {removed && (
+        <Button
+          title="Mở danh sách bài của tòa nhà"
+          variant="secondary"
+          size="sm"
+          onPress={() => router.replace(`/qr/${encodeURIComponent(qr)}`)}
+        />
+      )}
       {building && !canStartNew && (
         <Callout tone="warning">
           Tòa nhà chưa có dịch vụ đang hoạt động hoặc bạn chưa có quyền; không thể bắt đầu phiên
@@ -518,10 +630,10 @@ export default function TrainingScreen() {
       {phase.name === 'playing' && (
         <Card accent contentStyle={styles.playing}>
           <HexBadge icon={Play} size={96} />
-          <Ribbon label="Đang chơi trong Unity" />
+          <Ribbon label="Đang trong màn chơi" />
           <Text style={styles.playingTitle}>Phiên của bạn đang mở</Text>
           <Text muted style={{ fontSize: 13, lineHeight: 20, textAlign: 'center' }}>
-            Mất mạng vẫn chơi tiếp được. Sự kiện lưu trên máy và tự đồng bộ khi có mạng.
+            Mất mạng vẫn chơi tiếp được. Kết quả lưu trên máy và tự gửi khi có mạng.
           </Text>
           <Button
             title="Tiếp tục chơi"

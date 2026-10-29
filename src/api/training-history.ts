@@ -10,6 +10,8 @@ export type TrainingHistoryItem = {
   endedAt: string | null;
   training: { id: string; name: string };
   building: { id: string; name: string };
+  /** Release the session was played on; matches "Bài đã tải" records for replay. */
+  releaseId?: string | null;
 };
 
 export type TrainingHistoryPage = {

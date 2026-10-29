@@ -13,7 +13,6 @@ import {
   Search,
   X,
 } from 'lucide-react-native';
-import { ApiError } from '@/api';
 import {
   getQrTrainings,
   resolveBuildingQr,
@@ -26,6 +25,7 @@ import { BackButton, Callout, Card, Diorama, Field, HexBadge, Pill } from '@/com
 import { Notice } from '@/components/ui/Screen';
 import { StateScreen } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
+import { describeQrProblem, qrProblemOf } from '@/features/qr/qr-problems';
 import { parseQrToken } from '@/features/qr/qr-token';
 import { allowedTrainingModes, type TrainingMode } from '@/features/training/session-contract';
 import { useSession } from '@/store/SessionProvider';
@@ -34,23 +34,10 @@ const dioramaWide = require('../../assets/images/diorama-login.png');
 
 type Failure = 'revoked' | 'missing' | null;
 function failureOf(error: unknown): Failure {
-  if (!(error instanceof ApiError)) return null;
-  if (error.status === 410 || error.payload?.code === 'QR_REVOKED') return 'revoked';
-  if (error.status === 404 || error.payload?.code === 'QR_NOT_FOUND') return 'missing';
-  return null;
+  const problem = qrProblemOf(error);
+  return problem === 'revoked' || problem === 'missing' ? problem : null;
 }
-function describe(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.payload?.code === 'BUILDING_ACCESS_REQUIRED')
-      return 'Hãy nhập mã tham gia của tòa nhà riêng tư.';
-    if (error.payload?.code === 'PARTICIPATION_CODE_INVALID')
-      return 'Mã tham gia không đúng hoặc đã bị đổi/thu hồi.';
-    return error.message;
-  }
-  return error instanceof Error
-    ? error.message
-    : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
-}
+const describe = describeQrProblem;
 
 export const MODE_PILL: Record<TrainingMode, 'success' | 'info' | 'warning'> = {
   Learn: 'success',
