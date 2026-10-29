@@ -290,28 +290,62 @@ const RESULT_CASES: ResultCase[] = [
   },
 ];
 
-for (const item of RESULT_CASES)
-  test(`history result: ${item.name}`, async ({ page }) => {
-    await page.route('**/api/auth/login', (route) =>
-      route.fulfill(json({ accessToken: 'access', refreshToken: 'refresh', user })),
-    );
-    await page.route('**/api/me/avatar', (route) => route.fulfill({ status: 404, body: '' }));
-    await page.route(`**/api/training/sessions/${sessionId}/result`, (route) =>
+/** Opens a finished session from the "Kết quả" tab (in-app navigation keeps the web session). */
+async function openHistoryResult(page: Page, result: Record<string, unknown>) {
+  await page.route('**/api/auth/login', (route) =>
+    route.fulfill(json({ accessToken: 'access', refreshToken: 'refresh', user })),
+  );
+  await page.route('**/api/me/avatar', (route) => route.fulfill({ status: 404, body: '' }));
+  await page.route(
+    (url) => url.pathname === '/api/training/sessions',
+    (route) =>
       route.fulfill(
         json({
-          sessionId,
-          mode: 'Assessment',
-          scorePercent: 85,
-          passThresholdPercent: 70,
-          lastEventSequence: 42,
-          createdAt: '2026-10-19T08:20:00Z',
-          ...item.result,
+          items: [
+            {
+              sessionId,
+              status: 'Completed',
+              mode: 'Assessment',
+              resultStatus: result.outcome,
+              endReason: 'Finished',
+              startedAt: '2026-10-19T08:00:00Z',
+              endedAt: '2026-10-19T08:20:00Z',
+              training: { id: trainingId, name: 'Thoát hiểm tầng 3' },
+              building: { id: buildingId, name: 'Tòa nhà B' },
+              releaseId: '33333333-3333-4333-8333-333333333333',
+            },
+          ],
+          totalCount: 1,
+          page: 1,
+          pageSize: 20,
         }),
       ),
-    );
+  );
+  await page.route(`**/api/training/sessions/${sessionId}/result`, (route) =>
+    route.fulfill(
+      json({
+        sessionId,
+        mode: 'Assessment',
+        scorePercent: 85,
+        passThresholdPercent: 70,
+        lastEventSequence: 42,
+        createdAt: '2026-10-19T08:20:00Z',
+        ...result,
+      }),
+    ),
+  );
+  await login(page);
+  await page.getByRole('tab', { name: 'Kết quả' }).click();
+  await page
+    .getByRole('button', { name: /Thoát hiểm tầng 3/ })
+    .first()
+    .click();
+}
+
+for (const item of RESULT_CASES)
+  test(`history result: ${item.name}`, async ({ page }) => {
     await page.goto('/login');
-    await login(page);
-    await page.goto(`/history/${sessionId}?trainingId=${trainingId}`);
+    await openHistoryResult(page, item.result);
     for (const text of item.visible)
       await expect(
         typeof text === 'string' ? page.getByText(text, { exact: true }) : page.getByText(text),
@@ -322,25 +356,6 @@ for (const item of RESULT_CASES)
   });
 
 test('history result offers replay when the training is in "Bài đã tải"', async ({ page }) => {
-  await page.route('**/api/auth/login', (route) =>
-    route.fulfill(json({ accessToken: 'access', refreshToken: 'refresh', user })),
-  );
-  await page.route('**/api/me/avatar', (route) => route.fulfill({ status: 404, body: '' }));
-  await page.route(`**/api/training/sessions/${sessionId}/result`, (route) =>
-    route.fulfill(
-      json({
-        sessionId,
-        mode: 'Assessment',
-        outcome: 'Passed',
-        reason: 'ALL_REQUIREMENTS_MET',
-        scorePercent: 90,
-        passThresholdPercent: 70,
-        criteria: [],
-        lastEventSequence: 42,
-        createdAt: '2026-10-19T08:20:00Z',
-      }),
-    ),
-  );
   await page.route(`**/api/qr/${token}`, (route) =>
     route.fulfill(json({ code: 'QR_REVOKED', title: 'Gone' }, 410)),
   );
@@ -364,9 +379,13 @@ test('history result offers replay when the training is in "Bài đã tải"', a
       ],
     }),
   ] as const);
-  await login(page);
-  await page.goto(`/history/${sessionId}?trainingId=${trainingId}`);
-  await page.getByRole('button', { name: 'Chơi lại' }).click();
+  await openHistoryResult(page, {
+    outcome: 'Passed',
+    reason: 'ALL_REQUIREMENTS_MET',
+    scorePercent: 90,
+    criteria: [],
+  });
+  await page.getByRole('button', { name: 'Chơi lại', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/training/${trainingId}`));
   // Replay re-checks the QR online: a revoked QR never opens the downloaded game.
   await expect(page.getByText('Mã QR này đã bị thu hồi')).toBeVisible();

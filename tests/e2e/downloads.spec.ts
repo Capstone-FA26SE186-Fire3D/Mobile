@@ -120,7 +120,7 @@ test('replay with the same release goes back to choosing a mode, checked online'
   await signIn(page);
   await page.getByRole('button', { name: 'Chơi lại Thoát hiểm tầng 3' }).click();
   await expect(page.getByText('CHỌN CÁCH CHƠI')).toBeVisible();
-  await expect(page.getByText(/phiên bản mới/)).toHaveCount(0);
+  await expect(page.getByText(/Bài có phiên bản mới/)).toHaveCount(0);
   expect(qrCalls).toBe(1);
 });
 

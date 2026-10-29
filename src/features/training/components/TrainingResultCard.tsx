@@ -208,7 +208,8 @@ export function TrainingResultView({
             }
           />
           <Button
-            title="Về trang chủ"
+            title="Trang chủ"
+            accessibilityLabel="Về trang chủ"
             icon={House}
             variant="secondary"
             size="sm"
