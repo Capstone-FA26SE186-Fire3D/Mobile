@@ -10,6 +10,7 @@ import {
   type Training,
 } from '@/api/qr';
 import {
+  assertTrainingPackageReady,
   downloadTrainingPackage,
   getTrainingSession,
   launchStartedSession,
@@ -33,6 +34,7 @@ import {
 import {
   cachedPackagePath,
   PackageDownloadCancelled,
+  PackageNotReady,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
 import {
@@ -124,6 +126,9 @@ export default function TrainingScreen() {
     void load();
   }, [load]);
 
+  // Leaving the screen stops the download; verified files stay on the device and the next visit resumes from them.
+  useEffect(() => () => abort.current?.abort(), []);
+
   /** Restores an unfinished attempt of this mode (crash, back navigation) without creating anything. */
   useEffect(() => {
     if (!account || !mode || !trainingId) return;
@@ -194,6 +199,7 @@ export default function TrainingScreen() {
   }
 
   async function download(session: TrainingSession) {
+    if (abort.current) return;
     const controller = new AbortController();
     abort.current = controller;
     setError('');
@@ -223,6 +229,7 @@ export default function TrainingScreen() {
     setOffline(false);
     setLaunched(false);
     try {
+      if (unityBridge.available) await assertTrainingPackageReady(session, manifestPath);
       const started = await startTrainingSession(session, attempt.current.startKey, async () => {
         attempt.current = await rotateStartKey(account.id, attempt.current!);
         return attempt.current.startKey!;
@@ -230,6 +237,11 @@ export default function TrainingScreen() {
       setPhase({ name: 'playing', session: started.session, manifestPath });
       await launchStartedSession(started, manifestPath, 0, account.id);
     } catch (issue) {
+      if (issue instanceof PackageNotReady) {
+        setPhase({ name: 'prepared', session });
+        setError(issue.message);
+        return;
+      }
       setPhase({ name: 'ready', session, manifestPath });
       if (isOfflineError(issue)) setOffline(true);
       else if (issue instanceof ApiError && issue.payload?.code === 'LEARNER_LIMIT_REACHED')

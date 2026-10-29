@@ -4,6 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sqliteFor } from './support/fakes/expo-sqlite.mjs';
 import { ApiError } from '../src/api/types/common.ts';
+import { buildPackage } from './support/package-fixture.mjs';
+import './support/fakes/expo-file-system.mjs';
 
 const ACCOUNT = 'acc-org-1';
 const OTHER = 'acc-org-2';
@@ -408,12 +410,21 @@ test('handshake runs before /start: a runtime mismatch is reported without touch
 test('start opens Unity with kind Playtest, the chosen mode and runtime 2.0.2, tied to the account', async () => {
   const { launchPlaytest } = await import('../src/api/playtest.ts');
   const queue = await import('../src/features/training/event-queue.native.ts');
+  native.launches = [];
+  // A real verified package on the (fake) device: launch re-checks it before the grant.
+  globalThis.__fs.reset();
+  const pkg = buildPackage({
+    releaseId: '44444444-4444-4444-8444-444444444444',
+    buildingId: '33333333-3333-4333-8333-333333333333',
+    revisionId: 'rev-1',
+  });
+  pkg.seed(globalThis.__fs);
+  const pinned = { packageHash: hash('a'), manifestHash: pkg.manifestHash, buildTarget: 'Android' };
   globalThis.__be = async (path) => {
-    if (path.endsWith('/start')) return grant();
+    if (path.endsWith('/start')) return grant({ manifestHash: pkg.manifestHash });
     throw new Error(`unexpected ${path}`);
   };
-  native.launches = [];
-  await launchPlaytest(status(), 'Guided', ACCOUNT, '/pkg/manifest.json');
+  await launchPlaytest(status({ package: pinned }), 'Guided', ACCOUNT, pkg.manifestPath);
   assert.deepEqual(native.launches, [
     {
       protocolVersion: '1',
@@ -421,7 +432,7 @@ test('start opens Unity with kind Playtest, the chosen mode and runtime 2.0.2, t
       kind: 'Playtest',
       mode: 'Guided',
       runtimeVersion: '2.0.2',
-      manifestPath: '/pkg/manifest.json',
+      manifestPath: pkg.manifestPath,
       resumeFromSequence: 0,
       locale: 'vi',
     },
