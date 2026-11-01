@@ -190,7 +190,7 @@ test('Unity worker manifest validates against a BE pin without revision or mater
   const manifest = unityManifest();
   assert.equal(validatePackageManifest(manifest, pin), manifest);
   assert.throws(
-    () => validatePackageManifest(unityManifest({ minRuntimeVersion: '2.1.0' }), pin),
+    () => validatePackageManifest(unityManifest({ minRuntimeVersion: '2.2.0' }), pin),
     /runtime/,
   );
   assert.throws(() => validatePackageManifest(unityManifest({ protocolVersion: '2' }), pin));
