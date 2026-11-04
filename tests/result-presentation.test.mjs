@@ -219,3 +219,20 @@ test('no technical code leaks for any outcome, reason or metric, known or not', 
       }
   assertNoCodes({ criteria: [] });
 });
+
+test('every metric of runtime 2.2.0 has a learner label (no generic "Tiêu chí của bài")', () => {
+  // Unity Tools/RuntimeCatalog/runtime-2.1.0.json + runtime-2.2.0.json event metrics.
+  const runtime22 = [
+    'hose_reel_used',
+    'gas_valve_closed',
+    'fire_blanket_used',
+    'emergency_called',
+    'first_aid_used',
+    'injured_helped',
+    'wheelchair_to_refuge',
+    'jumped',
+    'obstacle_climbed',
+    'fell_from_height',
+  ];
+  for (const metric of runtime22) assert.ok(Object.hasOwn(METRIC_LABELS, metric), metric);
+});
