@@ -299,3 +299,34 @@ export function describeTrainingProblem(code: unknown, status: number, fallback:
       return fallback;
   }
 }
+
+/** What the local sync queue knows about one launched session (see event-queue `sessionsToSync`). */
+export type LocalSyncState = {
+  pending_events: number;
+  completion_state: string | null;
+};
+
+/** True while the session still has something to send to BE: queued events or a completion not yet accepted. */
+export function hasDataToSync(row: LocalSyncState): boolean {
+  return (
+    row.pending_events > 0 || (row.completion_state != null && row.completion_state !== 'completed')
+  );
+}
+
+/**
+ * A training launch that can never continue on this phone: nothing left to send, no completion, Unity no longer holds
+ * it (the app or Unity was closed, the launch was cancelled or refused) and its launch grant expired, so it cannot be
+ * reopened either. Such a row only kept heartbeats going and showed up as "chờ gửi" forever.
+ */
+export function isAbandonedLaunch(
+  row: LocalSyncState & { kind: string; session_id: string },
+  launchExpiresAt: string | null,
+  unitySession: string | null,
+  now = Date.now(),
+  marginMs = 60_000,
+): boolean {
+  if (row.kind !== 'Training' || hasDataToSync(row) || row.completion_state != null) return false;
+  if (unitySession === row.session_id) return false;
+  const expires = launchExpiresAt ? Date.parse(launchExpiresAt) : Number.NaN;
+  return Number.isFinite(expires) && now > expires + marginMs;
+}

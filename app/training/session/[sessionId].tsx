@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { CloudUpload, Hourglass, Play, RefreshCw } from 'lucide-react-native';
+import { CloudUpload, Hourglass, Play, RefreshCw, RotateCcw } from 'lucide-react-native';
 import { ApiError } from '@/api';
 import { getTrainingSession } from '@/api/training';
 import { getTrainingResult, type TrainingResult } from '@/api/training-history';
@@ -29,7 +29,8 @@ type View_ =
   | { stage: 'loading' }
   | { stage: 'completed'; result: TrainingResult }
   | { stage: 'awaiting'; waiting: WaitingView }
-  | { stage: 'running' }
+  /** `open`: Unity still holds this session, so "Tiếp tục chơi" can bring it back; otherwise the round was closed. */
+  | { stage: 'running'; open: boolean }
   | { stage: 'error'; message: string };
 
 export default function TrainingSessionResultScreen() {
@@ -100,7 +101,7 @@ export default function TrainingSessionResultScreen() {
       }
       if (session.status === 'AwaitingSync' || session.status === 'Completed' || localWaiting)
         setView({ stage: 'awaiting', waiting: waiting(false) });
-      else setView({ stage: 'running' });
+      else setView({ stage: 'running', open: await unityHolds(sessionId) });
     } catch (issue) {
       setView({ stage: 'error', message: describeSyncError(issue) });
     } finally {
@@ -121,6 +122,11 @@ export default function TrainingSessionResultScreen() {
   );
 
   const canReplay = !!(trainingId && qr);
+  // Unity can only be brought back while it still holds this exact session (not idle, not killed with the app).
+  const resume = async () => {
+    const shown = (await unityHolds(sessionId)) && (await unityBridge.show().catch(() => false));
+    if (!shown) setView({ stage: 'running', open: false });
+  };
   const retrain = (nextMode: TrainingMode | null = mode) =>
     router.replace({
       pathname: '/training/[trainingId]',
@@ -174,19 +180,37 @@ export default function TrainingSessionResultScreen() {
           </Text>
         </Card>
       )}
-      {view.stage === 'running' && (
+      {view.stage === 'running' && view.open && (
         <Card accent contentStyle={[styles.center, { padding: 20 }]}>
           <HexBadge icon={Play} size={96} />
           <Ribbon label="Phiên chưa kết thúc" />
           <Text muted style={styles.body}>
-            Phiên chưa kết thúc. Nếu màn chơi còn mở, bạn có thể chơi tiếp.
+            Màn chơi vẫn đang mở. Bạn có thể chơi tiếp.
           </Text>
-          {unityBridge.available && (
+          <Button
+            title="Tiếp tục chơi"
+            icon={Play}
+            style={{ alignSelf: 'stretch' }}
+            onPress={() => void resume()}
+          />
+        </Card>
+      )}
+      {view.stage === 'running' && !view.open && (
+        <Card accent contentStyle={[styles.center, { padding: 20 }]}>
+          <HexBadge icon={RotateCcw} tone="info" size={96} />
+          <Ribbon label="Lượt chơi đã đóng" color={colors.hex.info} shadow="#2A2F31" />
+          <Text muted style={styles.body}>
+            Màn chơi của lượt này đã đóng (ứng dụng hoặc màn chơi bị tắt) nên không chơi tiếp được.
+            {canReplay
+              ? ' Hãy bắt đầu một lượt mới.'
+              : ' Hãy quét lại mã QR của tòa nhà để bắt đầu lượt mới.'}
+          </Text>
+          {canReplay && (
             <Button
-              title="Tiếp tục chơi"
+              title="Chơi lượt mới"
               icon={Play}
               style={{ alignSelf: 'stretch' }}
-              onPress={() => void unityBridge.show().catch(() => false)}
+              onPress={() => retrain()}
             />
           )}
         </Card>
@@ -194,6 +218,15 @@ export default function TrainingSessionResultScreen() {
       {view.stage === 'error' && <Notice error>{view.message}</Notice>}
     </Screen>
   );
+}
+
+async function unityHolds(sessionId: string): Promise<boolean> {
+  if (!unityBridge.available) return false;
+  try {
+    return (await unityBridge.activeSession()) === sessionId;
+  } catch {
+    return false;
+  }
 }
 
 const styles = StyleSheet.create({
