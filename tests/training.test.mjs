@@ -8,6 +8,8 @@ import {
   crossCheckManifest,
   describeTrainingProblem,
   formatBytes,
+  hasDataToSync,
+  isAbandonedLaunch,
   looksLikeExpiredUrl,
   pinFromSession,
   planPackageDownload,
@@ -295,4 +297,33 @@ test('retry, expiry detection and labels', () => {
   assert.equal(formatBytes(1.05 * 1024 ** 3), '1,05 GB');
   assert.match(describeTrainingProblem('LEARNER_LIMIT_REACHED', 409, 'x'), /hết suất/);
   assert.equal(describeTrainingProblem('UNKNOWN', 500, 'fallback'), 'fallback');
+});
+
+test('only sessions with queued events or an unaccepted completion count as waiting to send', () => {
+  assert.equal(hasDataToSync({ pending_events: 0, completion_state: null }), false);
+  assert.equal(hasDataToSync({ pending_events: 3, completion_state: null }), true);
+  assert.equal(hasDataToSync({ pending_events: 0, completion_state: 'pending' }), true);
+  assert.equal(hasDataToSync({ pending_events: 0, completion_state: 'awaiting_sync' }), true);
+  assert.equal(hasDataToSync({ pending_events: 0, completion_state: 'completed' }), false);
+});
+
+test('a training launch Unity no longer holds, past its grant and with nothing to send, is abandoned', () => {
+  const row = { kind: 'Training', session_id: 's1', pending_events: 0, completion_state: null };
+  const expired = new Date(now - 10 * 60_000).toISOString();
+  const fresh = new Date(now + 4 * 60_000).toISOString();
+  assert.equal(isAbandonedLaunch(row, expired, null, now), true);
+  assert.equal(isAbandonedLaunch(row, expired, 'other-session', now), true);
+  // Unity still runs this session (player in Mobile for a moment): keep it.
+  assert.equal(isAbandonedLaunch(row, expired, 's1', now), false);
+  // Grant still valid: the launch may be starting right now.
+  assert.equal(isAbandonedLaunch(row, fresh, null, now), false);
+  // Anything left to send, or a completion exists: sync handles it.
+  assert.equal(isAbandonedLaunch({ ...row, pending_events: 2 }, expired, null, now), false);
+  assert.equal(
+    isAbandonedLaunch({ ...row, completion_state: 'completed' }, expired, null, now),
+    false,
+  );
+  // Playtests have their own recovery path.
+  assert.equal(isAbandonedLaunch({ ...row, kind: 'Playtest' }, expired, null, now), false);
+  assert.equal(isAbandonedLaunch(row, null, null, now), false);
 });
