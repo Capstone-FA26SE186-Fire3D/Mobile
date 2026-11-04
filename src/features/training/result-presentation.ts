@@ -60,6 +60,17 @@ export const METRIC_LABELS: Record<string, string> = {
   used_elevator: 'Dùng thang máy',
   went_back_for_belongings: 'Quay lại lấy đồ',
   npc_guided: 'Hướng dẫn người khác thoát',
+  // Runtime 2.1.0 / 2.2.0 (Unity Tools/RuntimeCatalog): without these the result showed "Tiêu chí của bài".
+  hose_reel_used: 'Dùng vòi chữa cháy',
+  gas_valve_closed: 'Khóa van gas',
+  fire_blanket_used: 'Dùng chăn chữa cháy',
+  emergency_called: 'Gọi 114',
+  first_aid_used: 'Sơ cứu người bị thương',
+  injured_helped: 'Giúp người bị thương thoát ra',
+  wheelchair_to_refuge: 'Đưa người ngồi xe lăn tới chỗ chờ cứu hộ',
+  jumped: 'Nhảy qua chướng ngại',
+  obstacle_climbed: 'Leo qua vật cản',
+  fell_from_height: 'Không nhảy từ trên cao xuống',
 };
 
 const UNKNOWN_METRIC = 'Tiêu chí của bài';
