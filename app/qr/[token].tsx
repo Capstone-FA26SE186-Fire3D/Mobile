@@ -30,7 +30,6 @@ import { parseQrToken } from '@/features/qr/qr-token';
 import { allowedTrainingModes, type TrainingMode } from '@/features/training/session-contract';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts, type HexTone } from '@/theme/tokens';
-const dioramaWide = require('../../assets/images/diorama-login.png');
 
 type Failure = 'revoked' | 'missing' | null;
 function failureOf(error: unknown): Failure {
@@ -159,7 +158,8 @@ export default function QrBuildingScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
         <View>
-          <Diorama source={dioramaWide} height={230} />
+          {/* Same evacuation art as Home (Diorama default); BE has no per-building picture yet. */}
+          <Diorama height={230} />
           <View style={styles.back}>
             <BackButton onPress={back} />
           </View>

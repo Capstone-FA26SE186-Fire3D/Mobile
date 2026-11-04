@@ -13,13 +13,15 @@ import {
 } from '@/api/playtest';
 import { ApiError } from '@/api/types/common';
 import {
+  getLaunch,
   ingestUnityCallbacks,
+  markRecovery,
   sessionsToSync,
   type IngestedMessage,
   type TrainingSyncRow,
 } from './event-queue.native';
 import { checkUnityRuntime } from './runtime-version.ts';
-import { retryDelayMs } from './session-contract';
+import { hasDataToSync, isAbandonedLaunch, retryDelayMs } from './session-contract';
 import { unityBridge } from './unity-bridge.native';
 
 export type TrainingRuntimeEvent =
@@ -79,10 +81,32 @@ function emit(event: TrainingRuntimeEvent) {
   }
 }
 
-function needsSync(row: TrainingSyncRow): boolean {
-  return (
-    row.pending_events > 0 || (row.completion_state != null && row.completion_state !== 'completed')
+const needsSync = (row: TrainingSyncRow): boolean => hasDataToSync(row);
+
+/**
+ * Training launches that can no longer continue (Unity closed, grant expired, nothing to send) leave the queue as
+ * recovery 'UNITY_GONE': they stop heartbeats and stop counting as "chờ gửi". Returns the rows still active.
+ */
+async function dropAbandoned(rows: TrainingSyncRow[]): Promise<TrainingSyncRow[]> {
+  const candidates = rows.filter(
+    (r) => r.kind === 'Training' && !needsSync(r) && r.completion_state == null,
   );
+  if (candidates.length === 0) return rows;
+  let unitySession: string | null = null;
+  try {
+    unitySession = await unityBridge.activeSession();
+  } catch {
+    return rows; // cannot tell whether Unity still holds a session: keep everything this pass
+  }
+  const dropped = new Set<string>();
+  for (const row of candidates) {
+    const launch = await getLaunch(row.session_id);
+    if (isAbandonedLaunch(row, launch?.expires_at ?? null, unitySession)) {
+      await markRecovery(row.session_id, 'UNITY_GONE');
+      dropped.add(row.session_id);
+    }
+  }
+  return dropped.size === 0 ? rows : rows.filter((r) => !dropped.has(r.session_id));
 }
 
 async function heartbeat(sessionId: string, send: (id: string) => Promise<unknown>) {
@@ -134,7 +158,7 @@ async function pumpOnce(): Promise<boolean> {
   }
   let rows: TrainingSyncRow[] = [];
   try {
-    rows = await sessionsToSync(current.accountId, trainee);
+    rows = await dropAbandoned(await sessionsToSync(current.accountId, trainee));
   } catch (issue) {
     fail(null, issue);
   }

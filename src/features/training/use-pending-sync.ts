@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from '@/store/SessionProvider';
 import { sessionsToSync } from './event-queue.native';
+import { hasDataToSync } from './session-contract';
 import { subscribeTrainingRuntime } from './training-runtime';
 import { unityBridge } from './unity-bridge.native';
 
@@ -16,7 +17,8 @@ export function usePendingSync(): PendingSync {
       if (!accountId || !unityBridge.available) return;
       try {
         const rows = await sessionsToSync(accountId, account?.role === 'Trainee');
-        setState({ count: rows.length, offline });
+        // Only sessions with data still to send; a session merely running (or left open) is not "chờ gửi".
+        setState({ count: rows.filter(hasDataToSync).length, offline });
       } catch {
         // The local queue is best effort for this indicator; the result screen reports real errors.
       }
