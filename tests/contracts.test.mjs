@@ -223,10 +223,10 @@ test('FCM binding and revoke use the installation proof and fail closed on revok
   );
 });
 
-test('runtime 2.1.0 app plays packages that need 2.0.0 or 2.1.0, not newer ones, and Ready must match the app', async () => {
+test('runtime 2.2.0 app plays packages that need 2.0.0, 2.1.0 or 2.2.0, not newer ones, and Ready must match the app', async () => {
   const { APP_RUNTIME_VERSION, checkUnityRuntime } =
     await import('../src/features/training/runtime-version.ts');
-  assert.equal(APP_RUNTIME_VERSION, '2.1.0');
+  assert.equal(APP_RUNTIME_VERSION, '2.2.0');
   const pin = {
     releaseId: 'release',
     manifestHash: 'a'.repeat(64),
@@ -250,9 +250,10 @@ test('runtime 2.1.0 app plays packages that need 2.0.0 or 2.1.0, not newer ones,
   };
   assert.equal(validatePackageManifest(manifest, pin), manifest);
   assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.1.0' }, pin).minRuntimeVersion, '2.1.0');
-  assert.throws(() => validatePackageManifest({ ...manifest, minRuntimeVersion: '2.2.0' }, pin));
+  assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.2.0' }, pin).minRuntimeVersion, '2.2.0');
+  assert.throws(() => validatePackageManifest({ ...manifest, minRuntimeVersion: '2.3.0' }, pin));
   assert.throws(() => validatePackageManifest({ ...manifest, protocolVersion: '2' }, pin));
-  assert.equal(checkUnityRuntime({ runtimeVersion: '2.1.0', protocolVersion: '1' }), null);
-  assert.match(checkUnityRuntime({ runtimeVersion: '2.0.2', protocolVersion: '1' }), /2\.0\.2/);
-  assert.match(checkUnityRuntime({ runtimeVersion: '2.1.0', protocolVersion: '2' }), /protocol 2/);
+  assert.equal(checkUnityRuntime({ runtimeVersion: '2.2.0', protocolVersion: '1' }), null);
+  assert.match(checkUnityRuntime({ runtimeVersion: '2.1.0', protocolVersion: '1' }), /2\.1\.0/);
+  assert.match(checkUnityRuntime({ runtimeVersion: '2.2.0', protocolVersion: '2' }), /protocol 2/);
 });
