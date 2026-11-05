@@ -71,6 +71,16 @@ export const METRIC_LABELS: Record<string, string> = {
   jumped: 'Nhảy qua chướng ngại',
   obstacle_climbed: 'Leo qua vật cản',
   fell_from_height: 'Không nhảy từ trên cao xuống',
+  // Runtime 2.3.0 (rest of batch 2).
+  power_cut_off: 'Ngắt cầu dao điện',
+  wedge_removed: 'Gỡ vật chèn cửa chống cháy',
+  locked_exit_tried: 'Không mất thời gian với cửa bị khóa',
+  signaled_for_help: 'Ra hiệu cầu cứu ở cửa sổ',
+  window_opened: 'Mở cửa sổ thông khói',
+  assembly_point_reached: 'Đến điểm tập kết',
+  blanket_covered: 'Trùm chăn ướt lên người',
+  door_gap_sealed: 'Chèn khe cửa chặn khói',
+  escape_hood_worn: 'Đeo mặt nạ thoát hiểm',
 };
 
 const UNKNOWN_METRIC = 'Tiêu chí của bài';
