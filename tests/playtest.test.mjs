@@ -22,7 +22,7 @@ const native = {
   launches: [],
   aborts: [],
   active: null,
-  handshakeValue: { source: 'embedded', runtimeVersion: '2.2.0', protocolVersion: null },
+  handshakeValue: { source: 'embedded', runtimeVersion: '2.3.0', protocolVersion: null },
   push(message) {
     this.journal.push({
       id: this.nextId++,
@@ -80,7 +80,7 @@ function grant(overrides = {}) {
     playtestId: PLAYTEST,
     packageHash: hash('a'),
     manifestHash: hash('b'),
-    runtimeVersion: '2.2.0',
+    runtimeVersion: '2.3.0',
     protocolVersion: '1',
     expiresAt: future(),
     generation: 1,
@@ -385,11 +385,11 @@ test('handshake runs before /start: a runtime mismatch is reported without touch
   const { launchPlaytest } = await import('../src/api/playtest.ts');
   const { checkUnityHandshake } = await import('../src/features/training/runtime-version.ts');
   assert.equal(
-    checkUnityHandshake({ source: 'embedded', runtimeVersion: '2.2.0', protocolVersion: null }),
+    checkUnityHandshake({ source: 'embedded', runtimeVersion: '2.3.0', protocolVersion: null }),
     null,
   );
   assert.equal(
-    checkUnityHandshake({ source: 'ready', runtimeVersion: '2.2.0', protocolVersion: '1' }),
+    checkUnityHandshake({ source: 'ready', runtimeVersion: '2.3.0', protocolVersion: '1' }),
     null,
   );
   assert.match(
@@ -431,7 +431,7 @@ test('start opens Unity with kind Playtest, the chosen mode and runtime 2.2.0, t
       sessionId: PLAYTEST,
       kind: 'Playtest',
       mode: 'Guided',
-      runtimeVersion: '2.2.0',
+      runtimeVersion: '2.3.0',
       manifestPath: pkg.manifestPath,
       resumeFromSequence: 0,
       locale: 'vi',
