@@ -278,7 +278,7 @@ test('handoff is redeemed only by a signed-in OrganizationUser; wrong account ge
 
 test('playtest problems: runtime, entitlement/Trial, grant expired, hash mismatch', async () => {
   const { describePlaytestProblem } = await import('../src/features/playtest/playtest-flow.ts');
-  assert.match(describePlaytestProblem(problem(409, 'RUNTIME_INCOMPATIBLE'), ''), /2\.2\.0/);
+  assert.match(describePlaytestProblem(problem(409, 'RUNTIME_INCOMPATIBLE'), ''), /2\.3\.0/);
   assert.match(
     describePlaytestProblem(problem(409, 'PLAYTEST_ENTITLEMENT_REQUIRED'), ''),
     /hết lượt Trial/,
