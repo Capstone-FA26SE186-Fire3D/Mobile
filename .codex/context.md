@@ -107,7 +107,7 @@ Phụ trách: Nguyễn Gia Kiệt (Mobile). Việc liên quan repo này:
 ## Unity runtime và pipeline bake — 2026-10-17
 
 Quyết định của trưởng nhóm, đã vào Docs (PR #21–#24) và issue:
-- Unity runtime đã chạy trong Editor 6000.6.6f1: mô phỏng lửa/khói/nhiệt + NPC bằng **Entities**, camera third-person, tương tác theo ngữ cảnh, HUD, telemetry, nạp AssetBundle. APK demo build được (IL2CPP/ARM64). Runtime đã có trên `main` của Unity; phiên bản tích hợp Mobile hiện là `2.3.0` (code); gói Unity portable ghim trong lock vẫn là 2.2.0 cho tới khi xuất bản 2.3.0. Source/build không thay cho nghiệm thu gameplay trên thiết bị.
+- Unity runtime đã chạy trong Editor 6000.6.6f1: mô phỏng lửa/khói/nhiệt + NPC bằng **Entities**, camera third-person, tương tác theo ngữ cảnh, HUD, telemetry, nạp AssetBundle. APK demo build được (IL2CPP/ARM64). Runtime đã có trên `main` của Unity; phiên bản tích hợp Mobile hiện là `2.3.0`; lock ghim gói portable `2.3.0-202611051452-portable.1` (prerelease GitHub `unity-runtime-2.3.0-202611051452-portable.1`, từ Unity main 6d3a17e). Source/build không thay cho nghiệm thu gameplay trên thiết bị.
 - **Ưu tiên hình ảnh:** Unity build worker chạy batch trên **Azure VM Windows do BE vận hành** (BE#110). Worker import GLB, gán material theo `libraryKey`, bake lightmap + light/reflection probe cho 2 bộ ánh sáng (bình thường, mất điện), xuất AssetBundle theo tầng + `manifest.json` (`fet3d.package/1`, SHA-256 từng file). Không dùng Addressables.
 - Texture PBR chỉ nằm trong project Unity (bundle `fet3d-materials` cài sẵn trong app). GLB chỉ mang `libraryKey`; BE và worker không lưu file ảnh.
 - `IFC_EXIT_UNKNOWN` = phương án B, chỉ dùng `door.exit` (BE#100).
