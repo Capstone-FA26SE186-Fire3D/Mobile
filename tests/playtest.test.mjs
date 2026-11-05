@@ -404,10 +404,10 @@ test('handshake runs before /start: a runtime mismatch is reported without touch
     (issue) => issue.code === 'RUNTIME_MISMATCH',
   );
   assert.equal(globalThis.__requests.length, 0);
-  native.handshakeValue = { source: 'embedded', runtimeVersion: '2.2.0', protocolVersion: null };
+  native.handshakeValue = { source: 'embedded', runtimeVersion: '2.3.0', protocolVersion: null };
 });
 
-test('start opens Unity with kind Playtest, the chosen mode and runtime 2.2.0, tied to the account', async () => {
+test('start opens Unity with kind Playtest, the chosen mode and runtime 2.3.0, tied to the account', async () => {
   const { launchPlaytest } = await import('../src/api/playtest.ts');
   const queue = await import('../src/features/training/event-queue.native.ts');
   native.launches = [];
