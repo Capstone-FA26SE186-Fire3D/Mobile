@@ -47,7 +47,8 @@ function Navigation() {
         // Floats below the status bar / camera cutout instead of under it, and can be closed.
         <View style={[styles.notice, { top: insets.top + 8 }]} pointerEvents="box-none">
           <View style={styles.noticeRow}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.noticeCard}>
+              {/* Opaque backing: the Callout tint is translucent and let the page header show through the text. */}
               <Callout tone="danger" style={{ paddingRight: 40 }}>
                 {error}
               </Callout>
@@ -141,6 +142,7 @@ const styles = StyleSheet.create({
   // Above the screens (they keep their own safe-area padding), so the notice never shifts the layout.
   notice: { position: 'absolute', left: 12, right: 12, zIndex: 10, elevation: 10 },
   noticeRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  noticeCard: { flex: 1, backgroundColor: colors.bg, borderRadius: 16 },
   noticeClose: {
     position: 'absolute',
     right: 6,

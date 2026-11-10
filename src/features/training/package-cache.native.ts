@@ -1,4 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { validatePackageManifest, type ContentManifest, type PackagePin } from './package-contract';
@@ -50,7 +51,29 @@ const verified = new Map<string, { manifestPath: string; at: number }>();
 
 const packageKey = (pin: PackagePin) => `${pin.releaseId}/${pin.manifestHash}`;
 
+type NativeHash = (uri: string) => Promise<string>;
+let nativeHash: NativeHash | null | undefined;
+/**
+ * Native streaming SHA-256 of the Fire3DUnity module (off the JS thread), looked up on first use. Null on web, Expo Go
+ * and binaries built before it existed: those keep the JS hash.
+ */
+function nativeSha256File(): NativeHash | null {
+  if (nativeHash === undefined) {
+    const module = requireOptionalNativeModule<{ sha256File?: NativeHash }>('Fire3DUnity');
+    nativeHash = module?.sha256File ? (uri) => module.sha256File!(uri) : null;
+  }
+  return nativeHash;
+}
+
 async function hashFile(file: File, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw new PackageDownloadCancelled();
+  const native = nativeSha256File();
+  if (native) {
+    const digest = await native(file.uri);
+    if (signal?.aborted) throw new PackageDownloadCancelled();
+    return digest.toLowerCase();
+  }
+  // Fallback for binaries without the native hash: pure JS, slow on 100+ MB packages (Mobile #83).
   const hash = sha256.create();
   const reader = file.stream().getReader();
   try {
