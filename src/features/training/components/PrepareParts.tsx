@@ -36,11 +36,14 @@ export function ModeCard({
   mode,
   selected,
   disabled,
+  note,
   onPress,
 }: {
   mode: TrainingMode;
   selected: boolean;
   disabled?: boolean;
+  /** Why the mode cannot be picked (shown under the description). */
+  note?: string;
   onPress: () => void;
 }) {
   const ui = MODE_UI[mode];
@@ -67,6 +70,11 @@ export function ModeCard({
             <Text variant="small" muted>
               {ui.description}
             </Text>
+            {!!note && (
+              <Text variant="small" style={{ color: colors.danger }}>
+                {note}
+              </Text>
+            )}
           </View>
           <View style={[styles.radio, selected && styles.radioOn]}>
             {selected && <Check size={16} color={colors.emberForeground} strokeWidth={3} />}
