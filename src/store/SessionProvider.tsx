@@ -59,13 +59,14 @@ const message = (error: unknown) =>
     : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
 
 /**
- * Push registration is optional: the app works without it and re-registers on the next start or token change. Say that in
- * plain words; a lost connection (no DNS, timeout) gets its own line instead of the raw Java exception.
+ * Push registration is optional: the app works without it and re-registers on the next start or token change. A lost
+ * connection or Google Play services being unavailable (`SERVICE_NOT_AVAILABLE`) is retried silently: a red banner
+ * for something the user cannot act on only covered the page header (Mobile #84). Anything else gets one plain line.
  */
 const pushNotice = (issue: unknown) => {
   const raw = issue instanceof Error ? issue.message : '';
   return /UnknownHost|Unable to resolve host|timeout|Network|SERVICE_NOT_AVAILABLE/i.test(raw)
-    ? 'Chưa bật được thông báo vì mất kết nối mạng. Ứng dụng sẽ tự thử lại khi có mạng.'
+    ? ''
     : 'Chưa bật được thông báo trên máy này. Bạn vẫn dùng ứng dụng bình thường; có thể bật lại trong Tôi › Cài đặt tài khoản.';
 };
 
@@ -118,10 +119,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (account?.role !== 'Trainee') return;
     let active = true;
     void bindDevice(account.id).catch((issue) => {
-      if (active) setError(pushNotice(issue));
+      const notice = pushNotice(issue);
+      if (active && notice) setError(notice);
     });
     const unsubscribe = listenForDeviceTokenChange(account.id, (issue) => {
-      if (active) setError(pushNotice(issue));
+      const notice = pushNotice(issue);
+      if (active && notice) setError(notice);
     });
     return () => {
       active = false;

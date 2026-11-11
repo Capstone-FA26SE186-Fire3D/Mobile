@@ -39,7 +39,8 @@ export default function DownloadsScreen() {
   const pending = usePendingSync();
   const [items, setItems] = useState<DownloadRecord[] | null>(null);
   const [statuses, setStatuses] = useState<Record<string, PackageStatus>>({});
-  const [probeOffline, setProbeOffline] = useState(false);
+  // null until this visit's probe answered; a fresh answer outranks an older failed background sync.
+  const [probeOffline, setProbeOffline] = useState<boolean | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +67,7 @@ export default function DownloadsScreen() {
     }, [account?.id]),
   );
 
-  const offline = probeOffline || pending.offline;
+  const offline = probeOffline ?? pending.offline;
   const replay = (item: DownloadRecord) =>
     router.push({
       pathname: '/training/[trainingId]',

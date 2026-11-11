@@ -2,9 +2,13 @@ package com.fet3d.unity
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.File
+import java.io.FileInputStream
+import java.security.MessageDigest
 
 class Fire3DUnityModule : Module() {
   private fun context(): Context = requireNotNull(appContext.reactContext) { "React context unavailable." }
@@ -45,5 +49,24 @@ class Fire3DUnityModule : Module() {
     AsyncFunction("pause") { Fire3DUnityBridge.send("Pause", "") }
     AsyncFunction("resume") { Fire3DUnityBridge.send("Resume", "") }
     AsyncFunction("abort") { reason: String -> Fire3DUnityBridge.send("Abort", reason) }
+    // Package files are 100+ MB: hashing them in JS (Hermes) pinned the JS thread for minutes on mid phones.
+    // AsyncFunction runs off the JS thread; MessageDigest streams the file in 1 MiB chunks.
+    AsyncFunction("sha256File") { uri: String -> sha256File(uri) }
+  }
+
+  private fun sha256File(uri: String): String {
+    val path = if (uri.startsWith("file://")) Uri.parse(uri).path ?: "" else uri
+    val file = File(path)
+    if (!file.isFile) throw CodedException("ERR_FILE_MISSING", "Không tìm thấy tệp gói trên máy.", null)
+    val digest = MessageDigest.getInstance("SHA-256")
+    val buffer = ByteArray(1 shl 20)
+    FileInputStream(file).use { input ->
+      while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        digest.update(buffer, 0, read)
+      }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
   }
 }
