@@ -9,6 +9,7 @@ import {
   Play,
   RefreshCw,
   ScanLine,
+  Sparkle,
   User,
 } from 'lucide-react-native';
 import { ApiError } from '@/api';
@@ -526,6 +527,14 @@ export default function TrainingScreen() {
             ))}
           </View>
           <Callout tone="info">Chuẩn bị và tải gói chưa tính suất học viên.</Callout>
+          <Button
+            title="Hỏi AI cách hoàn thành bài này"
+            icon={Sparkle}
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onPress={() => router.push({ pathname: '/ai', params: { trainingId: training.id } })}
+          />
           {!!notice && !!attempt.current?.sessionId && (
             <Button
               title="Xem phiên trước"

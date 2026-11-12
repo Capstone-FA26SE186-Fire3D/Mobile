@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookOpen, History, Lock } from 'lucide-react-native';
 import { ApiError } from '@/api';
@@ -19,6 +19,7 @@ import { Callout, Pill } from '@/components/ui/Game';
 import { Notice, PageHeader } from '@/components/ui/Screen';
 import { StateView } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
+import { aiContextFromParams, aiContextLabel, aiSuggestions } from '@/features/ai/suggestions';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -80,11 +81,14 @@ function Answer({ request }: { request: AiRequest }) {
 
 export default function AiScreen() {
   const { account } = useSession();
-  const { postId, versionId, sessionId } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     postId?: string;
     versionId?: string;
     sessionId?: string;
+    trainingId?: string;
   }>();
+  const aiContext = aiContextFromParams(params);
+  const suggestions = aiSuggestions(aiContext);
   const [quota, setQuota] = useState<AiQuota | null>(null);
   const [requests, setRequests] = useState<AiRequest[]>([]);
   const [question, setQuestion] = useState('');
@@ -129,21 +133,16 @@ export default function AiScreen() {
     return () => clearInterval(id);
   }, [pendingId]);
 
-  async function submit() {
-    const text = question.trim();
+  async function submit(preset?: string) {
+    const text = (preset ?? question).trim();
     if (!text || busy || !quota?.canSubmit) return;
+    if (preset) keyRef.current = null;
     setBusy(true);
     setError('');
     keyRef.current ??= Crypto.randomUUID();
     try {
-      const context =
-        typeof postId === 'string' && typeof versionId === 'string'
-          ? { kind: 'Learn' as const, postId, versionId }
-          : typeof sessionId === 'string'
-            ? { kind: 'Result' as const, sessionId }
-            : undefined;
-      replace(await submitAiQuestion(text, context, keyRef.current));
-      setQuestion('');
+      replace(await submitAiQuestion(text, aiContext, keyRef.current));
+      if (!preset) setQuestion('');
       keyRef.current = null;
       setQuota(await getAiQuota());
     } catch (issue) {
@@ -164,12 +163,7 @@ export default function AiScreen() {
       : quota.dailyUnits
         ? `Còn ${quota.remainingUnits}/${quota.dailyUnits} lượt hôm nay`
         : `Còn ${quota.remainingUnits} lượt hôm nay`;
-  const context =
-    postId && versionId
-      ? 'Đang hỏi theo bài Learn đang mở'
-      : sessionId
-        ? 'Đang hỏi theo kết quả phiên của bạn'
-        : 'Hỏi về bài học, kết quả của bạn';
+  const context = aiContextLabel(aiContext);
   const thread = [...requests].reverse();
 
   return (
@@ -224,6 +218,25 @@ export default function AiScreen() {
           )}
           {!!error && <Notice error>{error}</Notice>}
         </ScrollView>
+        {account && !blocked && !exhausted && suggestions.length > 0 && (
+          <View style={styles.suggestions}>
+            {suggestions.map((item) => (
+              <Pressable
+                key={item}
+                accessibilityRole="button"
+                disabled={busy || !quota?.canSubmit}
+                onPress={() => void submit(item)}
+                style={({ pressed }) => [
+                  styles.suggestion,
+                  (busy || !quota?.canSubmit) && { opacity: 0.5 },
+                  pressed && { borderColor: colors.ember },
+                ]}
+              >
+                <Text variant="small">{item}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         {account && (
           <Composer
             label="Câu hỏi AI"
@@ -271,5 +284,14 @@ const styles = StyleSheet.create({
   text: { fontSize: 14, lineHeight: 21 },
   citations: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   dots: { flexDirection: 'row', gap: 6, paddingVertical: 4 },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 8 },
+  suggestion: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgSoft,
+  },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.ember },
 });
