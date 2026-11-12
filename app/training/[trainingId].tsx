@@ -24,6 +24,7 @@ import {
   getTrainingSession,
   launchStartedSession,
   prepareTrainingSession,
+  scenarioModes,
   startTrainingSession,
   type TrainingSession,
 } from '@/api/training';
@@ -90,6 +91,8 @@ export default function TrainingScreen() {
   const [building, setBuilding] = useState<BuildingQrResolution | null>(null);
   const [mode, setMode] = useState<TrainingMode | null>(null);
   const [phase, setPhase] = useState<Phase>({ name: 'pick' });
+  /** Modes the downloaded scenario allows (null: no policy, or not downloaded yet); others are greyed out. */
+  const [scenarioOnly, setScenarioOnly] = useState<TrainingMode[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -298,6 +301,29 @@ export default function TrainingScreen() {
     }
   }
 
+  // The training may list a mode its scenario does not allow; Unity would refuse it after loading (MODE_NOT_ALLOWED).
+  // Once the package is on the device its scenario decides: such modes are greyed out and a prepared one goes back.
+  const readyId = phase.name === 'ready' ? phase.session.id : null;
+  useEffect(() => {
+    if (phase.name !== 'ready') return;
+    const session = phase.session;
+    let active = true;
+    void scenarioModes(session)
+      .then((allowed) => {
+        if (!active) return;
+        setScenarioOnly(allowed);
+        if (allowed && !allowed.includes(session.mode as TrainingMode)) {
+          setError(`Kịch bản này không mở chế độ ${modeName(session.mode)}. Hãy chọn chế độ khác.`);
+          setMode(null);
+          setPhase({ name: 'pick' });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [readyId]);
+
   const playingId = phase.name === 'playing' ? phase.session.id : null;
   useEffect(() => {
     if (!playingId || phase.name !== 'playing') return;
@@ -323,7 +349,13 @@ export default function TrainingScreen() {
       else if (message.type === 'Error') {
         const payload = (message.payload ?? {}) as { code?: string; message?: string };
         if (payload.code === 'LAUNCH_CANCELLED') setNotice('Đã hủy mở màn chơi.');
-        else {
+        else if (payload.code === 'MODE_NOT_ALLOWED') {
+          const refused = current.session.mode as TrainingMode;
+          setScenarioOnly((known) =>
+            (known ?? allowedTrainingModes(training?.allowedModes)).filter((m) => m !== refused),
+          );
+          setError(`Kịch bản này không mở chế độ ${modeName(refused)}. Hãy chọn chế độ khác.`);
+        } else {
           console.warn('[training] game error', payload.code, payload.message);
           setError(
             'Màn chơi gặp lỗi và đã dừng. Hãy thử lại; nếu vẫn lỗi, hãy tải lại gói nhiệm vụ.',
@@ -520,7 +552,12 @@ export default function TrainingScreen() {
                 key={item}
                 mode={item}
                 selected={item === mode}
-                disabled={busy}
+                disabled={busy || (scenarioOnly !== null && !scenarioOnly.includes(item))}
+                note={
+                  scenarioOnly !== null && !scenarioOnly.includes(item)
+                    ? 'Kịch bản không mở chế độ này'
+                    : undefined
+                }
                 onPress={() => setMode(item)}
               />
             ))}

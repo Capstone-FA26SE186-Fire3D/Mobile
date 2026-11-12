@@ -19,8 +19,10 @@ import {
 import {
   assertPackageReady,
   prepareVerifiedPackage,
+  readPackageScenario,
   type PackageProgress,
 } from '@/features/training/package-cache.native';
+import { selectPlaytestModes } from '@/features/playtest/playtest-flow';
 import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from '@/features/training/runtime-version';
 import {
   assertStartMatchesPrepare,
@@ -97,6 +99,15 @@ export async function downloadTrainingPackage(
 ): Promise<string> {
   const plan = await planTrainingPackage(session);
   return prepareVerifiedPackage(plan, { ...options, refresh: () => planTrainingPackage(session) });
+}
+
+/**
+ * The modes the downloaded scenario allows (`modePolicy.allowedModes`), or null when it sets no policy. The training's
+ * own list can be wider than the scenario's: Unity refuses such a mode (MODE_NOT_ALLOWED) after loading the package.
+ */
+export async function scenarioModes(session: TrainingSession): Promise<TrainingMode[] | null> {
+  const choice = selectPlaytestModes(await readPackageScenario(pinFromSession(session)));
+  return choice.fromPolicy ? choice.modes : null;
 }
 
 /**
