@@ -30,7 +30,7 @@ function record(overrides: Record<string, unknown> = {}) {
     qrToken: token,
     releaseId,
     manifestHash: 'b'.repeat(64),
-    runtimeVersion: '2.3.0',
+    runtimeVersion: '2.4.0',
     savedAt: '2026-10-29T08:00:00.000Z',
     ...overrides,
   };

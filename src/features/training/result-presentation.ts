@@ -81,6 +81,9 @@ export const METRIC_LABELS: Record<string, string> = {
   blanket_covered: 'Trùm chăn ướt lên người',
   door_gap_sealed: 'Chèn khe cửa chặn khói',
   escape_hood_worn: 'Đeo mặt nạ thoát hiểm',
+  // Runtime 2.4.0 (forcing a way out).
+  door_forced: 'Phá khóa cửa thoát bị khóa',
+  glass_broken: 'Đập kính cho khói thoát ra',
 };
 
 const UNKNOWN_METRIC = 'Tiêu chí của bài';

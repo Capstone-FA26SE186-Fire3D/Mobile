@@ -22,7 +22,7 @@ const native = {
   launches: [],
   aborts: [],
   active: null,
-  handshakeValue: { source: 'embedded', runtimeVersion: '2.3.0', protocolVersion: null },
+  handshakeValue: { source: 'embedded', runtimeVersion: '2.4.0', protocolVersion: null },
   push(message) {
     this.journal.push({
       id: this.nextId++,
@@ -80,7 +80,7 @@ function grant(overrides = {}) {
     playtestId: PLAYTEST,
     packageHash: hash('a'),
     manifestHash: hash('b'),
-    runtimeVersion: '2.3.0',
+    runtimeVersion: '2.4.0',
     protocolVersion: '1',
     expiresAt: future(),
     generation: 1,
@@ -278,7 +278,7 @@ test('handoff is redeemed only by a signed-in OrganizationUser; wrong account ge
 
 test('playtest problems: runtime, entitlement/Trial, grant expired, hash mismatch', async () => {
   const { describePlaytestProblem } = await import('../src/features/playtest/playtest-flow.ts');
-  assert.match(describePlaytestProblem(problem(409, 'RUNTIME_INCOMPATIBLE'), ''), /2\.3\.0/);
+  assert.match(describePlaytestProblem(problem(409, 'RUNTIME_INCOMPATIBLE'), ''), /2\.4\.0/);
   assert.match(
     describePlaytestProblem(problem(409, 'PLAYTEST_ENTITLEMENT_REQUIRED'), ''),
     /hết lượt Trial/,
@@ -385,11 +385,11 @@ test('handshake runs before /start: a runtime mismatch is reported without touch
   const { launchPlaytest } = await import('../src/api/playtest.ts');
   const { checkUnityHandshake } = await import('../src/features/training/runtime-version.ts');
   assert.equal(
-    checkUnityHandshake({ source: 'embedded', runtimeVersion: '2.3.0', protocolVersion: null }),
+    checkUnityHandshake({ source: 'embedded', runtimeVersion: '2.4.0', protocolVersion: null }),
     null,
   );
   assert.equal(
-    checkUnityHandshake({ source: 'ready', runtimeVersion: '2.3.0', protocolVersion: '1' }),
+    checkUnityHandshake({ source: 'ready', runtimeVersion: '2.4.0', protocolVersion: '1' }),
     null,
   );
   assert.match(
@@ -404,10 +404,10 @@ test('handshake runs before /start: a runtime mismatch is reported without touch
     (issue) => issue.code === 'RUNTIME_MISMATCH',
   );
   assert.equal(globalThis.__requests.length, 0);
-  native.handshakeValue = { source: 'embedded', runtimeVersion: '2.3.0', protocolVersion: null };
+  native.handshakeValue = { source: 'embedded', runtimeVersion: '2.4.0', protocolVersion: null };
 });
 
-test('start opens Unity with kind Playtest, the chosen mode and runtime 2.3.0, tied to the account', async () => {
+test('start opens Unity with kind Playtest, the chosen mode and runtime 2.4.0, tied to the account', async () => {
   const { launchPlaytest } = await import('../src/api/playtest.ts');
   const queue = await import('../src/features/training/event-queue.native.ts');
   native.launches = [];
@@ -431,7 +431,7 @@ test('start opens Unity with kind Playtest, the chosen mode and runtime 2.3.0, t
       sessionId: PLAYTEST,
       kind: 'Playtest',
       mode: 'Guided',
-      runtimeVersion: '2.3.0',
+      runtimeVersion: '2.4.0',
       manifestPath: pkg.manifestPath,
       resumeFromSequence: 0,
       locale: 'vi',
