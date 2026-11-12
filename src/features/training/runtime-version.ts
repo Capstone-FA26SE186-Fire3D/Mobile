@@ -4,7 +4,7 @@
  * it in `Ready`, and a mismatch is reported by `checkUnityRuntime`. BE accepts it only while that version is an active
  * row of the runtime catalog (POST/PATCH /api/admin/runtime-catalog, see docs/unity-integration.md).
  */
-export const APP_RUNTIME_VERSION = '2.3.0';
+export const APP_RUNTIME_VERSION = '2.4.0';
 export const BRIDGE_PROTOCOL_VERSION = '1';
 export const MANIFEST_SCHEMA_VERSION = '1';
 
