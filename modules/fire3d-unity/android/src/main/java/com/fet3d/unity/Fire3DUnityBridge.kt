@@ -41,7 +41,8 @@ object Fire3DUnityBridge {
   private val main = Handler(Looper.getMainLooper())
   private var journal: CallbackJournal? = null
   private var appContext: Context? = null
-  private var listener: ((Long) -> Unit)? = null
+  // Written on the JS thread under the lock, read on the Unity thread without it.
+  @Volatile private var listener: ((Long) -> Unit)? = null
   private var pendingLaunch: String? = null
   private var readySeen = false
   private var idle = false
@@ -199,7 +200,9 @@ object Fire3DUnityBridge {
   @Synchronized
   fun detachHost(activity: UnityHostActivity) {
     if (host?.get() === activity) host = null
-    // The player of a destroyed activity is gone; a new host boots Unity again and waits for Ready.
+    // The player of a destroyed activity is gone; a new host boots Unity again and waits for Ready. The pending fallback
+    // would otherwise deliver to that dead player.
+    main.removeCallbacks(fallback)
     readySeen = false
     idle = false
     sessionActive = false

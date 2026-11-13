@@ -121,14 +121,21 @@ export default function AiScreen() {
   const pendingId = requests.find((item) => PENDING.includes(item.status))?.requestId;
   useEffect(() => {
     if (!pendingId) return;
+    let inFlight = false;
     const id = setInterval(() => {
+      // A slow network (> 5 s) used to stack overlapping requests.
+      if (inFlight) return;
+      inFlight = true;
       void getAiRequest(pendingId)
         .then((next) =>
           setRequests((current) =>
             current.map((item) => (item.requestId === next.requestId ? next : item)),
           ),
         )
-        .catch((issue) => setError(describe(issue)));
+        .catch((issue) => setError(describe(issue)))
+        .finally(() => {
+          inFlight = false;
+        });
     }, 5000);
     return () => clearInterval(id);
   }, [pendingId]);

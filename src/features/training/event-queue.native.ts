@@ -116,9 +116,22 @@ function parseEvent(value: unknown): UnityEvent {
   return event;
 }
 
+type IngestListener = (messages: IngestedMessage[]) => void;
+let ingestListener: IngestListener | null = null;
+
+/**
+ * Receives every batch this module ingests, whoever called ingestUnityCallbacks. Several paths ingest (the runtime pump,
+ * reconcileUnityLaunched, syncTrainingSession); only the pump used to forward what it read, so a Completed/Exited/Launched
+ * picked up by another path was acknowledged without any screen seeing it.
+ */
+export function setIngestListener(listener: IngestListener | null): void {
+  ingestListener = listener;
+}
+
 /**
  * Native SQLite has already committed each callback; acknowledge it only after this second store commits. Returns the
- * messages moved in this call (in native order) so the runtime can react to Launched/Completed/Error/Exited.
+ * messages moved in this call (in native order) so the runtime can react to Launched/Completed/Error/Exited; they are
+ * also passed to the ingest listener.
  */
 export async function ingestUnityCallbacks(): Promise<IngestedMessage[]> {
   const db = await database();
@@ -157,6 +170,13 @@ export async function ingestUnityCallbacks(): Promise<IngestedMessage[]> {
     }
     await unityBridge.acknowledgeCallback(callback.id);
     ingested.push({ ...message, nativeId: callback.id, receivedAt });
+  }
+  if (ingested.length > 0 && ingestListener) {
+    try {
+      ingestListener(ingested);
+    } catch {
+      // Forwarding to screens must never fail an ingest that is already committed and acknowledged.
+    }
   }
   return ingested;
 }

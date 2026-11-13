@@ -84,6 +84,12 @@ export class Directory {
   }
 }
 
+export const FileMode = { ReadOnly: 'r', ReadWrite: 'rw' };
+
+/** Handles opened by tests that are still open (a hashing loop must close every one). */
+export const openHandles = new Set();
+export const handleStats = { opened: 0, modes: new Set() };
+
 export class File {
   constructor(...parts) {
     this.path = joinPath(parts);
@@ -109,6 +115,25 @@ export class File {
   }
   async text() {
     return new TextDecoder().decode(this.bytes());
+  }
+  open(mode) {
+    const bytes = this.bytes();
+    let offset = 0;
+    const handle = {
+      mode,
+      readBytes(length) {
+        const chunk = bytes.slice(offset, offset + length);
+        offset += chunk.length;
+        return chunk;
+      },
+      close() {
+        openHandles.delete(handle);
+      },
+    };
+    openHandles.add(handle);
+    handleStats.opened += 1;
+    handleStats.modes.add(mode);
+    return handle;
   }
   stream() {
     const bytes = this.bytes();

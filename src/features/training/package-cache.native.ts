@@ -1,4 +1,4 @@
-import { Directory, File, Paths } from 'expo-file-system';
+import { Directory, File, FileMode, Paths } from 'expo-file-system';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { validatePackageManifest, type ContentManifest, type PackagePin } from './package-contract';
@@ -50,18 +50,24 @@ const verified = new Map<string, { manifestPath: string; at: number }>();
 
 const packageKey = (pin: PackagePin) => `${pin.releaseId}/${pin.manifestHash}`;
 
+/** 1 MiB per native read: file.stream() reads 1 KiB per pull (~200,000 reads for 200 MB) and keeps its handle open. */
+const HASH_CHUNK_BYTES = 1 << 20;
+
 async function hashFile(file: File, signal?: AbortSignal): Promise<string> {
   const hash = sha256.create();
-  const reader = file.stream().getReader();
+  // ReadOnly explicitly: open() defaults to ReadWrite for file:// paths.
+  const handle = file.open(FileMode.ReadOnly);
   try {
     while (true) {
       if (signal?.aborted) throw new PackageDownloadCancelled();
-      const { done, value } = await reader.read();
-      if (done) break;
-      hash.update(value);
+      const chunk = handle.readBytes(HASH_CHUNK_BYTES);
+      if (chunk.length === 0) break;
+      hash.update(chunk);
+      // Yield between chunks so the UI stays responsive and an abort is seen.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
   } finally {
-    reader.releaseLock();
+    handle.close();
   }
   return bytesToHex(hash.digest());
 }
@@ -156,10 +162,13 @@ export function cachedPackagePath(pin: PackagePin): Promise<string | null> {
   );
 }
 
-/** Device-side state of a pinned package for lists; re-hashes the final folder, never deletes or downloads. */
-export function packageStatus(pin: PackagePin): Promise<PackageStatus> {
+/**
+ * Device-side state of a pinned package for lists; re-hashes the final folder, never deletes or downloads. `signal` stops
+ * the hashing (rejects with PackageDownloadCancelled) so a screen that is left does not hold the package lock.
+ */
+export function packageStatus(pin: PackagePin, signal?: AbortSignal): Promise<PackageStatus> {
   return withPackageLock(packageKey(pin), async () => {
-    if (await verifyFinal(pin)) return 'ready';
+    if (await verifyFinal(pin, signal)) return 'ready';
     const { final, staging } = folders(pin);
     return final.exists || staging.exists ? 'partial' : 'missing';
   });
