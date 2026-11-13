@@ -700,3 +700,23 @@ test('prepare checks the playtest pin: expired signed URLs and a foreign manifes
   // A signed URL that expired mid-download (S3 403) re-fetches /package instead of failing.
   assert.equal(looksLikeExpiredUrl(new Error('HTTP 403 Forbidden')), true);
 });
+
+test('callbacks ingested outside the pump still reach the runtime listener (Launched/Exited are not swallowed)', async () => {
+  const queue = await import('../src/features/training/event-queue.native.ts');
+  const { reconcileUnityLaunched } = await import('../src/api/training.ts');
+  const seen = [];
+  queue.setIngestListener((messages) => seen.push(...messages.map((m) => m.type)));
+  try {
+    const session = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    await queue.saveLaunch(session, 'Training', 1, future(), '/t.json', 'trainee-1');
+    native.push({ type: 'Launched', sessionId: session, payload: {} });
+    native.push({ type: 'Exited', sessionId: session, payload: {} });
+    globalThis.__be = async () => ({});
+    // reconcile ingests on its own; before, these were acknowledged without any screen seeing them.
+    await reconcileUnityLaunched('trainee-1');
+    assert.deepEqual(seen, ['Launched', 'Exited']);
+    assert.deepEqual(await queue.ingestUnityCallbacks(), [], 'acknowledged once, not delivered twice');
+  } finally {
+    queue.setIngestListener(null);
+  }
+});

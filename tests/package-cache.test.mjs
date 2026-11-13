@@ -162,3 +162,11 @@ test('ending a session or leaving the screen never touches downloaded packages',
   ])
     assert.doesNotMatch(readFileSync(file, 'utf8'), /package-cache|expo-file-system|\.delete\(\)/);
 });
+
+test('hashing reads through read-only handles and closes every one', async () => {
+  const { openHandles, handleStats } = await import('expo-file-system');
+  // The tests above download, verify and re-verify packages (including failed and cancelled checks).
+  assert.ok(handleStats.opened > 0, 'files were hashed');
+  assert.deepEqual([...handleStats.modes], ['r']);
+  assert.equal(openHandles.size, 0, 'no handle left open');
+});

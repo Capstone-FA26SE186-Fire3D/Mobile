@@ -73,20 +73,25 @@ export default function ResultsScreen({ standalone = false }: { standalone?: boo
   const [error, setError] = useState('');
   const pending = usePendingSync();
 
+  // Only the latest request may update the list: a refresh of page 1 can resolve before an older "Xem thêm".
+  const request = useRef(0);
   const load = useCallback(async (nextPage: number) => {
+    const id = ++request.current;
     setBusy(true);
     setError('');
     try {
       const result = await getTrainingHistory(nextPage);
+      if (id !== request.current) return;
       setItems((current) =>
         nextPage === 1 ? (result.items ?? []) : [...current, ...(result.items ?? [])],
       );
       setPage(nextPage);
       setTotal(result.totalCount);
     } catch (issue) {
+      if (id !== request.current) return;
       setError(issue instanceof Error ? issue.message : 'Không tải được lịch sử phiên.');
     } finally {
-      setBusy(false);
+      if (id === request.current) setBusy(false);
     }
   }, []);
 

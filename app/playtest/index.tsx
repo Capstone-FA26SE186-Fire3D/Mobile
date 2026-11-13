@@ -94,7 +94,17 @@ export default function PlaytestScreen() {
   const working = useRef(false);
 
   useEffect(() => {
-    if (!playtestId && account) void readRecentPlaytest(account.id).then(setPlaytestId);
+    if (playtestId || !account) return;
+    let active = true;
+    // SecureStore can throw (Keystore errors): no remembered playtest then, instead of an unhandled rejection.
+    readRecentPlaytest(account.id)
+      .then((value) => {
+        if (active) setPlaytestId(value);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, [account?.id, playtestId]);
   useEffect(() => {
     if (typeof id === 'string') setPlaytestId(id);

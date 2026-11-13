@@ -9,6 +9,7 @@ import {
   Play,
   RefreshCw,
   ScanLine,
+  Sparkle,
   User,
 } from 'lucide-react-native';
 import { ApiError } from '@/api';
@@ -173,7 +174,7 @@ export default function TrainingScreen() {
       try {
         const session = await getTrainingSession(stored.sessionId);
         if (!active) return;
-        if (session.status === 'Prepared') await showPrepared(session);
+        if (session.status === 'Prepared') await showPrepared(session, () => active);
         else if (ENDED.includes(session.status) || ACTIVE.includes(session.status)) {
           setNotice('Bạn có một phiên trước của chế độ này chưa xem kết quả.');
           setPhase({ name: 'pick' });
@@ -204,10 +205,12 @@ export default function TrainingScreen() {
     }).catch(() => undefined);
   }
 
-  async function showPrepared(session: TrainingSession) {
+  /** `isCurrent` lets a restore drop its result when the mode changed during the (seconds long) package check. */
+  async function showPrepared(session: TrainingSession, isCurrent: () => boolean = () => true) {
     pinFromSession(session);
     if (unityBridge.available) {
       const cached = await cachedPackagePath(pinFromSession(session)).catch(() => null);
+      if (!isCurrent()) return;
       if (cached) {
         void rememberDownload(session);
         setPhase({ name: 'ready', session, manifestPath: cached });
@@ -563,6 +566,14 @@ export default function TrainingScreen() {
             ))}
           </View>
           <Callout tone="info">Chuẩn bị và tải gói chưa tính suất học viên.</Callout>
+          <Button
+            title="Hỏi AI cách hoàn thành bài này"
+            icon={Sparkle}
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onPress={() => router.push({ pathname: '/ai', params: { trainingId: training.id } })}
+          />
           {!!notice && !!attempt.current?.sessionId && (
             <Button
               title="Xem phiên trước"

@@ -46,13 +46,15 @@ export default function DownloadsScreen() {
     useCallback(() => {
       if (!account) return;
       let live = true;
+      // Leaving the screen stops the hashing instead of letting it finish under the package lock (a replay waits on it).
+      const controller = new AbortController();
       void (async () => {
         const list = await listDownloads(account.id).catch(() => []);
         if (!live) return;
         setItems(list);
         for (const item of list) {
           const status: PackageStatus = unityBridge.available
-            ? await packageStatus(pinOfRecord(item)).catch(() => 'missing' as const)
+            ? await packageStatus(pinOfRecord(item), controller.signal).catch(() => 'missing' as const)
             : 'missing';
           if (!live) return;
           setStatuses((current) => ({ ...current, [item.trainingId]: status }));
@@ -63,6 +65,7 @@ export default function DownloadsScreen() {
         .catch((issue) => live && setProbeOffline(isOfflineError(issue)));
       return () => {
         live = false;
+        controller.abort();
       };
     }, [account?.id]),
   );
