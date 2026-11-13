@@ -11,10 +11,13 @@ export function Splash() {
   const [step, setStep] = useState(5);
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
+    // The splash often unmounts before the setting resolves; without this the interval would then run forever.
+    let cancelled = false;
     void AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
-      if (!reduce) timer = setInterval(() => setStep((s) => (s % 8) + 1), 260);
+      if (!reduce && !cancelled) timer = setInterval(() => setStep((s) => (s % 8) + 1), 260);
     });
     return () => {
+      cancelled = true;
       if (timer) clearInterval(timer);
     };
   }, []);

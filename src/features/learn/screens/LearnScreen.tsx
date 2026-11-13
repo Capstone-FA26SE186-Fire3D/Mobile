@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { Bookmark, Building2, CircleAlert, Play, Search, Sparkle } from 'lucide-react-native';
@@ -45,20 +45,28 @@ export default function LearnScreen({ standalone = false }: { standalone?: boole
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // Only the latest request may update the list (two quick searches can resolve out of order), and "Xem thêm" pages the
+  // query that is shown, not text typed but not yet submitted.
+  const request = useRef(0);
+  const loadedQuery = useRef('');
   const load = useCallback(async (nextPage: number, search: string) => {
+    const id = ++request.current;
     setBusy(true);
     setError('');
     try {
       const result = await listLearnPosts(nextPage, search || undefined);
+      if (id !== request.current) return;
+      loadedQuery.current = search;
       setPosts((current) =>
         nextPage === 1 ? (result.items ?? []) : [...current, ...(result.items ?? [])],
       );
       setPage(nextPage);
       setTotal(result.total);
     } catch (issue) {
+      if (id !== request.current) return;
       setError(issue instanceof Error ? issue.message : 'Không tải được nội dung Learn.');
     } finally {
-      setBusy(false);
+      if (id === request.current) setBusy(false);
     }
   }, []);
 
@@ -166,7 +174,7 @@ export default function LearnScreen({ standalone = false }: { standalone?: boole
             variant="secondary"
             size="sm"
             loading={busy}
-            onPress={() => void load(page + 1, search)}
+            onPress={() => void load(page + 1, loadedQuery.current)}
           />
         )}
       </Screen>

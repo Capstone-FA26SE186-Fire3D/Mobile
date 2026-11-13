@@ -16,6 +16,7 @@ import {
   getLaunch,
   ingestUnityCallbacks,
   markRecovery,
+  setIngestListener,
   sessionsToSync,
   type IngestedMessage,
   type TrainingSyncRow,
@@ -70,6 +71,18 @@ export function subscribeTrainingRuntime(
     listeners.delete(listener);
   };
 }
+
+/** Every ingested Unity callback reaches the screens, whichever path ingested it (see setIngestListener). */
+function forwardIngested(messages: IngestedMessage[]) {
+  for (const message of messages) {
+    if (message.type === 'Ready') {
+      const mismatch = checkUnityRuntime(message.payload);
+      if (mismatch) emit({ kind: 'runtime-mismatch', message: mismatch });
+    }
+    emit({ kind: 'unity', message });
+  }
+}
+setIngestListener(forwardIngested);
 
 function emit(event: TrainingRuntimeEvent) {
   for (const listener of listeners) {
@@ -136,14 +149,9 @@ async function pumpOnce(): Promise<boolean> {
     });
   };
   // Callbacks are always persisted (and acknowledged natively only after the JS store commits), whoever is signed in.
+  // forwardIngested sends them to the screens, also when reconcile/sync ingest them later in this pass.
   try {
-    for (const message of await ingestUnityCallbacks()) {
-      if (message.type === 'Ready') {
-        const mismatch = checkUnityRuntime(message.payload);
-        if (mismatch) emit({ kind: 'runtime-mismatch', message: mismatch });
-      }
-      emit({ kind: 'unity', message });
-    }
+    await ingestUnityCallbacks();
   } catch (issue) {
     fail(null, issue);
   }

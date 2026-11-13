@@ -1,5 +1,5 @@
 import { modeName } from '@/features/training/mode-ui';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,6 +64,11 @@ export default function QrBuildingScreen() {
   const [error, setError] = useState('');
   const [failure, setFailure] = useState<Failure>(null);
 
+  // Read through a ref: load clears the pending token itself, and depending on it re-ran load (a second resolve + list).
+  const pendingRef = useRef(pendingQrToken);
+  useEffect(() => {
+    pendingRef.current = pendingQrToken;
+  });
   const load = useCallback(async () => {
     if (!account || !token) return;
     setBusy(true);
@@ -72,7 +77,7 @@ export default function QrBuildingScreen() {
     try {
       const resolved = await resolveBuildingQr(token);
       setBuilding(resolved);
-      if (pendingQrToken === token) await setPendingQrToken(null);
+      if (pendingRef.current === token) await setPendingQrToken(null);
       if (resolved.hasAccess) setTrainings(await getQrTrainings(token));
       else setTrainings([]);
     } catch (issue) {
@@ -82,7 +87,7 @@ export default function QrBuildingScreen() {
     } finally {
       setBusy(false);
     }
-  }, [account, token, pendingQrToken, setPendingQrToken]);
+  }, [account, token, setPendingQrToken]);
 
   useEffect(() => {
     void load();
