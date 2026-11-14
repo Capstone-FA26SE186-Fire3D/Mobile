@@ -1,3 +1,4 @@
+import type { LearnRun } from '@/features/learn/rich-text';
 import { apiClient } from './client';
 import { requestWithSession } from './auth';
 
@@ -11,11 +12,13 @@ export type LearnSummary = {
   publishedAt: string;
 };
 
+/** `runs` / `itemRuns` are present only when some text is formatted (BE #172); `text` / `items` always hold the plain text. */
 export type LearnBlock =
-  | { type: 'heading'; text: string; level: number }
-  | { type: 'paragraph'; text: string }
-  | { type: 'list'; ordered: boolean; items: string[] }
-  | { type: 'callout'; tone: string; text: string }
+  | { type: 'heading'; text: string; level: number; runs?: LearnRun[] }
+  | { type: 'paragraph'; text: string; runs?: LearnRun[] }
+  | { type: 'list'; ordered: boolean; items: string[]; itemRuns?: LearnRun[][] }
+  | { type: 'callout'; tone: string; text: string; runs?: LearnRun[] }
+  | { type: 'divider' }
   | { type: 'video'; provider: string; videoId: string; url: string }
   | { type: 'image'; url: string; alt: string };
 

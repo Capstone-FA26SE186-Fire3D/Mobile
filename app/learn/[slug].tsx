@@ -7,7 +7,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text as NativeText,
   View,
+  type StyleProp,
+  type TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -34,14 +37,56 @@ import { StateScreen } from '@/components/ui/StateScreen';
 import { Text } from '@/components/ui/Text';
 import { KIND } from '@/features/learn/screens/LearnScreen';
 import { useSession } from '@/store/SessionProvider';
+import { segments } from '@/features/learn/rich-text';
 import { colors, fonts } from '@/theme/tokens';
+
+/** Formatted text (runs) as nested Text; plain text when the block has no runs. Only https links open. */
+function Rich({
+  runs,
+  text,
+  style,
+  variant,
+  boldFamily = fonts.bold,
+}: {
+  runs?: unknown;
+  text: string;
+  style?: StyleProp<TextStyle>;
+  variant?: 'small';
+  /** Custom fonts ignore fontWeight on Android, so bold switches family; null keeps the block's (already heavier) font. */
+  boldFamily?: string | null;
+}) {
+  const parts = segments(runs, text, colors, colors.info);
+  if (parts.length === 1 && !parts[0].link && Object.keys(parts[0].style).length === 0)
+    return (
+      <Text variant={variant} style={style}>
+        {text}
+      </Text>
+    );
+  return (
+    <Text variant={variant} style={style}>
+      {/* Plain RN Text inside: it inherits the block's font and size; the app Text would reset them to its variant. */}
+      {parts.map((part, index) => (
+        <NativeText
+          key={index}
+          style={[part.style, part.style.fontWeight === 'bold' && boldFamily ? { fontFamily: boldFamily } : null]}
+          accessibilityRole={part.link ? 'link' : undefined}
+          onPress={part.link ? () => void Linking.openURL(part.link!) : undefined}
+        >
+          {part.text}
+        </NativeText>
+      ))}
+    </Text>
+  );
+}
 
 function ContentBlock({ block }: { block: LearnBlock }) {
   switch (block.type) {
     case 'heading':
-      return <Text style={styles.heading}>{block.text}</Text>;
+      return <Rich runs={block.runs} text={block.text} style={styles.heading} boldFamily={null} />;
     case 'paragraph':
-      return <Text style={styles.paragraph}>{block.text}</Text>;
+      return <Rich runs={block.runs} text={block.text} style={styles.paragraph} />;
+    case 'divider':
+      return <View style={styles.divider} accessibilityRole="none" />;
     case 'list':
       return (
         <View style={{ gap: 14 }}>
@@ -54,7 +99,7 @@ function ContentBlock({ block }: { block: LearnBlock }) {
                   <Check size={12} color={colors.ember} strokeWidth={3} />
                 )}
               </View>
-              <Text style={styles.itemText}>{item}</Text>
+              <Rich runs={block.itemRuns?.[index]} text={item} style={styles.itemText} />
             </View>
           ))}
         </View>
@@ -64,7 +109,11 @@ function ContentBlock({ block }: { block: LearnBlock }) {
         <Callout
           tone={block.tone === 'info' ? 'info' : block.tone === 'success' ? 'success' : 'warning'}
         >
-          {block.text}
+          {block.runs ? (
+            <Rich runs={block.runs} text={block.text} variant="small" style={{ lineHeight: 18 }} />
+          ) : (
+            block.text
+          )}
         </Callout>
       );
     case 'image':
@@ -268,6 +317,7 @@ export default function LearnPostScreen() {
 }
 
 const styles = StyleSheet.create({
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.line, marginVertical: 4 },
   safe: { flex: 1, backgroundColor: colors.bg },
   cover: { height: 200, width: '100%', backgroundColor: colors.surfaceRaised },
   back: { position: 'absolute', top: 12, left: 16 },
