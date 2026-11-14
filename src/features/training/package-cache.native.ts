@@ -1,6 +1,7 @@
 import { Directory, File, FileMode, Paths } from 'expo-file-system';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
+import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
 import { validatePackageManifest, type ContentManifest, type PackagePin } from './package-contract';
 import { withPackageLock } from './package-lock';
 import {
@@ -31,7 +32,7 @@ export type PackageStatus = 'ready' | 'partial' | 'missing';
 
 export class PackageDownloadCancelled extends Error {
   constructor() {
-    super('Đã hủy tải package. Phần đã kiểm tra được giữ lại để tải tiếp.');
+    super('Đã hủy tải gói. Phần đã kiểm tra được giữ lại để tải tiếp.');
     this.name = 'PackageDownloadCancelled';
   }
 }
@@ -53,7 +54,31 @@ const packageKey = (pin: PackagePin) => `${pin.releaseId}/${pin.manifestHash}`;
 /** 1 MiB per native read: file.stream() reads 1 KiB per pull (~200,000 reads for 200 MB) and keeps its handle open. */
 const HASH_CHUNK_BYTES = 1 << 20;
 
+/**
+ * Files up to this size are read in one native call and hashed by the platform's SHA-256 (expo-crypto), far faster than
+ * SHA-256 in JS on Hermes, which kept the CPU at 100% for a whole download (#83). Larger files keep the chunked JS hash so
+ * memory stays bounded.
+ */
+const NATIVE_HASH_MAX_BYTES = 48 << 20;
+let nativeDigest = true;
+
 async function hashFile(file: File, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw new PackageDownloadCancelled();
+  if (nativeDigest && file.size <= NATIVE_HASH_MAX_BYTES) {
+    try {
+      const bytes = await file.bytes();
+      if (signal?.aborted) throw new PackageDownloadCancelled();
+      return bytesToHex(new Uint8Array(await digest(CryptoDigestAlgorithm.SHA256, bytes)));
+    } catch (issue) {
+      if (issue instanceof PackageDownloadCancelled) throw issue;
+      nativeDigest = false;
+      console.warn('[package-cache] native SHA-256 unavailable, hashing in JS', issue);
+    }
+  }
+  return hashFileInJs(file, signal);
+}
+
+async function hashFileInJs(file: File, signal?: AbortSignal): Promise<string> {
   const hash = sha256.create();
   // ReadOnly explicitly: open() defaults to ReadWrite for file:// paths.
   const handle = file.open(FileMode.ReadOnly);
@@ -72,8 +97,62 @@ async function hashFile(file: File, signal?: AbortSignal): Promise<string> {
   return bytesToHex(hash.digest());
 }
 
-async function matches(file: File, size: number, digest: string, signal?: AbortSignal) {
-  return file.exists && file.size === size && (await hashFile(file, signal)) === digest;
+/**
+ * Hashes already computed, by file URI: `size:mtime:sha256`. A file whose size and modification time are unchanged is not
+ * read again, so each file is hashed once (after download) instead of 3–4 times, and reopening the app shows progress at
+ * once instead of re-hashing the whole package first (#83). Kept in a small JSON file next to the packages.
+ */
+const MEMO_NAME = 'verified-hashes.json';
+let memo: Map<string, string> | null = null;
+
+function memoFile(): File {
+  return new File(Paths.document, 'fire3d-packages', MEMO_NAME);
+}
+
+async function hashMemo(): Promise<Map<string, string>> {
+  if (memo) return memo;
+  memo = new Map();
+  try {
+    const file = memoFile();
+    if (file.exists) {
+      const saved = JSON.parse(await file.text()) as Record<string, unknown>;
+      for (const [uri, value] of Object.entries(saved))
+        if (typeof value === 'string' && new File(uri).exists) memo.set(uri, value);
+    }
+  } catch (issue) {
+    console.warn('[package-cache] ignoring unreadable hash memo', issue);
+  }
+  return memo;
+}
+
+function saveMemo() {
+  if (!memo) return;
+  try {
+    const file = memoFile();
+    file.parentDirectory.create({ intermediates: true, idempotent: true });
+    file.write(JSON.stringify(Object.fromEntries(memo)));
+  } catch (issue) {
+    console.warn('[package-cache] could not save the hash memo', issue);
+  }
+}
+
+/** `size:mtime` of a file, or null when the platform gives no modification time (then the file is always hashed). */
+function stampOf(file: File): string | null {
+  const mtime = file.lastModified ?? file.modificationTime;
+  return typeof mtime === 'number' && Number.isFinite(mtime) && mtime > 0 ? `${file.size}:${mtime}` : null;
+}
+
+async function matches(file: File, size: number, expected: string, signal?: AbortSignal) {
+  if (!file.exists || file.size !== size) return false;
+  const stamp = stampOf(file);
+  const known = stamp ? (await hashMemo()).get(file.uri) : undefined;
+  if (stamp && known?.startsWith(`${stamp}:`)) return known === `${stamp}:${expected}`;
+  const actual = await hashFile(file, signal);
+  if (stamp) {
+    (await hashMemo()).set(file.uri, `${stamp}:${actual}`);
+    saveMemo();
+  }
+  return actual === expected;
 }
 
 function fileIn(folder: Directory, path: string): File {
@@ -139,8 +218,16 @@ async function verifyFinal(
  */
 async function promote(from: File, to: File, size: number, digest: string, path: string) {
   to.parentDirectory.create({ intermediates: true, idempotent: true });
+  // A move keeps size and modification time, so the hash computed in staging carries over and the file is not re-read.
+  const store = await hashMemo();
+  const fromUri = from.uri;
+  const carried = store.get(fromUri);
   try {
     await from.move(to, { overwrite: true });
+    if (carried) {
+      store.delete(fromUri);
+      store.set(to.uri, carried);
+    }
   } catch {
     try {
       await from.copy(to, { overwrite: true });

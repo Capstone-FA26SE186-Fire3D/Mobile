@@ -473,7 +473,7 @@ export default function PlaytestScreen() {
                   <Segments total={10} filled={percent / 10} style={{ width: 180 }} />
                   <Text variant="small" muted>
                     {progress?.phase === 'verifying'
-                      ? 'Đang kiểm tra SHA-256…'
+                      ? 'Đang kiểm tra tệp đã tải…'
                       : progress?.phase === 'checking'
                         ? 'Đang kiểm tra phần đã tải…'
                         : progress

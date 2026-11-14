@@ -87,6 +87,11 @@ export class Directory {
 export const FileMode = { ReadOnly: 'r', ReadWrite: 'rw' };
 
 /** Handles opened by tests that are still open (a hashing loop must close every one). */
+// Each stored byte array gets its own modification time, so any write (or a test replacing the bytes) changes it while
+// a move keeps it, as on a real file system.
+let clock = 1_700_000_000_000;
+const stamps = new WeakMap();
+
 export const openHandles = new Set();
 export const handleStats = { opened: 0, modes: new Set() };
 
@@ -105,6 +110,15 @@ export class File {
   }
   get size() {
     return fs.files.get(this.path)?.length ?? 0;
+  }
+  get modificationTime() {
+    const bytes = fs.files.get(this.path);
+    if (!bytes) return null;
+    if (!stamps.has(bytes)) stamps.set(bytes, ++clock);
+    return stamps.get(bytes);
+  }
+  get lastModified() {
+    return this.modificationTime;
   }
   get parentDirectory() {
     return new Directory(parentOf(this.path));

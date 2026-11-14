@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import {
   ArrowUpRight,
   Check,
@@ -593,7 +593,7 @@ export default function TrainingScreen() {
               }
             />
             <StepRow
-              label="Xác minh toàn vẹn (SHA-256)"
+              label="Kiểm tra tệp không bị lỗi"
               state={
                 progress?.phase === 'verifying'
                   ? 'active'
@@ -608,6 +608,12 @@ export default function TrainingScreen() {
           ) : (
             <Text variant="small" dim style={{ textAlign: 'center', lineHeight: 18 }}>
               Nên dùng Wi-Fi. Nếu bị gián đoạn, phần đã tải và đã kiểm tra được giữ lại để tải tiếp.
+            </Text>
+          )}
+          {Platform.OS === 'android' && (
+            <Text variant="small" dim style={{ textAlign: 'center', lineHeight: 18 }}>
+              Nếu bạn cho camera quyền “Chỉ lần này”, Android có thể tự đóng ứng dụng khi đang tải. Hãy chọn “Khi dùng
+              ứng dụng” trong Cài đặt quyền để việc tải không bị ngắt.
             </Text>
           )}
         </>

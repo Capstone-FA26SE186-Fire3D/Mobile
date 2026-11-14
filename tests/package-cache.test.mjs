@@ -163,10 +163,42 @@ test('ending a session or leaving the screen never touches downloaded packages',
     assert.doesNotMatch(readFileSync(file, 'utf8'), /package-cache|expo-file-system|\.delete\(\)/);
 });
 
-test('hashing reads through read-only handles and closes every one', async () => {
+test('each file is hashed once (natively); later checks reuse it until the file changes (#83)', async () => {
+  const digests = globalThis.__digests;
+  const pkg = fresh();
+  const before = digests.count;
+  await prepare(pkg);
+  assert.equal(digests.count - before, pkg.paths.length, 'one native hash per file, manifest included');
+  assert.ok(fs.files.has('/documents/fire3d-packages/verified-hashes.json'), 'hashes kept for the next app start');
+  const after = digests.count;
+  assert.equal(await cache.cachedPackagePath(pkg.pin), pkg.manifestPath);
+  assert.equal(await cache.packageStatus(pkg.pin), 'ready');
+  assert.equal(await prepare(pkg), pkg.manifestPath);
+  assert.equal(digests.count, after, 'unchanged files are not read again');
+
+  // Same size, other bytes: the modification time changes, so the file is hashed again and refused.
+  const path = pkg.paths.find((item) => item !== 'manifest.json');
+  const full = `${pkg.folder(false)}/${path}`;
+  const original = fs.files.get(full);
+  fs.files.set(full, original.map((byte) => byte ^ 0xff));
+  assert.equal(await cache.cachedPackagePath(pkg.pin), null);
+  assert.equal(digests.count, after + 1);
+  fs.downloadLog = [];
+  assert.equal(await prepare(pkg), pkg.manifestPath);
+  assert.deepEqual(downloaded(pkg), [path], 'only the changed file is downloaded again');
+});
+
+test('without native SHA-256 the chunked JS hash reads through read-only handles and closes every one', async () => {
   const { openHandles, handleStats } = await import('expo-file-system');
-  // The tests above download, verify and re-verify packages (including failed and cancelled checks).
-  assert.ok(handleStats.opened > 0, 'files were hashed');
-  assert.deepEqual([...handleStats.modes], ['r']);
-  assert.equal(openHandles.size, 0, 'no handle left open');
+  globalThis.__digests.fail = true;
+  try {
+    const pkg = fresh();
+    const opened = handleStats.opened;
+    assert.equal(await prepare(pkg), pkg.manifestPath);
+    assert.ok(handleStats.opened > opened, 'files were hashed in JS');
+    assert.deepEqual([...handleStats.modes], ['r']);
+    assert.equal(openHandles.size, 0, 'no handle left open');
+  } finally {
+    globalThis.__digests.fail = false;
+  }
 });
