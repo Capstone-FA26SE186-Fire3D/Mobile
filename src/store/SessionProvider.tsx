@@ -63,7 +63,7 @@ const message = (error: unknown) =>
  * connection or Google Play services being unavailable (`SERVICE_NOT_AVAILABLE`) is retried silently: a red banner
  * for something the user cannot act on only covered the page header (Mobile #84). Anything else gets one plain line.
  */
-const pushNotice = (issue: unknown) => {
+export const pushNotice = (issue: unknown) => {
   const raw = issue instanceof Error ? issue.message : '';
   return /UnknownHost|Unable to resolve host|timeout|Network|SERVICE_NOT_AVAILABLE/i.test(raw)
     ? ''

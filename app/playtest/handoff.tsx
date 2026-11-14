@@ -31,7 +31,7 @@ export default function PlaytestHandoffScreen() {
         router.replace({ pathname: '/playtest', params: { id: status.id } });
       })
       .catch((issue) => {
-        if (active) setError(describePlaytestProblem(issue, 'Không nhận được handoff playtest.'));
+        if (active) setError(describePlaytestProblem(issue, 'Không nhận được mã chạy thử.'));
       })
       .finally(() => {
         if (active) setBusy(false);
@@ -56,11 +56,11 @@ export default function PlaytestHandoffScreen() {
         icon={User}
         tone="info"
         ribbon="Cần đăng nhập"
-        title="Đăng nhập để nhận playtest"
-        body="Dùng tài khoản tổ chức (OrganizationUser) đã tạo playtest trên Web."
+        title="Đăng nhập để nhận lượt chạy thử"
+        body="Dùng tài khoản tổ chức đã tạo lượt chạy thử trên web."
         actions={
           <Button
-            title="Đăng nhập và nhận playtest"
+            title="Đăng nhập và nhận lượt chạy thử"
             icon={ArrowUpRight}
             onPress={() => void login()}
           />
@@ -73,8 +73,8 @@ export default function PlaytestHandoffScreen() {
         icon={User}
         tone="warning"
         ribbon="Sai loại tài khoản"
-        title="Playtest chỉ dành cho tài khoản tổ chức"
-        body="Bạn đang đăng nhập bằng tài khoản học viên. Hãy đổi sang tài khoản OrganizationUser đã tạo playtest."
+        title="Chạy thử chỉ dành cho tài khoản tổ chức"
+        body="Bạn đang đăng nhập bằng tài khoản học viên. Hãy đổi sang tài khoản tổ chức đã tạo lượt chạy thử."
         actions={
           <>
             <Button
@@ -95,7 +95,7 @@ export default function PlaytestHandoffScreen() {
         title="Mã bàn giao đã dùng, hết hạn hoặc bị thu hồi"
         body={
           view === 'invalid'
-            ? 'Liên kết bàn giao không hợp lệ hoặc thiếu mã. Hãy tạo mã mới trên Web rồi quét lại.'
+            ? 'Mã chạy thử không hợp lệ hoặc bị thiếu. Hãy tạo mã mới trên web rồi quét lại.'
             : `${error} Mã chỉ dùng được một lần trong 5 phút.`
         }
         actions={
@@ -118,7 +118,7 @@ export default function PlaytestHandoffScreen() {
     <StateScreen
       icon={RefreshCw}
       tone="info"
-      ribbon="Đang nhận playtest"
+      ribbon="Đang nhận lượt chạy thử"
       title="Đang xác nhận mã bàn giao…"
       body="Vui lòng chờ trong giây lát."
     />

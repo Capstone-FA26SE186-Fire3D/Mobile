@@ -54,7 +54,7 @@ test('OrganizationUser redeems handoff after login and stays in playtest only', 
   );
 
   await page.goto(`/playtest/handoff?code=${code}`);
-  await page.getByRole('button', { name: 'Đăng nhập và nhận playtest' }).click();
+  await page.getByRole('button', { name: 'Đăng nhập và nhận lượt chạy thử' }).click();
   await page.getByRole('textbox', { name: 'Email' }).fill(owner.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Vào game', exact: true }).click();
@@ -62,7 +62,7 @@ test('OrganizationUser redeems handoff after login and stays in playtest only', 
   // Prepare comes first and never uses Trial; without Unity (web) nothing can be downloaded or started.
   await expect(page.getByText(/Không dùng lượt thử/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tải và kiểm tra gói' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Bắt đầu playtest' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Bắt đầu chạy thử' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Mở tài khoản' })).toHaveCount(0);
   expect(redeemed).toBe(1);
 });
@@ -95,19 +95,19 @@ test('OrganizationUser without a playtest scans the Web handoff QR in the app', 
   await page.getByRole('textbox', { name: 'Email' }).fill(owner.email);
   await page.getByLabel('Mật khẩu', { exact: true }).fill('StrongPassword12!');
   await page.getByRole('button', { name: 'Vào game', exact: true }).click();
-  await expect(page.getByText(/Mở playtest trên Web/)).toBeVisible();
+  await expect(page.getByText(/Mở tab Chạy thử trên web/)).toBeVisible();
   await page.getByRole('button', { name: 'Quét mã bàn giao' }).click();
 
   await expect(page.getByText('Nhập mã bàn giao')).toBeVisible();
   const field = page.getByRole('textbox', { name: 'Đường dẫn hoặc mã bàn giao' });
   // A Building QR is not a handoff: refused before any request.
   await field.fill(`https://fet3d.io.vn/qr/${code}`);
-  await page.getByRole('button', { name: 'Nhận playtest' }).click();
+  await page.getByRole('button', { name: 'Nhận lượt chạy thử' }).click();
   await expect(page.getByText(/mã QR công trình dành cho học viên/)).toBeVisible();
   expect(redeemed).toBe(0);
 
   await field.fill(`fet3d://playtest/handoff?code=${code}`);
-  await page.getByRole('button', { name: 'Nhận playtest' }).click();
+  await page.getByRole('button', { name: 'Nhận lượt chạy thử' }).click();
   await expect(page.getByText('Chưa bắt đầu', { exact: true })).toBeVisible();
   expect(redeemed).toBe(1);
 });
