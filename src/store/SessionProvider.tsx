@@ -62,9 +62,12 @@ const message = (error: unknown) =>
  * Push registration is optional: the app works without it and re-registers on the next start or token change. Say that in
  * plain words; a lost connection (no DNS, timeout) gets its own line instead of the raw Java exception.
  */
-const pushNotice = (issue: unknown) => {
+export const pushNotice = (issue: unknown) => {
   const raw = issue instanceof Error ? issue.message : '';
-  return /UnknownHost|Unable to resolve host|timeout|Network|SERVICE_NOT_AVAILABLE/i.test(raw)
+  // SERVICE_NOT_AVAILABLE comes from Google Play services on the phone (not the FET3D server, not the network).
+  if (/SERVICE_NOT_AVAILABLE/i.test(raw))
+    return 'Chưa bật được thông báo vì dịch vụ Google trên máy chưa sẵn sàng. Bạn vẫn dùng ứng dụng bình thường; ứng dụng sẽ tự thử lại lần sau.';
+  return /UnknownHost|Unable to resolve host|timeout|Network/i.test(raw)
     ? 'Chưa bật được thông báo vì mất kết nối mạng. Ứng dụng sẽ tự thử lại khi có mạng.'
     : 'Chưa bật được thông báo trên máy này. Bạn vẫn dùng ứng dụng bình thường; có thể bật lại trong Tôi › Cài đặt tài khoản.';
 };

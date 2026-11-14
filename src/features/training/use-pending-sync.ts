@@ -18,7 +18,10 @@ export function usePendingSync(): PendingSync {
       try {
         const rows = await sessionsToSync(accountId, account?.role === 'Trainee');
         // Only sessions with data still to send; a session merely running (or left open) is not "chờ gửi".
-        setState({ count: rows.filter(hasDataToSync).length, offline });
+        const count = rows.filter(hasDataToSync).length;
+        // "Offline" only matters while something waits to be sent; with nothing pending it would otherwise stay set
+        // (no later "synced" event clears it) and screens kept saying "Bạn đang offline" while online.
+        setState({ count, offline: offline && count > 0 });
       } catch {
         // The local queue is best effort for this indicator; the result screen reports real errors.
       }

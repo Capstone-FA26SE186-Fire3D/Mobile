@@ -21,9 +21,19 @@ import { startTrainingRuntime } from '@/features/training/training-runtime';
 // Keep the native logo visible until fonts and the saved session are ready.
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
+const NOTICE_SECONDS = 10;
+/** Clears the bottom tab bar so the toast never hides navigation. */
+const NOTICE_ABOVE_TABS = 84;
+
 function Navigation() {
   const { account, ready, reduceMotion, error, dismissError } = useSession();
   const insets = useSafeAreaInsets();
+  // Notices are informational (the app keeps working): they go away on their own.
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(dismissError, NOTICE_SECONDS * 1000);
+    return () => clearTimeout(timer);
+  }, [error, dismissError]);
   // Device-wide, one receiver for Trainee training and OrganizationUser playtests: ingest Unity callbacks and sync the
   // signed-in account's started sessions (events, completion) on callbacks, app start and foreground.
   const accountId = account?.id;
@@ -44,13 +54,16 @@ function Navigation() {
       }}
     >
       {!!error && (
-        // Floats below the status bar / camera cutout instead of under it, and can be closed.
-        <View style={[styles.notice, { top: insets.top + 8 }]} pointerEvents="box-none">
+        // A toast above the bottom edge (and the tab bar): at the top it covered the screen title and back button.
+        // Solid background so the screen behind never shows through; closes itself after a while or on tap.
+        <View style={[styles.notice, { bottom: insets.bottom + NOTICE_ABOVE_TABS }]} pointerEvents="box-none">
           <View style={styles.noticeRow}>
             <View style={{ flex: 1 }}>
-              <Callout tone="danger" style={{ paddingRight: 40 }}>
-                {error}
-              </Callout>
+              <View style={styles.noticeCard}>
+                <Callout tone="danger" style={{ paddingRight: 40 }}>
+                  {error}
+                </Callout>
+              </View>
             </View>
             <Pressable
               onPress={dismissError}
@@ -140,6 +153,7 @@ const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: colors.bg },
   // Above the screens (they keep their own safe-area padding), so the notice never shifts the layout.
   notice: { position: 'absolute', left: 12, right: 12, zIndex: 10, elevation: 10 },
+  noticeCard: { borderRadius: 14, backgroundColor: colors.bg, overflow: 'hidden' },
   noticeRow: { flexDirection: 'row', alignItems: 'flex-start' },
   noticeClose: {
     position: 'absolute',

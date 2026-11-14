@@ -15,7 +15,6 @@ import {
 import { packageStatus, type PackageStatus } from '@/features/training/package-cache.native';
 import { isOfflineError } from '@/features/training/training-runtime';
 import { unityBridge } from '@/features/training/unity-bridge.native';
-import { usePendingSync } from '@/features/training/use-pending-sync';
 import { useSession } from '@/store/SessionProvider';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -36,7 +35,6 @@ const savedDate = (iso: string) => {
  */
 export default function DownloadsScreen() {
   const { account } = useSession();
-  const pending = usePendingSync();
   const [items, setItems] = useState<DownloadRecord[] | null>(null);
   const [statuses, setStatuses] = useState<Record<string, PackageStatus>>({});
   const [probeOffline, setProbeOffline] = useState(false);
@@ -69,7 +67,8 @@ export default function DownloadsScreen() {
     }, [account?.id]),
   );
 
-  const offline = probeOffline || pending.offline;
+  // The screen probes the API on every focus; a stale sync failure must not lock "Chơi lại" while that probe succeeds.
+  const offline = probeOffline;
   const replay = (item: DownloadRecord) =>
     router.push({
       pathname: '/training/[trainingId]',
