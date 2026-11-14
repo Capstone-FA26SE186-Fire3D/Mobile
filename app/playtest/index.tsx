@@ -58,20 +58,20 @@ import { colors, fonts } from '@/theme/tokens';
 
 const STATUS_LABELS: Record<PlaytestStatus['status'], string> = {
   Created: 'Chưa bắt đầu',
-  Launching: 'Đang mở Unity',
+  Launching: 'Đang mở mô phỏng',
   Running: 'Đang chạy',
   Completed: 'Đã hoàn tất',
   Cancelled: 'Đã hủy',
 };
 
 const RECOVERY_LABELS: Record<string, string> = {
-  PLAYTEST_GRANT_EXPIRED: 'Unity mở sau khi grant hết hạn nên lần mở đó đã bị dừng.',
-  PLAYTEST_GRANT_STALE: 'Lần mở trước dùng grant cũ nên đã bị dừng.',
-  RUNTIME_MISMATCH: 'Unity trong ứng dụng không khớp runtime đã gửi máy chủ.',
-  CALLBACK_REJECTED: 'Unity gửi dữ liệu sai hợp đồng; dữ liệu được giữ trên máy để hỗ trợ.',
+  PLAYTEST_GRANT_EXPIRED: 'Mô phỏng mở sau khi quyền mở đã hết hạn nên lần mở đó đã bị dừng.',
+  PLAYTEST_GRANT_STALE: 'Lần mở trước dùng quyền mở cũ nên đã bị dừng.',
+  RUNTIME_MISMATCH: 'Bộ mô phỏng trong ứng dụng không đúng phiên bản máy chủ cần.',
+  CALLBACK_REJECTED: 'Mô phỏng gửi dữ liệu không hợp lệ; dữ liệu được giữ trên máy để hỗ trợ.',
   EVENTS_STALLED: 'Đồng bộ sự kiện không tiến triển; đã dừng tự động thử lại.',
   PLAYTEST_EVENTS_INCOMPLETE: 'Máy chủ thiếu sự kiện mà máy này không còn giữ.',
-  PLAYTEST_SESSION_MISMATCH: 'Playtest không còn gắn với phiên đăng nhập này.',
+  PLAYTEST_SESSION_MISMATCH: 'Lượt chạy thử không còn gắn với phiên đăng nhập này.',
 };
 
 type Download = { progress: PackageProgress | null } | null;
@@ -123,7 +123,7 @@ export default function PlaytestScreen() {
       }
       return next;
     } catch (issue) {
-      setError(describePlaytestProblem(issue, 'Không tải được playtest.'));
+      setError(describePlaytestProblem(issue, 'Không tải được lượt chạy thử.'));
       return null;
     }
   }, [playtestId]);
@@ -167,7 +167,7 @@ export default function PlaytestScreen() {
       if (event.kind === 'playtest-synced' && event.playtestId === playtestId) {
         if (event.result.kind === 'completed') {
           setStatus(event.result.status);
-          setNotice('Đã đồng bộ kết quả playtest. Web hiển thị kết quả này.');
+          setNotice('Đã gửi kết quả chạy thử. Xem kết quả trên web.');
         } else if (event.result.kind === 'recovery') void refresh();
         return;
       }
@@ -185,7 +185,7 @@ export default function PlaytestScreen() {
           setError(
             describePlaytestProblem(
               { code: payload.code },
-              `Unity báo lỗi ${payload.code ?? ''}: ${payload.message ?? 'không rõ'}`.trim(),
+              `Mô phỏng báo lỗi ${payload.code ?? ''}: ${payload.message ?? 'không rõ'}`.trim(),
             ),
           );
       }
@@ -211,7 +211,7 @@ export default function PlaytestScreen() {
     } catch (issue) {
       if (issue instanceof PackageDownloadCancelled) setNotice(issue.message);
       else {
-        setError(describePlaytestProblem(issue, 'Không tải được package playtest.'));
+        setError(describePlaytestProblem(issue, 'Không tải được gói chạy thử.'));
         // The Web may have cancelled it or moved it to another session since this screen loaded: show the current state.
         if (problemCode(issue) === 'PACKAGE_SESSION_NOT_ACTIVE') void refresh();
       }
@@ -238,7 +238,7 @@ export default function PlaytestScreen() {
         // Back to "Chuẩn bị": downloading again resumes from the files that still match.
         setPrepared(null);
         setError(issue.message);
-      } else setError(describePlaytestProblem(issue, 'Không mở được playtest.'));
+      } else setError(describePlaytestProblem(issue, 'Không mở được lượt chạy thử.'));
     } finally {
       working.current = false;
       setBusy(false);
@@ -249,11 +249,11 @@ export default function PlaytestScreen() {
   async function backToUnity() {
     try {
       if (!(await unityBridge.show())) {
-        setNotice('Unity đã đóng. Dữ liệu đã ghi được giữ trên máy và sẽ được đồng bộ.');
+        setNotice('Mô phỏng đã đóng. Dữ liệu đã ghi được giữ trên máy và sẽ được gửi khi có mạng.');
         void pumpTrainingRuntime();
       }
     } catch (issue) {
-      setError(describePlaytestProblem(issue, 'Không mở lại được Unity.'));
+      setError(describePlaytestProblem(issue, 'Không mở lại được mô phỏng.'));
     } finally {
       void refresh();
     }
@@ -267,7 +267,7 @@ export default function PlaytestScreen() {
     try {
       setStatus(await cancelPlaytest(account.id, playtestId));
     } catch (issue) {
-      setError(describePlaytestProblem(issue, 'Không hủy được playtest.'));
+      setError(describePlaytestProblem(issue, 'Không hủy được lượt chạy thử.'));
     } finally {
       working.current = false;
       setBusy(false);
@@ -300,7 +300,7 @@ export default function PlaytestScreen() {
     const code = parseHandoffCode(handoffInput);
     if (!code) {
       setError(
-        'Đây không phải mã bàn giao playtest. Dán đường dẫn hiện trong tab Playtest trên Web.',
+        'Đây không phải mã chạy thử. Dán đường dẫn hiện trong tab Chạy thử trên web.',
       );
       return;
     }
@@ -310,7 +310,7 @@ export default function PlaytestScreen() {
 
   const cancelButton = status?.recovery.canCancel && step?.name !== 'final' && (
     <Button
-      title="Hủy playtest"
+      title="Hủy lượt chạy thử"
       variant="danger"
       size="sm"
       disabled={busy || !!download}
@@ -331,7 +331,7 @@ export default function PlaytestScreen() {
   const footer = !playtestId ? (
     <>
       <Button
-        title="Nhận playtest"
+        title="Nhận lượt chạy thử"
         icon={ArrowUpRight}
         disabled={!handoffInput.trim()}
         onPress={openHandoff}
@@ -364,9 +364,9 @@ export default function PlaytestScreen() {
       <Button
         title={
           grantExpired
-            ? 'Cấp lại và mở Unity'
+            ? 'Mở lại mô phỏng'
             : step?.name === 'start'
-              ? 'Bắt đầu playtest'
+              ? 'Bắt đầu chạy thử'
               : 'Thử mở lại'
         }
         icon={grantExpired || step?.name === 'retry-launch' ? RefreshCw : Play}
@@ -389,7 +389,7 @@ export default function PlaytestScreen() {
     <Screen footer={footer} contentStyle={{ padding: 16, gap: 14 }}>
       <View style={styles.top}>
         <Brand size="sm" />
-        <Text style={styles.topTitle}>Playtest tổ chức</Text>
+        <Text style={styles.topTitle}>Chạy thử của tổ chức</Text>
         <View style={styles.avatar} accessibilityLabel={`Tài khoản ${account?.email ?? ''}`}>
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
@@ -402,7 +402,7 @@ export default function PlaytestScreen() {
         <>
           <Text variant="title">Quét mã bàn giao</Text>
           <Text muted>
-            Mở playtest trên Web, bấm “Chạy thử trên điện thoại” rồi quét mã QR. Mã có hiệu lực 5
+            Mở tab Chạy thử trên web, bấm “Chạy thử trên điện thoại” rồi quét mã QR. Mã có hiệu lực 5
             phút.
           </Text>
           <Card
@@ -441,21 +441,21 @@ export default function PlaytestScreen() {
               icon={X}
               tone="danger"
               ribbon="Khác phiên đăng nhập"
-              title="Playtest không thuộc phiên này"
-              body="Phiên đăng nhập này không phải phiên đã nhận playtest. Tạo mã bàn giao mới trên Web cho thiết bị này."
+              title="Lượt chạy thử không thuộc phiên này"
+              body="Phiên đăng nhập này không phải phiên đã nhận lượt chạy thử. Tạo mã mới trên web cho máy này."
             />
           )}
 
           {(step.name === 'prepare' || !!download) && (
             <>
-              <Ribbon label="Playtest đã nhận" />
+              <Ribbon label="Đã nhận lượt chạy thử" />
               <Text variant="heading">{STATUS_LABELS[status.status] ?? status.status}</Text>
               <Card contentStyle={{ gap: 0 }}>
                 {[
                   ['Nhận mã bàn giao', 'Đã nhận'],
                   ['Tải và kiểm tra gói', 'Không dùng lượt thử ở bước này'],
                   ['Chọn chế độ & bắt đầu', 'Dùng một lượt thử hoặc gói trả phí của tòa nhà'],
-                  ['Chơi trong Unity', ''],
+                  ['Chơi trong mô phỏng', ''],
                 ].map(([title, hint], i) => (
                   <StepItem
                     key={title}
@@ -505,8 +505,8 @@ export default function PlaytestScreen() {
               </View>
               <Callout tone="warning">
                 {step.name === 'start'
-                  ? 'Bắt đầu sẽ dùng một lượt thử (hoặc gói trả phí) của tòa nhà. Playtest không tính vào thống kê học viên.'
-                  : 'Playtest đã bắt đầu nhưng Unity chưa mở được. Thử mở lại xin quyền mới, không dùng thêm lượt thử.'}
+                  ? 'Bắt đầu sẽ dùng một lượt thử (hoặc gói trả phí) của tòa nhà. Lượt chạy thử không tính vào thống kê học viên.'
+                  : 'Lượt chạy thử đã bắt đầu nhưng mô phỏng chưa mở được. Thử mở lại xin quyền mới, không dùng thêm lượt thử.'}
               </Callout>
             </>
           )}
@@ -517,17 +517,17 @@ export default function PlaytestScreen() {
               tone="warning"
               ribbon="Cần cấp lại quyền"
               title="Quyền chạy đã hết hạn"
-              body="Playtest chưa mở được vì quyền chạy ngắn hạn đã hết. Cấp lại quyền không dùng thêm lượt thử."
+              body="Lượt chạy thử chưa mở được vì quyền chạy ngắn hạn đã hết. Cấp lại quyền không dùng thêm lượt thử."
             />
           )}
 
           {step.name === 'wait-launch' && (
             <View style={styles.center}>
               <ProgressRing value={0.35} size={160} stroke={20} />
-              <Ribbon label="Đang mở Unity" />
+              <Ribbon label="Đang mở mô phỏng" />
               <Text style={styles.stateTitle}>Đang chờ máy chủ xác nhận</Text>
               <Text muted style={styles.stateBody}>
-                FET3D đang xác nhận Unity đã mở. Cập nhật trạng thái sau ít phút.
+                FET3D đang xác nhận mô phỏng đã mở. Cập nhật trạng thái sau ít phút.
               </Text>
             </View>
           )}
@@ -536,13 +536,13 @@ export default function PlaytestScreen() {
             <Card accent contentStyle={styles.playing}>
               <HexBadge icon={Play} size={96} />
               <Ribbon label="Đang chạy" />
-              <Text style={styles.stateTitle}>Playtest đang mở trong Unity</Text>
+              <Text style={styles.stateTitle}>Lượt chạy thử đang mở trong mô phỏng</Text>
               <Text muted style={styles.stateBody}>
                 {status.acknowledgedSequence} sự kiện đã lưu. Chạy thử không tính vào thống kê học
                 viên.
               </Text>
               <Button
-                title="Quay lại Unity"
+                title="Quay lại mô phỏng"
                 icon={Play}
                 style={{ alignSelf: 'stretch' }}
                 onPress={() => void backToUnity()}
@@ -554,9 +554,9 @@ export default function PlaytestScreen() {
             <StateView
               icon={CircleAlert}
               tone="warning"
-              ribbon="Unity đã đóng"
-              title="Playtest không còn chạy trên máy"
-              body="Sự kiện đã ghi sẽ được đồng bộ; playtest không được tự chạy lại."
+              ribbon="Mô phỏng đã đóng"
+              title="Lượt chạy thử không còn chạy trên máy"
+              body="Sự kiện đã ghi sẽ được gửi; lượt chạy thử không tự chạy lại."
             />
           )}
 
@@ -565,21 +565,21 @@ export default function PlaytestScreen() {
               <StateView
                 icon={Check}
                 tone="exit"
-                ribbon="Playtest hoàn tất"
+                ribbon="Chạy thử hoàn tất"
                 title={
                   status.completion
                     ? `Đã ghi nhận ${status.completion.lastEventSequence} sự kiện`
-                    : 'Playtest đã hoàn tất'
+                    : 'Lượt chạy thử đã hoàn tất'
                 }
-                body="Muốn chạy lại, hãy tạo playtest mới trên Web. Kết quả xem trong khu quản lý tổ chức."
+                body="Muốn chạy lại, hãy tạo lượt chạy thử mới trên web. Kết quả xem trong khu quản lý tổ chức."
               />
             ) : (
               <StateView
                 icon={X}
                 tone="neutral"
                 ribbon="Đã hủy"
-                title="Playtest đã bị hủy"
-                body="Muốn chạy lại, hãy tạo playtest mới trên Web."
+                title="Lượt chạy thử đã bị hủy"
+                body="Muốn chạy lại, hãy tạo lượt chạy thử mới trên web."
               />
             ))}
         </>

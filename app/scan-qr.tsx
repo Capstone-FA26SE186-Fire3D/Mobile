@@ -163,7 +163,7 @@ export default function ScanQrScreen() {
           <Text style={styles.panelTitle}>Không quét được?</Text>
           <Text variant="small" muted>
             {handoff
-              ? 'Dán đường dẫn bàn giao từ tab Playtest trên Web.'
+              ? 'Dán đường dẫn từ tab Chạy thử trên web.'
               : 'Nhập mã hoặc dán liên kết QR của tòa nhà.'}
           </Text>
           <Button
@@ -215,7 +215,7 @@ export default function ScanQrScreen() {
             />
             {!!error && <Notice error>{error}</Notice>}
             <Button
-              title={handoff ? 'Nhận playtest' : 'Mở tòa nhà'}
+              title={handoff ? 'Nhận lượt chạy thử' : 'Mở tòa nhà'}
               icon={ArrowUpRight}
               onPress={() => open(input)}
             />

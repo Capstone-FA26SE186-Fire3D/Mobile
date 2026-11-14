@@ -251,8 +251,8 @@ export async function acquirePlaytestGrant(
     if (current.status !== 'Launching' || !current.recovery.canReissueGrant)
       throw new Error(
         current.status === 'Running'
-          ? 'Playtest đã được mở trong Unity; không cấp lại grant.'
-          : 'BE không cho phép cấp lại grant cho playtest này.',
+          ? 'Lượt chạy thử đã được mở trong mô phỏng nên không mở lại được.'
+          : 'Máy chủ không cho mở lại lượt chạy thử này. Tạo lượt mới trên web.',
       );
     let key = await keys.get(accountId, current.id, 'reissue');
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -269,7 +269,7 @@ export async function acquirePlaytestGrant(
       } else if (problemCode(outcome.issue) !== 'PLAYTEST_GRANT_EXPIRED') throw outcome.issue;
       key = await keys.rotate(accountId, current.id, 'reissue');
     }
-    throw new Error('BE liên tục cấp grant đã hết hạn. Kiểm tra giờ của thiết bị rồi thử lại.');
+    throw new Error('Quyền mở mô phỏng liên tục báo hết hạn. Kiểm tra giờ trên điện thoại (bật giờ tự động) rồi thử lại.');
   });
 }
 
@@ -292,52 +292,52 @@ export function describePlaytestProblem(issue: unknown, fallback: string): strin
     problemCode(issue) ?? (issue as { code?: unknown } | null)?.code?.toString?.() ?? null;
   switch (code) {
     case 'RUNTIME_INCOMPATIBLE':
-      return `Runtime ${APP_RUNTIME_VERSION} của ứng dụng chưa được BE chấp nhận cho package này (chưa kích hoạt trong catalog hoặc không đủ capability). Cần bản FET3D khớp runtime đang hoạt động.`;
+      return `Phiên bản ứng dụng này (mô phỏng ${APP_RUNTIME_VERSION}) chưa chạy được kịch bản này. Hãy cập nhật FET3D hoặc báo quản trị viên.`;
     case 'PLAYTEST_ENTITLEMENT_REQUIRED':
-      return 'Building chưa có gói dịch vụ hoặc đã hết lượt Trial playtest. Gia hạn/mua gói trên Web rồi thử lại.';
+      return 'Tòa nhà chưa có gói dịch vụ hoặc đã hết lượt chạy thử miễn phí. Gia hạn hoặc mua gói trên web rồi thử lại.';
     case 'PLAYTEST_SESSION_MISMATCH':
-      return 'Playtest đang gắn với phiên đăng nhập khác (Web hoặc thiết bị khác). Tạo mã bàn giao mới trên Web cho thiết bị này.';
+      return 'Lượt chạy thử đang gắn với phiên đăng nhập khác (trên web hoặc máy khác). Tạo mã mới trên web cho máy này.';
     case 'PLAYTEST_GRANT_EXPIRED':
-      return 'Grant mở Unity đã hết hạn. Bấm "Thử mở lại" để BE cấp grant mới (không dùng thêm lượt Trial).';
+      return 'Quyền mở mô phỏng đã hết hạn. Bấm "Thử mở lại" để nhận quyền mới (không dùng thêm lượt chạy thử).';
     case 'PLAYTEST_GRANT_STALE':
-      return 'Đã có grant mới hơn cho playtest này; lần mở cũ bị dừng.';
+      return 'Lượt chạy thử này vừa được mở lại ở lần khác; lần mở cũ đã dừng.';
     case 'PLAYTEST_ALREADY_LAUNCHED':
-      return 'Playtest đã được mở trong Unity, không mở lại được. Muốn chơi lại cần tạo playtest mới trên Web.';
+      return 'Lượt chạy thử đã được mở trong mô phỏng, không mở lại được. Muốn chơi lại, hãy tạo lượt mới trên web.';
     case 'PLAYTEST_ALREADY_STARTED':
-      return 'Playtest đã được bắt đầu từ một phiên khác.';
+      return 'Lượt chạy thử đã được bắt đầu từ một phiên đăng nhập khác.';
     case 'PLAYTEST_TERMINAL':
-      return 'Playtest đã kết thúc. Muốn chơi lại cần tạo playtest mới trên Web.';
+      return 'Lượt chạy thử đã kết thúc. Muốn chơi lại, hãy tạo lượt mới trên web.';
     case 'PLAYTEST_HANDOFF_INVALID':
-      return 'Mã bàn giao không thuộc tài khoản này hoặc không tồn tại. Đăng nhập đúng tài khoản đã tạo playtest trên Web.';
+      return 'Mã chạy thử không thuộc tài khoản này hoặc không tồn tại. Đăng nhập đúng tài khoản đã tạo lượt chạy thử trên web.';
     case 'PLAYTEST_HANDOFF_USED':
-      return 'Mã bàn giao đã được dùng ở phiên đăng nhập khác. Tạo mã mới trên Web.';
+      return 'Mã chạy thử đã được dùng ở phiên đăng nhập khác. Tạo mã mới trên web.';
     case 'PLAYTEST_HANDOFF_EXPIRED':
     case 'PLAYTEST_HANDOFF_REVOKED':
-      return 'Mã bàn giao đã hết hạn hoặc được thay. Tạo mã mới trên Web.';
+      return 'Mã chạy thử đã hết hạn hoặc đã được thay. Tạo mã mới trên web.';
     case 'PLAYTEST_HANDOFF_ISSUER_INVALID':
-      return 'Phiên Web tạo mã đã đăng xuất. Đăng nhập lại Web và tạo mã mới.';
+      return 'Tài khoản tạo mã đã đăng xuất trên web. Đăng nhập lại web và tạo mã mới.';
     case 'PLAYTEST_LAUNCH_UNAVAILABLE':
       return 'Hệ thống chưa bật chạy thử. Liên hệ quản trị FET3D.';
     case 'PLAYTEST_PACKAGE_REQUIRED':
-      return 'Phiên bản kịch bản chưa có package playtest đã được kiểm tra.';
+      return 'Phiên bản kịch bản này chưa có gói mô phỏng đã kiểm tra.';
     case 'IDEMPOTENCY_KEY_CONFLICT':
-      return 'Yêu cầu trước dùng cùng khóa với nội dung khác. Tải lại trạng thái playtest.';
+      return 'Yêu cầu bị trùng với một yêu cầu trước. Kéo xuống để tải lại rồi thử lại.';
     case 'RUNTIME_MISMATCH':
     case 'ERR_UNITY_RUNTIME_MISMATCH':
-      return `Unity trong ứng dụng không phải runtime ${APP_RUNTIME_VERSION} (protocol ${BRIDGE_PROTOCOL_VERSION}). Cập nhật ứng dụng FET3D.`;
+      return `Bộ mô phỏng trong ứng dụng không đúng phiên bản (cần ${APP_RUNTIME_VERSION}, giao thức ${BRIDGE_PROTOCOL_VERSION}). Hãy cập nhật FET3D.`;
     case 'PACKAGE_SESSION_NOT_ACTIVE':
-      return 'Package không còn mở cho phiên này: playtest đã bị hủy/kết thúc hoặc đã chuyển sang phiên khác. Trạng thái bên dưới đã được tải lại.';
+      return 'Gói mô phỏng không còn mở cho phiên này: lượt chạy thử đã bị hủy, đã kết thúc hoặc đã chuyển sang phiên khác. Trạng thái bên dưới đã được tải lại.';
     case 'PACKAGE_HASH_MISMATCH':
-      return 'Package trên máy không khớp SHA-256 đã pin. Hãy tải lại package.';
+      return 'Gói đã tải trên máy bị lỗi hoặc không đầy đủ. Hãy tải lại gói.';
     default:
       break;
   }
   if (issue instanceof PlaytestBusyError) return issue.message;
   if (issue instanceof ApiError && issue.status === 401)
-    return 'Phiên đăng nhập đã hết. Đăng nhập lại đúng tài khoản OrganizationUser.';
+    return 'Phiên đăng nhập đã hết. Đăng nhập lại bằng tài khoản tổ chức.';
   if (issue instanceof ApiError && issue.status === 404)
-    return 'Không tìm thấy playtest cho tài khoản này. Kiểm tra lại tài khoản đã nhận bàn giao.';
+    return 'Không tìm thấy lượt chạy thử cho tài khoản này. Kiểm tra lại tài khoản đã quét mã.';
   if (issue instanceof Error && /SHA-256/.test(issue.message))
-    return `${issue.message} Hãy tải lại package.`;
+    return 'Gói đã tải trên máy bị lỗi hoặc không đầy đủ. Hãy tải lại gói.';
   return issue instanceof Error && issue.message ? issue.message : fallback;
 }

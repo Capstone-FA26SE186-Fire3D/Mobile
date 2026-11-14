@@ -281,14 +281,14 @@ test('playtest problems: runtime, entitlement/Trial, grant expired, hash mismatc
   assert.match(describePlaytestProblem(problem(409, 'RUNTIME_INCOMPATIBLE'), ''), /2\.3\.0/);
   assert.match(
     describePlaytestProblem(problem(409, 'PLAYTEST_ENTITLEMENT_REQUIRED'), ''),
-    /hết lượt Trial/,
+    /hết lượt chạy thử/,
   );
   assert.match(describePlaytestProblem(problem(409, 'PLAYTEST_GRANT_EXPIRED'), ''), /Thử mở lại/);
   assert.match(
     describePlaytestProblem(new Error('File package sai kích thước hoặc SHA-256: a.bundle.'), ''),
-    /tải lại package/,
+    /tải lại gói/,
   );
-  assert.match(describePlaytestProblem({ code: 'RUNTIME_MISMATCH' }, ''), /Unity trong ứng dụng/);
+  assert.match(describePlaytestProblem({ code: 'RUNTIME_MISMATCH' }, ''), /Bộ mô phỏng trong ứng dụng/);
 });
 
 test('a grant for another runtime, package or playtest is refused (never plays as 2.0.0)', async () => {

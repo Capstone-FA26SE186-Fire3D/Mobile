@@ -108,7 +108,7 @@ export default function TrainingScreen() {
 
   const load = useCallback(async () => {
     if (!qr) {
-      setError('Hãy mở bài tập từ QR của Building.');
+      setError('Hãy mở bài tập bằng cách quét QR của tòa nhà.');
       setLoading(false);
       return;
     }

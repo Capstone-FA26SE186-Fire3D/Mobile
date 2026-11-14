@@ -125,7 +125,7 @@ export async function preparePlaytestPackage(
   options: Omit<PackageDownloadOptions, 'refresh'> = {},
 ): Promise<PreparedPlaytest> {
   if (!unityBridge.available) throw new Error(UNITY_UNAVAILABLE_MESSAGE);
-  if (!status.launchSession) throw new Error('Phiên Mobile này không có quyền mở playtest.');
+  if (!status.launchSession) throw new Error('Phiên đăng nhập này không có quyền mở lượt chạy thử.');
   const manifestPath = await prepareVerifiedPackage(await planPlaytestPackage(status), {
     ...options,
     refresh: () => planPlaytestPackage(status),
@@ -149,7 +149,7 @@ export async function launchPlaytest(
   manifestPath: string,
 ): Promise<PlaytestLaunch> {
   if (!unityBridge.available) throw new Error(UNITY_UNAVAILABLE_MESSAGE);
-  if (!status.launchSession) throw new Error('Phiên Mobile này không có quyền mở playtest.');
+  if (!status.launchSession) throw new Error('Phiên đăng nhập này không có quyền mở lượt chạy thử.');
   const mismatch = checkUnityHandshake(await unityBridge.handshake());
   if (mismatch) throw new UnityRuntimeMismatch(mismatch);
   // Before the grant: a package that is no longer complete must not use the Trial or open Unity.
@@ -299,7 +299,7 @@ export async function syncPlaytest(id: string): Promise<PlaytestSyncResult> {
       if (++stalled > 1) return recover('EVENTS_STALLED');
     } else stalled = 0;
   }
-  if ((await pendingEvents(id)).length > 0) throw new Error('Playtest còn event chưa đồng bộ.');
+  if ((await pendingEvents(id)).length > 0) throw new Error('Lượt chạy thử còn sự kiện chưa gửi.');
   const completion = await completionFor(id);
   if (!completion || completion.state === 'completed') return { kind: 'nothing' };
   try {
