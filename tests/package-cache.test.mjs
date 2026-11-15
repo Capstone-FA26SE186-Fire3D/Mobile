@@ -168,8 +168,15 @@ test('each file is hashed once (natively); later checks reuse it until the file 
   const pkg = fresh();
   const before = digests.count;
   await prepare(pkg);
-  assert.equal(digests.count - before, pkg.paths.length, 'one native hash per file, manifest included');
-  assert.ok(fs.files.has('/documents/fire3d-packages/verified-hashes.json'), 'hashes kept for the next app start');
+  assert.equal(
+    digests.count - before,
+    pkg.paths.length,
+    'one native hash per file, manifest included',
+  );
+  assert.ok(
+    fs.files.has('/documents/fire3d-packages/verified-hashes.json'),
+    'hashes kept for the next app start',
+  );
   const after = digests.count;
   assert.equal(await cache.cachedPackagePath(pkg.pin), pkg.manifestPath);
   assert.equal(await cache.packageStatus(pkg.pin), 'ready');
@@ -180,7 +187,10 @@ test('each file is hashed once (natively); later checks reuse it until the file 
   const path = pkg.paths.find((item) => item !== 'manifest.json');
   const full = `${pkg.folder(false)}/${path}`;
   const original = fs.files.get(full);
-  fs.files.set(full, original.map((byte) => byte ^ 0xff));
+  fs.files.set(
+    full,
+    original.map((byte) => byte ^ 0xff),
+  );
   assert.equal(await cache.cachedPackagePath(pkg.pin), null);
   assert.equal(digests.count, after + 1);
   fs.downloadLog = [];
@@ -201,4 +211,28 @@ test('without native SHA-256 the chunked JS hash reads through read-only handles
   } finally {
     globalThis.__digests.fail = false;
   }
+});
+
+test('a nearly full phone: the download stops with a plain message, keeps what it has and resumes when space is freed', async () => {
+  const pkg = fresh();
+  pkg.seed(fs, { paths: ['manifest.json'] });
+  fs.freeBytes = 1024 * 1024;
+  try {
+    await assert.rejects(prepare(pkg), (issue) => {
+      assert.ok(issue instanceof cache.PackageStorageFull);
+      assert.match(issue.message, /không đủ bộ nhớ trống/);
+      assert.match(issue.message, /hiện còn 1 MB/);
+      return true;
+    });
+    assert.deepEqual(downloaded(pkg), [], 'nothing is fetched when the next file does not fit');
+    assert.deepEqual(finalFiles(pkg), ['manifest.json'], 'the file already on the phone is kept');
+  } finally {
+    delete fs.freeBytes;
+  }
+  assert.equal(await prepare(pkg), pkg.manifestPath);
+  assert.equal(
+    downloaded(pkg).includes('manifest.json'),
+    false,
+    'the kept file is not downloaded again',
+  );
 });

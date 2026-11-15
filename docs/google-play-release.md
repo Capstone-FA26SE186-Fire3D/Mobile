@@ -4,7 +4,7 @@ Luồng phát hành: merge PR phát hành vào `main` → GitHub chạy kiểm t
 
 ## Unity portable
 
-Ứng dụng nhúng runtime Unity Android ARM64 `2.3.0` (2.2.0 cộng phần còn lại của đợt 2: tủ điện, cửa chống cháy bị chèn, cửa thoát bị khóa, cửa sổ ra hiệu/mở, điểm tập kết, chăn và đồ vải trùm người/chèn khe cửa, mặt nạ thoát hiểm, giường từ IFC; gói portable 2.3.0 phải được xuất từ Unity và ghim vào `unity-artifact.lock.json` trước khi build). Gói portable chứa Java, manifest, resources, assets và sáu thư viện native lấy từ cùng AAB đã build thành công. Không chứa Unity Editor hoặc trình biên dịch IL2CPP Windows. Máy Expo ghép các thư viện Android đã biên dịch vào app; không chạy gameplay hay worker tạo dữ liệu tòa nhà.
+Ứng dụng nhúng runtime Unity Android ARM64; phiên bản và bản xuất đang dùng ghi trong `unity-artifact.lock.json` (ngày 15/11/2026: runtime `2.5.0`, bản xuất `202611151038`). Gói portable phải được xuất từ Unity và ghim vào file đó trước khi build. Gói portable chứa Java, manifest, resources, assets và sáu thư viện native lấy từ cùng AAB đã build thành công. Không chứa Unity Editor hoặc trình biên dịch IL2CPP Windows. Máy Expo ghép các thư viện Android đã biên dịch vào app; không chạy gameplay hay worker tạo dữ liệu tòa nhà.
 
 `unity-artifact.lock.json` pin version, SHA-256 và nguồn GitHub Release của ZIP. `sourceExport` giữ định danh bản xuất gốc. `portable-runtime.json` ghi hash từng tệp và hash AAB nguồn. Script chuẩn bị và config plugin kiểm integrity trước khi prebuild. Thay code Unity cần build/xác minh runtime mới và xuất lại ZIP; thay code Mobile không cần biên dịch lại Unity.
 
@@ -26,6 +26,23 @@ Công cụ đóng gói: `python scripts/release/export-portable-unity.py --sourc
 GitHub workflow manual destination `build` chỉ tạo/kiểm AAB; `internal` gửi kênh thử nghiệm nội bộ; merge main gửi production khi có thay đổi ứng dụng. Expo cần tài khoản đã đăng nhập/quota build; cấu hình local không chứng minh build cloud đã thành công. Build JSON được kiểm FINISHED/Android/version trước khi tải AAB. Bundletool/jarsigner kiểm bundle và so signer với upload key kỳ vọng trước khi submit.
 
 Bản đầu: gửi AAB có chữ ký chính thức lên kênh nội bộ bằng EAS Submit hoặc tải lên Play Console, cấu hình Play App Signing và cài thử trên điện thoại. Đăng ký SHA của **Play App Signing**, có thể khác upload key, vào Firebase/Google Android OAuth và website App Links. Test đăng nhập, QR, tải gói, mở/thoát Unity, pause/resume và sync offline. Browser/model tests không thay được nghiệm thu thiết bị.
+
+## Phát cho người thử, cài đặt và lùi bản
+
+Trạng thái ngày 15/11/2026: kênh thử nghiệm nội bộ đang chạy, kênh thử nghiệm kín đang chờ Google duyệt, kênh chính thức bị Google từ chối cho tới khi đủ 12 người thử trong 14 ngày. Workflow vẫn nộp kênh chính thức mỗi lần `main` có thay đổi ứng dụng; bước nộp báo lỗi "Precondition check failed" là đúng dự kiến trong giai đoạn này. Bản cho kênh thử nghiệm do trưởng nhóm tải lên bằng tay.
+
+**Lấy đúng bản để tải lên.** Mỗi lần workflow `Google Play release` chạy xong bước build, trang của lần chạy đó có hai tệp đính kèm giữ 30 ngày: `fet3d-<version>-<versionCode>` (chứa `app-release.aab` đã ký bằng khóa tải lên và đã được kiểm chữ ký) và `release-plan` (version, versionCode, commit). Tải về bằng `gh run download <run-id>`. Chỉ tải lên Play Console tệp AAB lấy từ đây, không dùng AAB dựng trên máy cá nhân (ký bằng khóa thử, Play sẽ từ chối).
+
+**Ghi lại cho mỗi bản phát cho người thử:** versionCode, commit trong `release-plan.json`, phiên bản runtime Unity trong `unity-artifact.lock.json`, và SHA-256 của tệp AAB (`sha256sum app-release.aab`). Bản ngày 15/11/2026: version `1.0.0`, versionCode `1001901`, commit `3ada34b`, runtime Unity `2.5.0`.
+
+**Người thử cài như thế nào.**
+1. Trưởng nhóm thêm email Google của người thử vào danh sách người thử của kênh (Play Console → Kiểm thử → kênh tương ứng → Người kiểm thử), rồi gửi cho họ đường liên kết tham gia lấy ở cùng trang đó.
+2. Người thử mở liên kết bằng đúng tài khoản Google đã được thêm, bấm tham gia, rồi cài Fet3D từ CH Play như ứng dụng thường. Cần Android 10 trở lên, máy 64-bit, còn trống khoảng 1 GB (ứng dụng khoảng 250 MB, mỗi bài tải thêm vài chục tới hơn 100 MB).
+3. Lần đầu mở: đăng nhập, quét QR của tòa nhà hoặc chọn bài, tải gói bài rồi bắt đầu. Nếu máy thiếu bộ nhớ, ứng dụng báo cần bao nhiêu MB và giữ phần đã tải.
+
+**Cài trực tiếp bằng APK** chỉ dùng cho máy của nhóm phát triển (bản dựng local ký khóa thử, cài bằng `adb install -r`). Không gửi APK này cho người thử: nó không cập nhật được lên bản từ CH Play vì khác chữ ký.
+
+**Lùi bản.** CH Play không cho cài đè bản có versionCode thấp hơn. Khi một bản lỗi đã tới tay người thử: sửa hoặc `git revert` trên `develop`, đưa lên `main` để workflow dựng bản mới có versionCode cao hơn, rồi tải bản đó lên kênh. Trong lúc chờ, có thể tạm dừng phát hành bản lỗi trong Play Console (kênh → Quản lý bản phát hành → Tạm dừng). Runtime trên máy chủ không cần lùi nếu số phiên bản runtime không đổi.
 
 ## Phiên bản và khôi phục
 

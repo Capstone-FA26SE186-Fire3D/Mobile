@@ -38,6 +38,31 @@ export class PackageDownloadCancelled extends Error {
   }
 }
 
+/** Free storage kept aside when a file is about to be downloaded, so the phone is not filled to the last byte. */
+const STORAGE_MARGIN_BYTES = 32 * 1024 * 1024;
+
+/** The phone has too little free storage for the next file; what was already downloaded is kept. */
+export class PackageStorageFull extends Error {
+  constructor(neededBytes: number, freeBytes: number) {
+    const mb = (bytes: number) => Math.max(1, Math.ceil(bytes / (1024 * 1024)));
+    super(
+      `Máy không đủ bộ nhớ trống để tải bài: cần khoảng ${mb(neededBytes)} MB, hiện còn ${mb(freeBytes)} MB. ` +
+        'Hãy xóa bớt ảnh, ứng dụng hoặc bài đã tải rồi bấm tải lại; phần đã tải được giữ nguyên.',
+    );
+    this.name = 'PackageStorageFull';
+  }
+}
+
+/** Free bytes on the phone's storage, or null when the system does not say. */
+function freeStorageBytes(): number | null {
+  try {
+    const free = Paths.availableDiskSpace;
+    return typeof free === 'number' && Number.isFinite(free) && free >= 0 ? free : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The package is not (or no longer) fully verified on this device; downloading again resumes from the kept files. */
 export class PackageNotReady extends Error {
   constructor() {
@@ -163,7 +188,9 @@ function saveMemo() {
 /** `size:mtime` of a file, or null when the platform gives no modification time (then the file is always hashed). */
 function stampOf(file: File): string | null {
   const mtime = file.lastModified ?? file.modificationTime;
-  return typeof mtime === 'number' && Number.isFinite(mtime) && mtime > 0 ? `${file.size}:${mtime}` : null;
+  return typeof mtime === 'number' && Number.isFinite(mtime) && mtime > 0
+    ? `${file.size}:${mtime}`
+    : null;
 }
 
 async function matches(file: File, size: number, expected: string, signal?: AbortSignal) {
@@ -403,6 +430,10 @@ async function reconcilePackage(
         plan = await options.refresh();
         continue;
       }
+      // Checked per file, right before it is fetched: files already on the phone never count against the space.
+      const needed = expected.sizeBytes + STORAGE_MARGIN_BYTES;
+      const free = freeStorageBytes();
+      if (free !== null && free < needed) throw new PackageStorageFull(needed, free);
       try {
         const parent = target.parentDirectory;
         parent.create({ intermediates: true, idempotent: true });
@@ -419,6 +450,9 @@ async function reconcilePackage(
           plan = await options.refresh();
           continue;
         }
+        // A write that failed because the storage filled up meanwhile gets the same plain message.
+        const left = freeStorageBytes();
+        if (left !== null && left < expected.sizeBytes) throw new PackageStorageFull(needed, left);
         throw new Error(
           `Không tải được ${path}: ${issue instanceof Error ? issue.message : String(issue)}`,
         );
