@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { describeGoogleProblem, GoogleSignInCancelled } from '@/features/auth/google-errors';
 import { Image, Platform, StyleSheet, View } from 'react-native';
 import {
   Check,
@@ -36,6 +37,8 @@ const genderLabels: Record<UserGender, string> = {
 };
 
 function accountError(error: unknown): string {
+  const google = linkProblem(error);
+  if (google !== undefined) return google ?? '';
   if (error instanceof ApiError) {
     if (error.payload?.code === 'INVALID_CURRENT_PASSWORD') return 'Mật khẩu hiện tại không đúng.';
     if (error.status === 412)
@@ -47,6 +50,15 @@ function accountError(error: unknown): string {
   return error instanceof Error
     ? error.message
     : 'Không kết nối được máy chủ FET3D. Kiểm tra mạng rồi thử lại.';
+}
+
+/** Google link errors keep their own wording; undefined when the error is not about Google. */
+function linkProblem(error: unknown): string | null | undefined {
+  if (error instanceof GoogleSignInCancelled) return null;
+  const code = error instanceof ApiError ? error.payload?.code : undefined;
+  if (typeof code === 'string' && /FIREBASE|GOOGLE|ACCOUNT_LINK/.test(code))
+    return describeGoogleProblem(error);
+  return undefined;
 }
 
 export default function AccountSettingsScreen() {

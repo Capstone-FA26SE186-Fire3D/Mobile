@@ -16,6 +16,7 @@ import { Notice } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { ApiError } from '@/api';
 import { useSession } from '@/store/SessionProvider';
+import { describeGoogleProblem } from '@/features/auth/google-errors';
 import { colors, fonts } from '@/theme/tokens';
 const dioramaLogin = require('../../../../assets/images/login-evacuation.png');
 
@@ -64,7 +65,8 @@ export default function LoginScreen() {
       const result = await signInWithGoogle();
       if (result === 'onboarding') router.push('/google-onboarding');
     } catch (issue) {
-      setError(describe(issue));
+      // Google errors have their own wording: "Email hoặc mật khẩu không đúng" is about the password form.
+      setError(describeGoogleProblem(issue) ?? '');
     } finally {
       setBusy(false);
     }
