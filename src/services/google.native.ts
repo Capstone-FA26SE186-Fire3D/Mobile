@@ -16,7 +16,9 @@ export async function firebaseIdTokenFromGoogle(): Promise<string> {
   if (!googleIdToken) throw new Error('Google chưa trả ID token.');
   const credential = GoogleAuthProvider.credential(googleIdToken);
   const firebaseUser = await signInWithCredential(getAuth(), credential);
-  return firebaseUser.user.getIdToken(true);
+  // The token was issued by this sign-in a moment ago: no forced refresh, which cost a second round trip to Google
+  // (about 29 s on a slow first attempt on the test phone, 15/11/2026).
+  return firebaseUser.user.getIdToken();
 }
 
 export async function clearGoogleIdentity(): Promise<void> {
