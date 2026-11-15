@@ -8,6 +8,7 @@ import { Notice, PageHeader, Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { useSession } from '@/store/SessionProvider';
 import { traineeUsername } from '@/api/google.contract';
+import { describeGoogleProblem } from '@/features/auth/google-errors';
 
 export default function GoogleOnboardingScreen() {
   const { onboardingToken, completeOnboarding } = useSession();
@@ -27,7 +28,7 @@ export default function GoogleOnboardingScreen() {
     try {
       await completeOnboarding(value);
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : 'Không tạo được tài khoản.');
+      setError(describeGoogleProblem(issue) ?? '');
     } finally {
       setBusy(false);
     }

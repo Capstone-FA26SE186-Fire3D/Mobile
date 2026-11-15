@@ -249,14 +249,64 @@ test('runtime 2.5.0 app plays packages that need 2.0.0 to 2.5.0, not newer ones,
     files: [{ path: 'floor.bundle', sha256: 'd'.repeat(64), size: 1 }],
   };
   assert.equal(validatePackageManifest(manifest, pin), manifest);
-  assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.1.0' }, pin).minRuntimeVersion, '2.1.0');
-  assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.2.0' }, pin).minRuntimeVersion, '2.2.0');
-  assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.3.0' }, pin).minRuntimeVersion, '2.3.0');
-  assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.4.0' }, pin).minRuntimeVersion, '2.4.0');
-  assert.equal(validatePackageManifest({ ...manifest, minRuntimeVersion: '2.5.0' }, pin).minRuntimeVersion, '2.5.0');
+  assert.equal(
+    validatePackageManifest({ ...manifest, minRuntimeVersion: '2.1.0' }, pin).minRuntimeVersion,
+    '2.1.0',
+  );
+  assert.equal(
+    validatePackageManifest({ ...manifest, minRuntimeVersion: '2.2.0' }, pin).minRuntimeVersion,
+    '2.2.0',
+  );
+  assert.equal(
+    validatePackageManifest({ ...manifest, minRuntimeVersion: '2.3.0' }, pin).minRuntimeVersion,
+    '2.3.0',
+  );
+  assert.equal(
+    validatePackageManifest({ ...manifest, minRuntimeVersion: '2.4.0' }, pin).minRuntimeVersion,
+    '2.4.0',
+  );
+  assert.equal(
+    validatePackageManifest({ ...manifest, minRuntimeVersion: '2.5.0' }, pin).minRuntimeVersion,
+    '2.5.0',
+  );
   assert.throws(() => validatePackageManifest({ ...manifest, minRuntimeVersion: '2.6.0' }, pin));
   assert.throws(() => validatePackageManifest({ ...manifest, protocolVersion: '2' }, pin));
   assert.equal(checkUnityRuntime({ runtimeVersion: '2.5.0', protocolVersion: '1' }), null);
   assert.match(checkUnityRuntime({ runtimeVersion: '2.4.0', protocolVersion: '1' }), /2\.4\.0/);
   assert.match(checkUnityRuntime({ runtimeVersion: '2.5.0', protocolVersion: '2' }), /protocol 2/);
+});
+
+test('Google sign-in problems read as plain sentences, never as a password error', async () => {
+  const { describeGoogleProblem, GoogleSignInCancelled, NotTraineeAccount } =
+    await import('../src/features/auth/google-errors.ts');
+  const { ApiError } = await import('../src/api/types/common.ts');
+  const api = (status, code, traceId) => new ApiError('x', status, { code, traceId });
+  assert.equal(
+    describeGoogleProblem(new GoogleSignInCancelled()),
+    null,
+    'closing the picker shows nothing',
+  );
+  assert.match(describeGoogleProblem(api(401, 'INVALID_FIREBASE_TOKEN')), /Google chưa xác nhận/);
+  assert.doesNotMatch(describeGoogleProblem(api(401, 'INVALID_FIREBASE_TOKEN')), /mật khẩu/);
+  assert.match(describeGoogleProblem(api(409, 'ACCOUNT_LINK_REQUIRED')), /liên kết Google/);
+  assert.match(describeGoogleProblem(api(409, 'USERNAME_EXISTS')), /chọn tên khác/);
+  assert.match(describeGoogleProblem(api(503, 'SOMETHING_NEW', 't-1')), /sự cố.*Mã tra cứu: t-1/);
+  assert.doesNotMatch(describeGoogleProblem(api(400, 'SOMETHING_NEW')), /HTTP|[A-Z]{3,}_/);
+  assert.match(describeGoogleProblem(new NotTraineeAccount()), /chỉ dành cho học viên/);
+  assert.match(
+    describeGoogleProblem(Object.assign(new Error('x'), { code: 'PLAY_SERVICES_NOT_AVAILABLE' })),
+    /Dịch vụ Google Play/,
+  );
+  assert.throws(
+    () =>
+      parseGoogleExchange({
+        status: 'Authenticated',
+        authentication: {
+          accessToken: 'a',
+          refreshToken: 'r',
+          user: { id: 'u', email: 'o@example.test', role: 'OrganizationUser' },
+        },
+      }),
+    NotTraineeAccount,
+  );
 });

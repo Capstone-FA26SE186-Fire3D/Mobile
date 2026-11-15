@@ -1,4 +1,5 @@
 import type { ApiRequestOptions } from './types/common';
+import { NotTraineeAccount } from '@/features/auth/google-errors';
 
 type Request = (path: string, options: ApiRequestOptions) => Promise<unknown>;
 
@@ -24,7 +25,7 @@ export function parseGoogleExchange(
   | { status: 'Authenticated'; authentication: Fire3DAuthentication }
   | { status: 'OnboardingRequired'; onboardingToken: string } {
   if (!value || typeof value !== 'object')
-    throw new Error('Google exchange trả dữ liệu không hợp lệ.');
+    throw new Error('Máy chủ trả dữ liệu đăng nhập không đúng. Hãy thử lại.');
   const item = value as Record<string, unknown>;
   if (
     item.status === 'OnboardingRequired' &&
@@ -40,6 +41,8 @@ export function parseGoogleExchange(
   ) {
     const authentication = item.authentication as Record<string, unknown>;
     const user = authentication.user as Record<string, unknown> | undefined;
+    if (user && typeof user.role === 'string' && user.role !== 'Trainee')
+      throw new NotTraineeAccount();
     if (
       typeof authentication.accessToken === 'string' &&
       authentication.accessToken &&
@@ -53,7 +56,7 @@ export function parseGoogleExchange(
       return { status: 'Authenticated', authentication: authentication as Fire3DAuthentication };
     }
   }
-  throw new Error('Google exchange trả dữ liệu không hợp lệ hoặc tài khoản không thuộc Trainee.');
+  throw new Error('Máy chủ trả dữ liệu đăng nhập không đúng. Hãy thử lại.');
 }
 
 export async function exchangeFirebaseToken(request: Request, idToken: string) {
