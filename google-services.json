@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "1017511681658-hm6duobk8hag121mvshlfjt8hhfso296.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fet3d.app",
+            "certificate_hash": "29822f3ec53050b1d44b3ca010c879c307f1a06f"
+          }
+        },
+        {
           "client_id": "1017511681658-q3vug8ikr9jgd1dqmnba0g7qqo7387ap.apps.googleusercontent.com",
           "client_type": 3
         }
