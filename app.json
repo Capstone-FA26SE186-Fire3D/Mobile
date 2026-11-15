@@ -5,7 +5,9 @@
     "owner": "lazzymoney",
     "version": "1.0.0",
     "extra": {
-      "eas": { "projectId": "98768196-bf44-40f1-b245-0839c97e5056" }
+      "eas": {
+        "projectId": "98768196-bf44-40f1-b245-0839c97e5056"
+      }
     },
     "scheme": ["fet3d", "fire3d"],
     "orientation": "portrait",
@@ -23,7 +25,13 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "fet3d.io.vn", "pathPrefix": "/qr/" }],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "fet3d.io.vn",
+              "pathPrefix": "/qr/"
+            }
+          ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
@@ -57,7 +65,12 @@
           "photosPermission": "Cho phép Fire3D chọn ảnh đại diện từ thư viện."
         }
       ],
-      ["expo-camera", { "cameraPermission": "Cho phép Fire3D quét mã QR của Building." }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cho phép Fire3D quét mã QR của Building."
+        }
+      ],
       "expo-dev-client",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
@@ -66,7 +79,14 @@
       "expo-sqlite",
       [
         "expo-build-properties",
-        { "android": { "minSdkVersion": 29, "buildArchs": ["arm64-v8a"] } }
+        {
+          "android": {
+            "minSdkVersion": 29,
+            "buildArchs": ["arm64-v8a"],
+            "enableMinifyInReleaseBuilds": true,
+            "extraProguardRules": "# Unity calls this bridge by its class and method names (IFire3DBridge.AndroidClass).\n-keep class com.fet3d.unity.** { *; }\n# The Unity player and what its native code loads by name.\n-keep class com.unity3d.** { *; }\n-keep class bitter.jnibridge.** { *; }\n-keep class org.fmod.** { *; }"
+          }
+        }
       ],
       "./plugins/withUnityLibrary",
       "./plugins/withWindowsCMake",
