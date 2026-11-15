@@ -60,6 +60,7 @@ function Navigation() {
           <View style={styles.noticeRow}>
             <View style={{ flex: 1 }}>
               <View style={styles.noticeCard}>
+                {/* Opaque backing: the Callout tint is translucent and let the page header show through the text. */}
                 <Callout tone="danger" style={{ paddingRight: 40 }}>
                   {error}
                 </Callout>

@@ -37,6 +37,7 @@ export default function DownloadsScreen() {
   const { account } = useSession();
   const [items, setItems] = useState<DownloadRecord[] | null>(null);
   const [statuses, setStatuses] = useState<Record<string, PackageStatus>>({});
+  // null until this visit's probe answered; a fresh answer outranks an older failed background sync.
   const [probeOffline, setProbeOffline] = useState(false);
 
   useFocusEffect(

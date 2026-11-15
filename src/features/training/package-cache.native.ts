@@ -1,4 +1,5 @@
 import { Directory, File, FileMode, Paths } from 'expo-file-system';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
@@ -51,6 +52,20 @@ const verified = new Map<string, { manifestPath: string; at: number }>();
 
 const packageKey = (pin: PackagePin) => `${pin.releaseId}/${pin.manifestHash}`;
 
+type NativeHash = (uri: string) => Promise<string>;
+let nativeHash: NativeHash | null | undefined;
+/**
+ * Native streaming SHA-256 of the Fire3DUnity module (off the JS thread), looked up on first use. Null on web, Expo Go
+ * and binaries built before it existed: those keep the JS hash.
+ */
+function nativeSha256File(): NativeHash | null {
+  if (nativeHash === undefined) {
+    const module = requireOptionalNativeModule<{ sha256File?: NativeHash }>('Fire3DUnity');
+    nativeHash = module?.sha256File ? (uri) => module.sha256File!(uri) : null;
+  }
+  return nativeHash;
+}
+
 /** 1 MiB per native read: file.stream() reads 1 KiB per pull (~200,000 reads for 200 MB) and keeps its handle open. */
 const HASH_CHUNK_BYTES = 1 << 20;
 
@@ -64,6 +79,14 @@ let nativeDigest = true;
 
 async function hashFile(file: File, signal?: AbortSignal): Promise<string> {
   if (signal?.aborted) throw new PackageDownloadCancelled();
+  // 1. The Fire3DUnity module streams the file off the JS thread, whatever its size.
+  const native = nativeSha256File();
+  if (native) {
+    const hex = await native(file.uri);
+    if (signal?.aborted) throw new PackageDownloadCancelled();
+    return hex.toLowerCase();
+  }
+  // 2. Binaries without it: one native read + the platform SHA-256, for files that fit in memory.
   if (nativeDigest && file.size <= NATIVE_HASH_MAX_BYTES) {
     try {
       const bytes = await file.bytes();
@@ -75,6 +98,7 @@ async function hashFile(file: File, signal?: AbortSignal): Promise<string> {
       console.warn('[package-cache] native SHA-256 unavailable, hashing in JS', issue);
     }
   }
+  // 3. Last resort: pure JS, slow on 100+ MB packages (Mobile #83).
   return hashFileInJs(file, signal);
 }
 

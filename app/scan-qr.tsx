@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Linking,
@@ -8,7 +8,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowUpRight, FileText, ScanLine, Search, Sparkle, X } from 'lucide-react-native';
@@ -63,6 +63,15 @@ export default function ScanQrScreen() {
   const [error, setError] = useState('');
   const locked = useRef(false);
   const camera = Platform.OS !== 'web';
+  // router.push keeps this screen mounted under the QR page: release the camera while it is not focused, so it does
+  // not keep running (CPU, battery) behind the package download or the game.
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -122,7 +131,7 @@ export default function ScanQrScreen() {
 
   return (
     <View style={styles.root}>
-      {camera && permission?.granted && (
+      {camera && focused && permission?.granted && (
         <CameraView
           style={StyleSheet.absoluteFill}
           facing="back"
