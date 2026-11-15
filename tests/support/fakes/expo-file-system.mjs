@@ -213,4 +213,10 @@ export class File {
   }
 }
 
-export const Paths = { document: new Directory('/documents') };
+export const Paths = {
+  document: new Directory('/documents'),
+  // Tests set globalThis.__fs.freeBytes to simulate a nearly full phone; unset means "plenty".
+  get availableDiskSpace() {
+    return globalThis.__fs.freeBytes ?? 64 * 1024 * 1024 * 1024;
+  },
+};
