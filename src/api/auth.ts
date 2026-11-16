@@ -375,22 +375,17 @@ export async function uploadCurrentAvatar(
   if (image.size < 1 || image.size > 5 * 1024 * 1024) {
     throw new Error('Ảnh đại diện phải có dung lượng tối đa 5 MB.');
   }
-  const intent = await requestWithSession<{ uploadId: string; uploadUrl: string }>(
-    '/api/me/avatar/upload-intent',
-    { json: { contentType, contentLength: image.size } },
-  );
-  const uploaded = await fetch(intent.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: image,
-  });
-  if (!uploaded.ok) {
-    throw new Error(`Không tải được ảnh lên kho lưu trữ (HTTP ${uploaded.status}).`);
-  }
+  // Multipart through the API, not a PUT to the presigned S3 URL: on Android a React Native Blob body is sent with the
+  // blob's own type instead of our Content-Type header, so S3 (which signs content-type) answered 403 SignatureDoesNotMatch.
+  const form = new FormData();
+  const extension =
+    contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+  form.append('file', { uri, name: `avatar.${extension}`, type: contentType } as unknown as Blob);
   const etag = await currentProfileEtag();
-  return requestWithSession<AvatarResponse>('/api/me/avatar/complete', {
+  return requestWithSession<AvatarResponse>('/api/me/avatar/upload', {
+    method: 'POST',
     headers: { 'If-Match': etag },
-    json: { uploadId: intent.uploadId },
+    body: form,
   });
 }
 
