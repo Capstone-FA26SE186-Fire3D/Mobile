@@ -319,7 +319,7 @@ export default function AccountSettingsScreen() {
           />
         )}
       </Card>
-      {Platform.OS === 'android' && (
+      {Platform.OS === 'android' && account?.role === 'OrganizationUser' && (
         <>
           <Text variant="caps" style={styles.section}>
             THÔNG BÁO
@@ -329,7 +329,7 @@ export default function AccountSettingsScreen() {
               icon={Info}
               tone="success"
               title="Nhận thông báo"
-              subtitle="Kết quả, nhắc đồng bộ"
+              subtitle="Nhắc khi dịch vụ tòa nhà sắp hết hạn"
               trailing={
                 <Button
                   title="Bật"
