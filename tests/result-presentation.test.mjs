@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   METRIC_LABELS,
   presentCriterion,
+  presentHistoryOutcome,
   presentOutcome,
   presentResult,
   presentWaiting,
@@ -53,6 +54,11 @@ test('the four BE outcomes, a missing result and an unknown value get learner la
     tone: 'neutral',
   });
   assert.equal(presentOutcome(null).label, 'Chờ đồng bộ');
+  // A session BE still lists as running never finished: nothing waits to sync.
+  assert.equal(presentHistoryOutcome(null, 'Running').label, 'Chưa kết thúc');
+  assert.equal(presentHistoryOutcome(null, 'Launching').label, 'Chưa kết thúc');
+  assert.equal(presentHistoryOutcome(null, 'AwaitingSync').label, 'Chờ đồng bộ');
+  assert.equal(presentHistoryOutcome('Incomplete', 'Completed').label, 'Chưa hoàn thành');
   assert.equal(presentOutcome('Pending').kind, 'Unknown', 'Pending is not a BE outcome');
   assert.deepEqual(presentOutcome('Certified'), {
     kind: 'Unknown',

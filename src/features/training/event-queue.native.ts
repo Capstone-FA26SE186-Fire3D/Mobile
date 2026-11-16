@@ -1,5 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import * as Crypto from 'expo-crypto';
+import { ABANDONED_COMPLETION_PREFIX } from './session-contract';
 import { unityBridge } from './unity-bridge.native';
 
 type UnityEvent = {
@@ -315,6 +316,49 @@ export async function markCompletion(
   await (
     await database()
   ).runAsync('UPDATE session_completions SET state=? WHERE session_id=?', state, sessionId);
+}
+
+/**
+ * Ends a started launch that Unity left without a completion (it died mid-play): Abandoned at the last event this phone
+ * holds. The key carries ABANDONED_COMPLETION_PREFIX so a refusal can retire the row. Never replaces a real completion.
+ */
+export async function queueAbandonedCompletion(sessionId: string): Promise<void> {
+  await (
+    await database()
+  ).runAsync(
+    `INSERT OR IGNORE INTO session_completions(session_id,key,last_sequence,end_reason)
+     SELECT ?, ?, COALESCE(MAX(sequence),0), 'Abandoned' FROM unity_events WHERE session_id=?`,
+    sessionId,
+    ABANDONED_COMPLETION_PREFIX + Crypto.randomUUID(),
+    sessionId,
+  );
+}
+
+/**
+ * Launches retired as UNITY_GONE by older app versions (before abandoned launches were completed) whose game had started:
+ * each gets its Abandoned completion and syncs again, so BE stops listing it as running. Returns how many were revived.
+ */
+export async function reviveGoneLaunches(
+  accountId: string,
+  includeLegacy: boolean,
+): Promise<number> {
+  const db = await database();
+  const rows = await db.getAllAsync<{ session_id: string }>(
+    `SELECT l.session_id FROM session_launches l
+     WHERE l.kind='Training' AND l.state='launched' AND l.sync_state='recovery' AND l.recovery_code='UNITY_GONE'
+       AND NOT EXISTS(SELECT 1 FROM session_completions c WHERE c.session_id=l.session_id)
+       AND (l.account_id=? OR (? AND l.account_id IS NULL))`,
+    accountId,
+    includeLegacy ? 1 : 0,
+  );
+  for (const row of rows) {
+    await queueAbandonedCompletion(row.session_id);
+    await db.runAsync(
+      "UPDATE session_launches SET sync_state='active', recovery_code=NULL WHERE session_id=?",
+      row.session_id,
+    );
+  }
+  return rows.length;
 }
 
 export async function highestLocalSequence(sessionId: string): Promise<number> {

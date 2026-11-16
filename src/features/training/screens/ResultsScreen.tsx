@@ -9,7 +9,7 @@ import { Notice, PageHeader, Screen, ScreenTitle } from '@/components/ui/Screen'
 import { AiFab } from '@/components/ui/TabBar';
 import { Text } from '@/components/ui/Text';
 import { modeName } from '@/features/training/mode-ui';
-import { presentOutcome, type OutcomeKind } from '@/features/training/result-presentation';
+import { presentHistoryOutcome, type OutcomeKind } from '@/features/training/result-presentation';
 import { usePendingSync } from '@/features/training/use-pending-sync';
 import { colors, fonts, type HexTone } from '@/theme/tokens';
 
@@ -29,8 +29,8 @@ const ICONS: Record<OutcomeKind, LucideIcon> = {
 };
 
 /** Outcome labels are BE's, worded by result-presentation; Mobile never decides Passed/NotPassed. */
-export function outcomeLook(item: Pick<TrainingHistoryItem, 'resultStatus'>): Look {
-  const outcome = presentOutcome(item.resultStatus);
+export function outcomeLook(item: Pick<TrainingHistoryItem, 'resultStatus' | 'status'>): Look {
+  const outcome = presentHistoryOutcome(item.resultStatus, item.status);
   return {
     label: outcome.label,
     icon: ICONS[outcome.kind],

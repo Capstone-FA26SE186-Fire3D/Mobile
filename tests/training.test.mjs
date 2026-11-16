@@ -9,6 +9,7 @@ import {
   describeTrainingProblem,
   formatBytes,
   hasDataToSync,
+  abandonedLaunchEnd,
   isAbandonedLaunch,
   looksLikeExpiredUrl,
   pinFromSession,
@@ -326,4 +327,7 @@ test('a training launch Unity no longer holds, past its grant and with nothing t
   // Playtests have their own recovery path.
   assert.equal(isAbandonedLaunch({ ...row, kind: 'Playtest' }, expired, null, now), false);
   assert.equal(isAbandonedLaunch(row, null, null, now), false);
+  // Started on BE (Launched confirmed): ended as Abandoned so BE grades it; never got into the game: just dropped.
+  assert.equal(abandonedLaunchEnd('launched'), 'complete');
+  assert.equal(abandonedLaunchEnd('pending'), 'drop');
 });

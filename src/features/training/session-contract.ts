@@ -330,3 +330,18 @@ export function isAbandonedLaunch(
   const expires = launchExpiresAt ? Date.parse(launchExpiresAt) : Number.NaN;
   return Number.isFinite(expires) && now > expires + marginMs;
 }
+
+/**
+ * Idempotency-key prefix of the completion Mobile writes itself for an abandoned launch (Unity died mid-play and never sent
+ * its own). A 404/409 on such a completion retires the row instead of retrying forever.
+ */
+export const ABANDONED_COMPLETION_PREFIX = 'abandoned-';
+
+/**
+ * An abandoned launch whose game had started (BE confirmed Launched, so the session is Running there) is ended as
+ * Abandoned, so BE grades it (Incomplete) instead of keeping it Running and "Chờ đồng bộ" forever. One that never got
+ * into the game (BE still Launching, which refuses a completion) just leaves the queue.
+ */
+export function abandonedLaunchEnd(launchState: string): 'complete' | 'drop' {
+  return launchState === 'launched' ? 'complete' : 'drop';
+}
