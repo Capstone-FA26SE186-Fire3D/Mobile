@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { colors, fonts, type HexTone } from '@/theme/tokens';
+import { raisedBaseProps } from './raised-base';
 import { Text } from './Text';
 
 export type { LucideIcon };
@@ -58,13 +59,9 @@ export function Raised({
           ]}
         />
       )}
-      {/* Opaque base so tinted (semi-transparent) faces don't show the shadow through them. */}
-      <View
-        style={[
-          { borderRadius: radius, backgroundColor: depth > 0 ? colors.bg : undefined },
-          pressed && { transform: [{ translateY: depth - 1 }] },
-        ]}
-      >
+      {/* Opaque base so tinted (semi-transparent) faces don't show the shadow through them. Its native view never
+          changes on press (see raisedBaseProps), otherwise Fabric re-parents the face mid-navigation and crashes. */}
+      <View {...raisedBaseProps({ depth, radius, pressed, background: colors.bg })}>
         <View style={[{ borderRadius: radius }, faceStyle]}>{children}</View>
       </View>
     </View>
