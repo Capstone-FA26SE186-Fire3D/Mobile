@@ -720,3 +720,52 @@ test('callbacks ingested outside the pump still reach the runtime listener (Laun
     queue.setIngestListener(null);
   }
 });
+
+test('a started launch Unity died in ends as Abandoned; old UNITY_GONE rows are revived; a refused end is retired', async () => {
+  const queue = await import('../src/features/training/event-queue.native.ts');
+  const { syncTrainingSession } = await import('../src/api/training.ts');
+  const db = sqliteFor('fire3d-training-queue.db');
+  const died = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const gone = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  await queue.saveLaunch(died, 'Training', 1, past(), '/d.json', 'trainee-9');
+  await queue.saveLaunch(gone, 'Training', 1, past(), '/e.json', 'trainee-9');
+  db.exec(`UPDATE session_launches SET state='launched' WHERE session_id IN ('${died}','${gone}')`);
+  db.exec(`INSERT INTO unity_events(session_id,event_id,sequence,json,state) VALUES
+    ('${died}','x1',1,'{}','acknowledged'),('${died}','x2',2,'{}','acknowledged')`);
+
+  // Ended at the last event the phone holds, with a key that marks it as Mobile's own.
+  await queue.queueAbandonedCompletion(died);
+  const end = await queue.completionFor(died);
+  assert.equal(end.end_reason, 'Abandoned');
+  assert.equal(end.last_sequence, 2);
+  assert.match(end.key, /^abandoned-/);
+  await queue.queueAbandonedCompletion(died);
+  assert.equal((await queue.completionFor(died)).key, end.key, 'never replaces a completion');
+
+  const sent = [];
+  globalThis.__be = async (path, options) => {
+    sent.push([path, options?.json]);
+    return path.includes('complete') ? { status: 'Completed' } : {};
+  };
+  await syncTrainingSession(died, 'trainee-9');
+  assert.deepEqual(sent.at(-1)[1], { lastEventSequence: 2, endReason: 'Abandoned' });
+  assert.equal((await queue.completionFor(died)).state, 'completed');
+
+  // An older app retired a started launch as UNITY_GONE without ending it: it comes back with an Abandoned end.
+  await queue.markRecovery(gone, 'UNITY_GONE');
+  assert.equal(await queue.reviveGoneLaunches('other-trainee', false), 0);
+  assert.equal(await queue.reviveGoneLaunches('trainee-9', false), 1);
+  assert.equal((await queue.getLaunch(gone)).sync_state, 'active');
+  assert.equal((await queue.completionFor(gone)).last_sequence, 0);
+
+  // BE has nothing running to end any more: retired, not retried forever.
+  globalThis.__be = async (path) => {
+    if (path.includes('complete')) throw problem(409, 'SESSION_TERMINAL');
+    return {};
+  };
+  assert.equal(await syncTrainingSession(gone, 'trainee-9'), null);
+  const retired = await queue.getLaunch(gone);
+  assert.equal(retired.sync_state, 'recovery');
+  assert.equal(retired.recovery_code, 'ABANDONED_REFUSED');
+  assert.equal(await queue.reviveGoneLaunches('trainee-9', false), 0);
+});

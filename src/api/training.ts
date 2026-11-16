@@ -11,6 +11,7 @@ import {
   ingestUnityCallbacks,
   markCompletion,
   markLaunched,
+  markRecovery,
   pendingEvents,
   pendingLaunchedSignals,
   requeueMissingRanges,
@@ -25,6 +26,7 @@ import {
 import { selectPlaytestModes } from '@/features/playtest/playtest-flow';
 import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from '@/features/training/runtime-version';
 import {
+  ABANDONED_COMPLETION_PREFIX,
   assertStartMatchesPrepare,
   pinFromSession,
   planPackageDownload,
@@ -278,11 +280,26 @@ export async function syncTrainingSession(
   if ((await pendingEvents(id)).length > 0) throw new Error('Queue còn event chưa đồng bộ.');
   const completion = await completionFor(id);
   if (!completion || completion.state === 'completed') return null;
-  const response = await syncRequest<CompleteResponse>(id, 'complete', {
-    method: 'POST',
-    headers: { 'Idempotency-Key': completion.key },
-    json: { lastEventSequence: completion.last_sequence, endReason: completion.end_reason },
-  });
+  let response: CompleteResponse;
+  try {
+    response = await syncRequest<CompleteResponse>(id, 'complete', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': completion.key },
+      json: { lastEventSequence: completion.last_sequence, endReason: completion.end_reason },
+    });
+  } catch (issue) {
+    // The Abandoned end Mobile wrote for a launch Unity left (see queueAbandonedCompletion): BE no longer has a running
+    // session to end (already terminal, never launched, gone), so retire the row rather than retry it forever.
+    if (
+      completion.key.startsWith(ABANDONED_COMPLETION_PREFIX) &&
+      issue instanceof ApiError &&
+      (issue.status === 404 || issue.status === 409)
+    ) {
+      await markRecovery(id, 'ABANDONED_REFUSED');
+      return null;
+    }
+    throw issue;
+  }
   if (response.status === 'AwaitingSync') {
     await markCompletion(id, 'awaiting_sync');
     await requeueMissingRanges(id, response.missingRanges);

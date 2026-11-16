@@ -111,6 +111,19 @@ export function presentOutcome(status: string | null | undefined): OutcomeView {
   return { kind: 'Unknown', label: 'Kết quả chưa xác định', tone: 'neutral' };
 }
 
+/**
+ * History row of a session without a result. Only BE's AwaitingSync (or a result not read yet) is "Chờ đồng bộ"; a session
+ * BE still lists as Launching/Running never finished (the game was closed or died mid-play), so nothing waits to sync.
+ */
+export function presentHistoryOutcome(
+  resultStatus: string | null | undefined,
+  sessionStatus: string | null | undefined,
+): OutcomeView {
+  if (resultStatus == null && (sessionStatus === 'Running' || sessionStatus === 'Launching'))
+    return { kind: 'Unknown', label: 'Chưa kết thúc', tone: 'neutral' };
+  return presentOutcome(resultStatus);
+}
+
 /** Learner label first, then the known metric name; missing data is its own state, never shown as a mistake. */
 export function presentCriterion(
   criterion: NonNullable<TrainingResult['criteria']>[number],
