@@ -4,7 +4,7 @@ Luồng phát hành: merge PR phát hành vào `main` → GitHub chạy kiểm t
 
 ## Unity portable
 
-Ứng dụng nhúng runtime Unity Android ARM64; phiên bản và bản xuất đang dùng ghi trong `unity-artifact.lock.json` (ngày 15/11/2026: runtime `2.5.0`, bản xuất `202611151038`). Gói portable phải được xuất từ Unity và ghim vào file đó trước khi build. Gói portable chứa Java, manifest, resources, assets và sáu thư viện native lấy từ cùng AAB đã build thành công. Không chứa Unity Editor hoặc trình biên dịch IL2CPP Windows. Máy Expo ghép các thư viện Android đã biên dịch vào app; không chạy gameplay hay worker tạo dữ liệu tòa nhà.
+Ứng dụng nhúng runtime Unity Android ARM64; phiên bản và bản xuất đang dùng ghi trong `unity-artifact.lock.json` (ngày 16/11/2026: runtime `2.5.0`, bản xuất `202611161554`). Gói portable phải được xuất từ Unity và ghim vào file đó trước khi build. Gói portable chứa Java, manifest, resources, assets và sáu thư viện native lấy từ cùng AAB đã build thành công. Không chứa Unity Editor hoặc trình biên dịch IL2CPP Windows. Máy Expo ghép các thư viện Android đã biên dịch vào app; không chạy gameplay hay worker tạo dữ liệu tòa nhà.
 
 `unity-artifact.lock.json` pin version, SHA-256 và nguồn GitHub Release của ZIP. `sourceExport` giữ định danh bản xuất gốc. `portable-runtime.json` ghi hash từng tệp và hash AAB nguồn. Script chuẩn bị và config plugin kiểm integrity trước khi prebuild. Thay code Unity cần build/xác minh runtime mới và xuất lại ZIP; thay code Mobile không cần biên dịch lại Unity.
 

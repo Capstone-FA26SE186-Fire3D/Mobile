@@ -11,18 +11,25 @@ import {
   syncPlaytest,
   type PlaytestSyncResult,
 } from '@/api/playtest';
-import { ApiError } from '@/api/types/common';
+import { ApiError, isNetworkError } from '@/api/types/common';
 import {
   getLaunch,
   ingestUnityCallbacks,
   markRecovery,
+  queueAbandonedCompletion,
+  reviveGoneLaunches,
   setIngestListener,
   sessionsToSync,
   type IngestedMessage,
   type TrainingSyncRow,
 } from './event-queue.native';
 import { checkUnityRuntime } from './runtime-version.ts';
-import { hasDataToSync, isAbandonedLaunch, retryDelayMs } from './session-contract';
+import {
+  abandonedLaunchEnd,
+  hasDataToSync,
+  isAbandonedLaunch,
+  retryDelayMs,
+} from './session-contract';
 import { unityBridge } from './unity-bridge.native';
 
 export type TrainingRuntimeEvent =
@@ -48,11 +55,7 @@ let owner: RuntimeOwner | null = null;
 export type RuntimeOwner = { accountId: string; role: 'Trainee' | 'OrganizationUser' };
 
 export function isOfflineError(issue: unknown): boolean {
-  return (
-    !(issue instanceof ApiError) &&
-    issue instanceof Error &&
-    /network|fetch|timeout|internet|offline|connection/i.test(issue.message)
-  );
+  return isNetworkError(issue);
 }
 
 export function describeSyncError(issue: unknown): string {
@@ -112,14 +115,31 @@ async function dropAbandoned(rows: TrainingSyncRow[]): Promise<TrainingSyncRow[]
     return rows; // cannot tell whether Unity still holds a session: keep everything this pass
   }
   const dropped = new Set<string>();
+  const ended = new Set<string>();
   for (const row of candidates) {
     const launch = await getLaunch(row.session_id);
-    if (isAbandonedLaunch(row, launch?.expires_at ?? null, unitySession)) {
+    if (!isAbandonedLaunch(row, launch?.expires_at ?? null, unitySession)) continue;
+    if (abandonedLaunchEnd(row.launch_state) === 'complete') {
+      // Unity died mid-play: end it as Abandoned so BE grades it instead of keeping it Running forever.
+      await queueAbandonedCompletion(row.session_id);
+      ended.add(row.session_id);
+    } else {
       await markRecovery(row.session_id, 'UNITY_GONE');
       dropped.add(row.session_id);
     }
   }
-  return dropped.size === 0 ? rows : rows.filter((r) => !dropped.has(r.session_id));
+  if (dropped.size === 0 && ended.size === 0) return rows;
+  return rows
+    .filter((r) => !dropped.has(r.session_id))
+    .map((r) => (ended.has(r.session_id) ? { ...r, completion_state: 'pending' } : r));
+}
+
+/** Once per app run: older versions retired started launches as UNITY_GONE without ending them on BE. */
+let revivedFor: string | null = null;
+async function reviveOnce(accountId: string, trainee: boolean): Promise<void> {
+  if (revivedFor === accountId) return;
+  await reviveGoneLaunches(accountId, trainee);
+  revivedFor = accountId;
 }
 
 async function heartbeat(sessionId: string, send: (id: string) => Promise<unknown>) {
@@ -166,6 +186,7 @@ async function pumpOnce(): Promise<boolean> {
   }
   let rows: TrainingSyncRow[] = [];
   try {
+    await reviveOnce(current.accountId, trainee);
     rows = await dropAbandoned(await sessionsToSync(current.accountId, trainee));
   } catch (issue) {
     fail(null, issue);
