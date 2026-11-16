@@ -23,6 +23,7 @@ import {
   type Account,
   type ProfileUpdate,
 } from '@/api/auth';
+import { isNetworkError } from '@/api/types/common';
 import { bindDevice, listenForDeviceTokenChange, revokeDevice } from '@/services/device';
 import { clearGoogleIdentity, firebaseIdTokenFromGoogle } from '@/services/google';
 import { readPendingHandoff, writePendingHandoff } from '@/features/playtest/pending-handoff';
@@ -65,7 +66,7 @@ const message = (error: unknown) =>
  */
 export const pushNotice = (issue: unknown) => {
   const raw = issue instanceof Error ? issue.message : '';
-  return /UnknownHost|Unable to resolve host|timeout|Network|SERVICE_NOT_AVAILABLE/i.test(raw)
+  return isNetworkError(issue) || /SERVICE_NOT_AVAILABLE/i.test(raw)
     ? ''
     : 'Chưa bật được thông báo trên máy này. Bạn vẫn dùng ứng dụng bình thường; có thể bật lại trong Tôi › Cài đặt tài khoản.';
 };

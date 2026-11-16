@@ -1,5 +1,5 @@
 export { apiClient } from './client';
-export { ApiError } from './types/common';
+export { ApiError, NetworkError, isNetworkError } from './types/common';
 export type {
   ApiErrorPayload,
   ApiHttpMethod,
