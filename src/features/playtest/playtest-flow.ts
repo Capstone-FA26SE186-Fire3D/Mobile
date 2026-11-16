@@ -3,7 +3,7 @@
  * offers, which mode Unity gets, and how start/reissue recover from a lost response without using a second Trial unit.
  * No React Native imports: unit-tested with `node --test`; the API module injects the HTTP calls and the key storage.
  */
-import { ApiError } from '../../api/types/common.ts';
+import { ApiError, NetworkError } from '../../api/types/common.ts';
 import { APP_RUNTIME_VERSION, BRIDGE_PROTOCOL_VERSION } from '../training/runtime-version.ts';
 import { TRAINING_MODES, type TrainingMode } from '../training/session-contract.ts';
 
@@ -136,8 +136,9 @@ export const problemCode = (issue: unknown): string | null =>
 export function responseMayBeLost(issue: unknown): boolean {
   if (issue instanceof ApiError) return issue.status >= 500 && issue.status !== 503;
   return (
-    issue instanceof Error &&
-    /network|fetch|timeout|timed out|internet|offline|connection|aborted/i.test(issue.message)
+    issue instanceof NetworkError ||
+    (issue instanceof Error &&
+      /network|fetch|timeout|timed out|internet|offline|connection|aborted/i.test(issue.message))
   );
 }
 

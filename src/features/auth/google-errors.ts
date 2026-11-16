@@ -1,4 +1,4 @@
-import { ApiError } from '@/api/types/common';
+import { ApiError, NETWORK_MESSAGE, isNetworkError } from '@/api/types/common';
 
 /** The person closed the Google account picker: nothing went wrong, so no message is shown. */
 export class GoogleSignInCancelled extends Error {
@@ -56,8 +56,7 @@ export function describeGoogleProblem(error: unknown): string | null {
   if (code === 'PLAY_SERVICES_NOT_AVAILABLE')
     return 'Điện thoại chưa có hoặc cần cập nhật Dịch vụ Google Play để đăng nhập Google.';
   if (code === 'IN_PROGRESS') return 'Đang mở đăng nhập Google, hãy đợi một chút.';
-  if (error instanceof Error && /network|timeout|fetch/i.test(error.message))
-    return 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
+  if (isNetworkError(error)) return NETWORK_MESSAGE;
   // Our own plain messages (expired onboarding, missing token) pass through.
   return error instanceof Error && error.message
     ? error.message

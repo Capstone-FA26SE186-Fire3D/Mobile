@@ -11,7 +11,7 @@ import {
   syncPlaytest,
   type PlaytestSyncResult,
 } from '@/api/playtest';
-import { ApiError } from '@/api/types/common';
+import { ApiError, isNetworkError } from '@/api/types/common';
 import {
   getLaunch,
   ingestUnityCallbacks,
@@ -48,11 +48,7 @@ let owner: RuntimeOwner | null = null;
 export type RuntimeOwner = { accountId: string; role: 'Trainee' | 'OrganizationUser' };
 
 export function isOfflineError(issue: unknown): boolean {
-  return (
-    !(issue instanceof ApiError) &&
-    issue instanceof Error &&
-    /network|fetch|timeout|internet|offline|connection/i.test(issue.message)
-  );
+  return isNetworkError(issue);
 }
 
 export function describeSyncError(issue: unknown): string {

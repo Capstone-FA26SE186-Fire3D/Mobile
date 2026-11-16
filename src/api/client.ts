@@ -1,6 +1,7 @@
 import { env } from '../config/env';
 import {
   ApiError,
+  NetworkError,
   type ApiErrorPayload,
   type ApiQueryParams,
   type ApiRequestOptions,
@@ -90,12 +91,21 @@ export const apiClient = {
       headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json');
     }
 
-    const response = await fetch(buildUrl(path, options.query), {
-      body: hasJsonBody ? JSON.stringify(options.json) : options.body,
-      headers,
-      method: options.method ?? (hasJsonBody || options.body ? 'POST' : 'GET'),
-      signal: options.signal,
-    });
+    const url = buildUrl(path, options.query);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        body: hasJsonBody ? JSON.stringify(options.json) : options.body,
+        headers,
+        method: options.method ?? (hasJsonBody || options.body ? 'POST' : 'GET'),
+        signal: options.signal,
+      });
+    } catch (issue) {
+      // A cancelled request stays an AbortError so callers can tell it from a lost connection.
+      if (options.signal?.aborted || (issue instanceof Error && issue.name === 'AbortError'))
+        throw issue;
+      throw new NetworkError(issue);
+    }
     const payload = await readResponseBody(response);
 
     if (!response.ok) {
