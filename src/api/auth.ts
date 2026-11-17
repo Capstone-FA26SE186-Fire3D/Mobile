@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { File } from 'expo-file-system';
 import { apiClient } from './client';
 import { ApiError } from './types/common';
 import type { ApiRequestOptions } from './types/common';
@@ -364,6 +365,27 @@ export function deleteCurrentAvatar(): Promise<void> {
   );
 }
 
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+/** The multipart part an avatar is sent as: the file's bytes with our own name and content type. */
+export type AvatarFormPart = { name: string; type: string; bytes: () => Promise<Uint8Array> };
+
+/**
+ * Expo 57 replaces the global fetch with expo/fetch, whose FormData only takes strings, Blobs or objects with `bytes()`.
+ * A React Native `{ uri, name, type }` part makes it throw "Unsupported FormDataPart implementation" before anything is
+ * sent, which apiClient reports as a lost connection, so the part carries the picked file's bytes instead of its URI.
+ */
+export function avatarFormPart(uri: string, contentType: string): AvatarFormPart {
+  const file = new File(uri);
+  const extension =
+    contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+  return {
+    name: `avatar.${extension}`,
+    type: contentType,
+    bytes: async () => new Uint8Array(await file.bytes()),
+  };
+}
+
 export async function uploadCurrentAvatar(
   uri: string,
   contentType: string,
@@ -371,16 +393,14 @@ export async function uploadCurrentAvatar(
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
     throw new Error('Chỉ hỗ trợ ảnh JPEG, PNG hoặc WebP.');
   }
-  const image = await fetch(uri).then((response) => response.blob());
-  if (image.size < 1 || image.size > 5 * 1024 * 1024) {
+  const size = new File(uri).size ?? 0;
+  if (size < 1 || size > AVATAR_MAX_BYTES) {
     throw new Error('Ảnh đại diện phải có dung lượng tối đa 5 MB.');
   }
   // Multipart through the API, not a PUT to the presigned S3 URL: on Android a React Native Blob body is sent with the
   // blob's own type instead of our Content-Type header, so S3 (which signs content-type) answered 403 SignatureDoesNotMatch.
   const form = new FormData();
-  const extension =
-    contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
-  form.append('file', { uri, name: `avatar.${extension}`, type: contentType } as unknown as Blob);
+  form.append('file', avatarFormPart(uri, contentType) as unknown as Blob);
   const etag = await currentProfileEtag();
   return requestWithSession<AvatarResponse>('/api/me/avatar/upload', {
     method: 'POST',
