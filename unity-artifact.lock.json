@@ -1,14 +1,14 @@
 {
-  "version": "2.5.0-202611170845-portable.1",
+  "version": "2.5.0-202611180802-portable.1",
   "s3Uri": "",
-  "sha256": "58a8c738bece96d276f3f6328b466a5afd35ade42e6fe61995f06ee0a907f758",
+  "sha256": "669249b3328b1391b9ab2d9f8eaba288886f4e91e76d5f7a8675b16bfbc9cbc2",
   "githubRelease": {
     "repository": "Capstone-FA26SE186-Fire3D/Mobile",
-    "tag": "unity-runtime-2.5.0-202611170845-portable.1",
-    "asset": "fet3d-unityLibrary-2.5.0-202611170845-portable.1.zip"
+    "tag": "unity-runtime-2.5.0-202611180802-portable.1",
+    "asset": "fet3d-unityLibrary-2.5.0-202611180802-portable.1.zip"
   },
   "sourceExport": {
-    "version": "2.5.0-202611170845",
-    "sha256": "a0cea0e58ddc481ffd9784318659a4635c018a71abb6dd235c74eb3a7cbcffea"
+    "version": "2.5.0-202611180802",
+    "sha256": "813861bd0cfe68e8271d034dec21c565ab8b2a31a4e9ec024768b0d23a0175be"
   }
 }
