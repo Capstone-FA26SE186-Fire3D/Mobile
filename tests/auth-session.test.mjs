@@ -1,9 +1,11 @@
-import test from 'node:test';
+import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { getItemAsync } from 'expo-secure-store';
 
 process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.test';
 const auth = await import('../src/api/auth.ts?real');
+beforeEach(() => auth.clearSession());
+afterEach(() => auth.clearSession());
 
 const user = { id: 'u1', email: 'a@b.c', fullName: 'A', role: 'Trainee' };
 const json = (status, body) =>
@@ -35,6 +37,8 @@ test('signed-in session survives an app restart that starts offline', async () =
 test('a rejected refresh clears the stored session and cached profile', async () => {
   const realFetch = globalThis.fetch;
   try {
+    globalThis.fetch = async () => json(200, { accessToken: 'a1', refreshToken: 'r1', user });
+    await auth.loginWithPassword('a@b.c', 'secret');
     globalThis.fetch = async (url) =>
       String(url).endsWith('/api/auth/refresh')
         ? json(401, { title: 'bad' })

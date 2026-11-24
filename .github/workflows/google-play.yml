@@ -23,9 +23,23 @@ jobs:
   checks:
     uses: ./.github/workflows/ci.yml
 
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      skip_release: ${{ steps.policy.outputs.skip_release }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Evaluate code-only main push
+        id: policy
+        run: node scripts/release/policy.mjs
+
   plan:
-    if: github.ref == 'refs/heads/main'
-    needs: checks
+    if: github.ref == 'refs/heads/main' && needs.policy.outputs.skip_release == 'false'
+    needs: [checks, policy]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -74,7 +88,7 @@ jobs:
 
   build:
     needs: plan
-    if: needs.plan.outputs.publish == 'true' || needs.plan.outputs.destination != 'production'
+    if: needs.plan.result == 'success' && (needs.plan.outputs.publish == 'true' || needs.plan.outputs.destination != 'production')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
@@ -133,7 +147,7 @@ jobs:
 
   submit:
     needs: [plan, build]
-    if: needs.plan.outputs.destination != 'build'
+    if: needs.plan.result == 'success' && needs.build.result == 'success' && needs.plan.outputs.destination != 'build'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
