@@ -1,5 +1,6 @@
-import { createHash, randomUUID as uuid } from 'node:crypto';
+import { createHash, randomUUID as uuid, randomBytes } from 'node:crypto';
 export const randomUUID = () => uuid();
+export const getRandomBytesAsync = async (length) => new Uint8Array(randomBytes(length));
 
 export const CryptoDigestAlgorithm = { SHA256: 'SHA-256' };
 
