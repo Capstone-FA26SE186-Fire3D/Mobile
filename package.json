@@ -7,7 +7,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "unity:prepare": "node scripts/prepare-unity-library.mjs",
-    "android:prebuild": "pnpm unity:prepare \u0026\u0026 expo prebuild --clean --platform android",
+    "android:prebuild": "pnpm unity:prepare && expo prebuild --clean --platform android",
     "web": "expo start --web --port 8085",
     "typecheck": "tsc --noEmit",
     "test": "node tests/run.mjs",
@@ -16,7 +16,10 @@
     "format": "prettier --write app src tests playwright.config.ts package.json app.json tsconfig.json",
     "format:check": "prettier --check app src tests playwright.config.ts package.json app.json tsconfig.json",
     "test:unit": "node tests/run.mjs unit",
-    "test:adapter": "node tests/run.mjs adapter"
+    "test:adapter": "node tests/run.mjs adapter",
+    "test:coverage": "node tests/run.mjs all --coverage",
+    "test:unit:coverage": "node tests/run.mjs unit --coverage",
+    "test:adapter:coverage": "node tests/run.mjs adapter --coverage"
   },
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
