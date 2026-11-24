@@ -6,6 +6,10 @@ const support = dirname(fileURLToPath(import.meta.url));
 const root = resolvePath(support, '..', '..');
 const fake = (name) => pathToFileURL(join(support, 'fakes', name)).href;
 const FAKES = {
+  '@react-native-google-signin/google-signin': fake('providers.mjs'),
+  '@react-native-firebase/auth': fake('providers.mjs'),
+  'expo-notifications': fake('providers.mjs'),
+  'expo-application': fake('providers.mjs'),
   'expo-sqlite': fake('expo-sqlite.mjs'),
   'expo-crypto': fake('expo-crypto.mjs'),
   'expo-modules-core': fake('expo-modules-core.mjs'),

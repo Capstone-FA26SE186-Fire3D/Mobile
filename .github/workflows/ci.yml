@@ -23,7 +23,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test
+      - name: Unit tests with coverage
+        run: pnpm test:unit:coverage
+      - name: SQLite and file adapter tests with coverage
+        run: pnpm test:adapter:coverage
+      - name: Inventory loaded and untested sources
+        run: node tests/coverage.mjs unit adapter
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: mobile-node-coverage
+          path: .codex/local/coverage
+          retention-days: 7
       - run: pnpm test:release
       - run: pnpm exec playwright install --with-deps chrome
       - run: pnpm test:e2e
