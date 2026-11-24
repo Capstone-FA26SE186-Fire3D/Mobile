@@ -27,6 +27,50 @@ function result(overrides = {}) {
 }
 
 const CODE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/;
+test('non-finite scores are absent, zero remains visible and missing criteria stay empty', () => {
+  for (const value of [NaN, Infinity, -Infinity, null]) {
+    const view = presentResult(
+      result({ scorePercent: value, passThresholdPercent: value, criteria: null }),
+      { canReplay: false },
+    );
+    assert.equal(view.scoreText, null);
+    assert.equal(view.thresholdText, null);
+    assert.deepEqual(view.criteria, []);
+    assert.equal(view.primary.intent, 'scan');
+  }
+  const zero = presentResult(
+    result({
+      outcome: 'NotPassed',
+      reason: 'BELOW_PASS_THRESHOLD',
+      scorePercent: 0,
+      passThresholdPercent: 70,
+    }),
+    { canReplay: true },
+  );
+  assert.equal(zero.scoreText, '0%');
+  assert.match(zero.headline, /0%/);
+  assert.equal(zero.outcome.kind, 'NotPassed');
+});
+
+test('server outcome remains authoritative even when displayed scores appear contradictory', () => {
+  const view = presentResult(
+    result({ outcome: 'NotPassed', scorePercent: 100, passThresholdPercent: 70 }),
+    { canReplay: true },
+  );
+  assert.equal(view.outcome.kind, 'NotPassed');
+  assert.equal(view.scoreText, '100%');
+  for (const metric of ['step_count', 'route_efficiency']) {
+    const row = presentCriterion({
+      id: metric,
+      metric,
+      label: null,
+      passed: false,
+      reason: 'METRIC_UNAVAILABLE',
+    });
+    assert.equal(row.state, 'unavailable');
+    assert.notEqual(row.label, metric);
+  }
+});
 function assertNoCodes(view) {
   const text = JSON.stringify(view);
   assert.doesNotMatch(text, CODE);
