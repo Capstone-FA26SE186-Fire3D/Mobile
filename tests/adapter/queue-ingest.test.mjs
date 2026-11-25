@@ -53,3 +53,20 @@ test('malformed callback is retained and does not block the next valid one', asy
   );
   assert.equal(native.journal.length, 0);
 });
+
+test('route telemetry (BE#216) and unknown event types pass through the queue unchanged', async (t) => {
+  await queueFixture(t);
+  await launch();
+  const sent = [
+    event(1, { type: 'RouteBaseline', payload: { optimalDistanceMeters: 48.76 } }),
+    event(2, { type: 'Moved', payload: { distanceMeters: 6.9, steps: 10 } }),
+    event(3, { type: 'SomethingNew', payload: { distanceMeters: 1, extra: { nested: true } } }),
+  ];
+  native.push({ type: 'Events', sessionId: 's1', payload: sent });
+  await queue.ingestUnityCallbacks();
+  const pending = await queue.pendingEvents('s1');
+  assert.deepEqual(
+    pending.map((e) => [e.sequence, e.type, e.payload]),
+    sent.map((e) => [e.sequence, e.type, e.payload]),
+  );
+});

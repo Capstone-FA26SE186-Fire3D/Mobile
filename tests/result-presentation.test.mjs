@@ -286,3 +286,65 @@ test('every metric of runtime 2.2.0 has a learner label (no generic "Tiêu chí 
   ];
   for (const metric of runtime22) assert.ok(Object.hasOwn(METRIC_LABELS, metric), metric);
 });
+
+test('BE#216 step and route metrics: labels, percent, step count and the optimal-route comparison', () => {
+  const row = (criterion, metrics) =>
+    presentCriterion({ id: 'c', passed: true, reason: null, ...criterion }, metrics);
+  assert.equal(row({ metric: 'step_count', value: 64 }).label, 'Số bước');
+  assert.equal(row({ metric: 'step_count', value: 64 }).note, '64 bước');
+  const route = row({ metric: 'route_efficiency', value: 0.8, passed: false });
+  assert.equal(route.label, 'Mức đi đúng đường ngắn nhất');
+  assert.equal(route.state, 'failed');
+  assert.equal(route.note, '80% so với đường ngắn nhất');
+  assert.equal(
+    row({ metric: 'distance_meters', value: 50.4 }, { optimal_distance_meters: 40 }).note,
+    'Đã đi 50 m, đường ngắn nhất 40 m',
+  );
+  assert.equal(
+    row({ metric: 'distance_meters', value: 50 }, {}).note,
+    null,
+    'no baseline, no comparison',
+  );
+  assert.equal(row({ metric: 'distance_meters', value: 50 }).note, null);
+  assert.equal(
+    row({ metric: 'alarm_raised', value: 1 }).note,
+    null,
+    'other metrics keep the label only',
+  );
+});
+
+test('a criterion that is not evaluable (BE#216) is neither passed nor failed', () => {
+  const row = presentCriterion({
+    id: 'c',
+    metric: 'route_efficiency',
+    value: null,
+    passed: null,
+    reason: 'METRIC_NOT_EVALUABLE',
+  });
+  assert.equal(row.state, 'unavailable');
+  assert.equal(row.note, 'Chưa đủ số liệu để chấm tiêu chí này');
+  assert.doesNotMatch(row.note, /METRIC|route_efficiency/);
+  const unknown = presentCriterion({ id: 'd', metric: 'step_count', passed: null, reason: null });
+  assert.equal(unknown.state, 'unavailable', 'a null passed is never shown as a failure');
+});
+
+test('the result view passes the session metrics to each criterion', () => {
+  const view = presentResult(
+    {
+      sessionId: 's',
+      mode: 'Assessment',
+      outcome: 'Passed',
+      reason: 'ALL_REQUIREMENTS_MET',
+      scorePercent: 100,
+      passThresholdPercent: 70,
+      criteria: [
+        { id: 'c', label: null, metric: 'distance_meters', value: 52, passed: true, reason: null },
+      ],
+      metrics: { distance_meters: 52, optimal_distance_meters: 48.76 },
+      lastEventSequence: 9,
+      createdAt: '2026-11-25T00:00:00Z',
+    },
+    { canReplay: true },
+  );
+  assert.equal(view.criteria[0].note, 'Đã đi 52 m, đường ngắn nhất 49 m');
+});

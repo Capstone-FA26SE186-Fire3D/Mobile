@@ -8,11 +8,11 @@ export class GoogleSignInCancelled extends Error {
   }
 }
 
-/** The Google account belongs to an organization or admin account, which signs in on the website only. */
+/** The Google account belongs to an organization, fire-safety expert or admin account, which signs in on the website only. */
 export class NotTraineeAccount extends Error {
   constructor() {
     super(
-      'Ứng dụng chỉ dành cho học viên. Tài khoản Google này thuộc tài khoản tổ chức hoặc quản trị, hãy đăng nhập trên trang web fet3d.io.vn.',
+      'Ứng dụng chỉ dành cho học viên. Tài khoản Google này thuộc tài khoản tổ chức, Chuyên viên PCCC hoặc quản trị, hãy đăng nhập trên trang web fet3d.io.vn.',
     );
     this.name = 'NotTraineeAccount';
   }
