@@ -29,8 +29,19 @@ export type TrainingResult = {
   scorePercent: number | null;
   passThresholdPercent: number | null;
   criteria:
-    | { id: string; label: string | null; metric: string; passed: boolean; reason: string | null }[]
+    | {
+        id: string;
+        label: string | null;
+        metric: string;
+        /** The measured value (number, or null when the metric was not computed). */
+        value?: unknown;
+        /** null when the criterion was not evaluable (reason METRIC_NOT_EVALUABLE, BE#216). */
+        passed: boolean | null;
+        reason: string | null;
+      }[]
     | null;
+  /** Session metrics BE computed; `optimal_distance_meters` (BE#216) is shown, never scored. */
+  metrics?: Record<string, unknown> | null;
   lastEventSequence: number;
   createdAt: string;
 };

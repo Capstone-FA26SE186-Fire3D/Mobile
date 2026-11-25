@@ -84,10 +84,39 @@ export const METRIC_LABELS: Record<string, string> = {
   // Runtime 2.4.0 (forcing a way out).
   door_forced: 'Phá khóa cửa thoát bị khóa',
   glass_broken: 'Đập kính cho khói thoát ra',
+  // BE#216 (Luồng 1 theo PC06): steps from Moved events; optimal route length ÷ distance walked (0..1).
+  step_count: 'Số bước',
+  route_efficiency: 'Mức đi đúng đường ngắn nhất',
 };
 
 const UNKNOWN_METRIC = 'Tiêu chí của bài';
 const MISSING_DATA = 'Chưa đủ dữ liệu đánh giá';
+/** BE#216: no step/route telemetry, so the criterion is left out of the score (not a failed criterion). */
+const NOT_EVALUABLE = 'Chưa đủ số liệu để chấm tiêu chí này';
+
+const finite = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+const meters = (value: number) => `${Math.round(value)} m`;
+
+/** What was measured, in plain words, for the metrics where the number helps the learner; null otherwise. */
+function measuredNote(
+  metric: string,
+  value: unknown,
+  metrics: TrainingResult['metrics'],
+): string | null {
+  const measured = finite(value);
+  if (measured === null) return null;
+  if (metric === 'route_efficiency')
+    return `${Math.round(Math.min(1, Math.max(0, measured)) * 100)}% so với đường ngắn nhất`;
+  if (metric === 'step_count') return `${Math.round(measured)} bước`;
+  if (metric === 'distance_meters') {
+    const optimal = finite(metrics?.optimal_distance_meters);
+    return optimal === null
+      ? null
+      : `Đã đi ${meters(measured)}, đường ngắn nhất ${meters(optimal)}`;
+  }
+  return null;
+}
 
 const REASONS: Record<string, string> = {
   ALL_REQUIREMENTS_MET: 'Bạn đạt mọi yêu cầu của bài đánh giá.',
@@ -127,15 +156,23 @@ export function presentHistoryOutcome(
 /** Learner label first, then the known metric name; missing data is its own state, never shown as a mistake. */
 export function presentCriterion(
   criterion: NonNullable<TrainingResult['criteria']>[number],
+  metrics?: TrainingResult['metrics'],
 ): CriterionRow {
   const label =
     criterion.label?.trim() ||
     (Object.hasOwn(METRIC_LABELS, criterion.metric)
       ? METRIC_LABELS[criterion.metric]
       : UNKNOWN_METRIC);
-  if (criterion.reason === 'METRIC_UNAVAILABLE')
+  if (criterion.reason === 'METRIC_NOT_EVALUABLE')
+    return { id: criterion.id, label, state: 'unavailable', note: NOT_EVALUABLE };
+  if (criterion.reason === 'METRIC_UNAVAILABLE' || criterion.passed == null)
     return { id: criterion.id, label, state: 'unavailable', note: MISSING_DATA };
-  return { id: criterion.id, label, state: criterion.passed ? 'passed' : 'failed', note: null };
+  return {
+    id: criterion.id,
+    label,
+    state: criterion.passed ? 'passed' : 'failed',
+    note: measuredNote(criterion.metric, criterion.value, metrics),
+  };
 }
 
 function headlineOf(result: TrainingResult): string {
@@ -166,7 +203,9 @@ export function presentResult(
     headline: headlineOf(result),
     scoreText: percent(result.scorePercent),
     thresholdText: threshold ? `Mức yêu cầu ${threshold}` : null,
-    criteria: (result.criteria ?? []).map(presentCriterion),
+    criteria: (result.criteria ?? []).map((criterion) =>
+      presentCriterion(criterion, result.metrics),
+    ),
     primary,
     disclaimer:
       'Kết quả do FET3D chấm cho mục đích học tập, không phải chứng nhận an toàn PCCC. Chơi lại không giới hạn.',
