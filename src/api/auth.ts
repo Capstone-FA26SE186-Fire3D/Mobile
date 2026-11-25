@@ -121,13 +121,25 @@ async function cachedAccount(): Promise<Account | null> {
   }
 }
 
+/** Roles the app serves; others sign in on the web. */
+const APP_ROLES = ['Trainee', 'OrganizationUser'];
+const WEB_ONLY_ROLES: Record<string, string> = {
+  FireSafetyExpert:
+    'Tài khoản Chuyên viên PCCC dùng trên web tại fet3d.io.vn, không dùng trên ứng dụng điện thoại.',
+  PlatformAdmin:
+    'Tài khoản quản trị dùng trên web tại fet3d.io.vn, không dùng trên ứng dụng điện thoại.',
+};
+
 async function acceptAuthentication(response: LoginResponse): Promise<Account> {
+  const role = response?.user?.role;
+  if (typeof role === 'string' && Object.hasOwn(WEB_ONLY_ROLES, role))
+    throw new Error(WEB_ONLY_ROLES[role]);
   if (
     !response ||
     typeof response.accessToken !== 'string' ||
     typeof response.refreshToken !== 'string' ||
     !response.user ||
-    !['Trainee', 'OrganizationUser'].includes(response.user.role)
+    !APP_ROLES.includes(response.user.role)
   ) {
     throw new Error(
       'Phiên đăng nhập không hợp lệ hoặc loại tài khoản này chưa dùng được trên ứng dụng.',

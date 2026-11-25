@@ -29,7 +29,10 @@ test('password login rejects expert without persisting credentials', async (t) =
       session({ user: { id: 'expert', email: 'expert@example.test', role: 'FireSafetyExpert' } }),
     ),
   );
-  await assert.rejects(auth.loginWithPassword('a', 'b'));
+  await assert.rejects(
+    auth.loginWithPassword('a', 'b'),
+    /Chuyên viên PCCC dùng trên web tại fet3d\.io\.vn/,
+  );
   assert.equal(await getItemAsync('fire3d.auth.session.v1'), null);
 });
 test('username boundaries normalize valid input and reject outside 3 to 30', () => {
