@@ -66,48 +66,51 @@ export default function TrainingSessionResultScreen() {
     };
   }, [qrParam, account?.id, trainingId]);
 
-  const load = useCallback(async () => {
-    if (!sessionId) return;
-    setBusy(true);
-    try {
-      let local = { pendingEvents: 0, completion: null as string | null, launched: false };
-      if (unityBridge.available) {
-        await pumpTrainingRuntime();
-        local = await localSessionState(sessionId);
-      }
-      const completionPending = local.completion !== null && local.completion !== 'completed';
-      const localWaiting = local.pendingEvents > 0 || completionPending;
-      const waiting = (offline: boolean) =>
-        presentWaiting({ pendingEvents: local.pendingEvents, completionPending, offline });
-      let session;
+  const load = useCallback(
+    async (pump = true) => {
+      if (!sessionId) return;
+      setBusy(true);
       try {
-        session = await getTrainingSession(sessionId);
-      } catch (issue) {
-        if (isOfflineError(issue) && (localWaiting || local.launched)) {
-          setView({ stage: 'awaiting', waiting: waiting(true) });
-          return;
+        let local = { pendingEvents: 0, completion: null as string | null, launched: false };
+        if (unityBridge.available) {
+          if (pump) await pumpTrainingRuntime();
+          local = await localSessionState(sessionId);
         }
-        throw issue;
-      }
-      if (session.hasResult || session.status === 'Completed') {
+        const completionPending = local.completion !== null && local.completion !== 'completed';
+        const localWaiting = local.pendingEvents > 0 || completionPending;
+        const waiting = (offline: boolean) =>
+          presentWaiting({ pendingEvents: local.pendingEvents, completionPending, offline });
+        let session;
         try {
-          const result = await getTrainingResult(sessionId);
-          setView({ stage: 'completed', result });
-          if (account && trainingId && mode) await clearAttempt(account.id, trainingId, mode);
-          return;
+          session = await getTrainingSession(sessionId);
         } catch (issue) {
-          if (!(issue instanceof ApiError) || issue.status !== 409) throw issue;
+          if (isOfflineError(issue) && (localWaiting || local.launched)) {
+            setView({ stage: 'awaiting', waiting: waiting(true) });
+            return;
+          }
+          throw issue;
         }
+        if (session.hasResult || session.status === 'Completed') {
+          try {
+            const result = await getTrainingResult(sessionId);
+            setView({ stage: 'completed', result });
+            if (account && trainingId && mode) await clearAttempt(account.id, trainingId, mode);
+            return;
+          } catch (issue) {
+            if (!(issue instanceof ApiError) || issue.status !== 409) throw issue;
+          }
+        }
+        if (session.status === 'AwaitingSync' || session.status === 'Completed' || localWaiting)
+          setView({ stage: 'awaiting', waiting: waiting(false) });
+        else setView({ stage: 'running', open: await unityHolds(sessionId) });
+      } catch (issue) {
+        setView({ stage: 'error', message: describeSyncError(issue) });
+      } finally {
+        setBusy(false);
       }
-      if (session.status === 'AwaitingSync' || session.status === 'Completed' || localWaiting)
-        setView({ stage: 'awaiting', waiting: waiting(false) });
-      else setView({ stage: 'running', open: await unityHolds(sessionId) });
-    } catch (issue) {
-      setView({ stage: 'error', message: describeSyncError(issue) });
-    } finally {
-      setBusy(false);
-    }
-  }, [sessionId, account?.id, trainingId, mode]);
+    },
+    [sessionId, account?.id, trainingId, mode],
+  );
 
   useEffect(() => {
     void load();
@@ -116,7 +119,7 @@ export default function TrainingSessionResultScreen() {
   useEffect(
     () =>
       subscribeTrainingRuntime((event) => {
-        if (event.kind === 'synced' && event.sessionId === sessionId) void load();
+        if (event.kind === 'synced' && event.sessionId === sessionId) void load(false);
       }),
     [sessionId, load],
   );

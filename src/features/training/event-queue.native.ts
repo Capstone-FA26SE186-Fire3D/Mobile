@@ -276,13 +276,16 @@ export async function applyEventReceipt(
 ): Promise<void> {
   const db = await database();
   await db.withExclusiveTransactionAsync(async (txn) => {
-    for (const id of [...receipt.accepted, ...receipt.duplicates])
+    for (const id of [
+      ...(Array.isArray(receipt.accepted) ? receipt.accepted : []),
+      ...(Array.isArray(receipt.duplicates) ? receipt.duplicates : []),
+    ])
       await txn.runAsync(
         "UPDATE unity_events SET state='acknowledged' WHERE session_id=? AND event_id=?",
         sessionId,
         id,
       );
-    for (const conflict of receipt.conflicts)
+    for (const conflict of Array.isArray(receipt.conflicts) ? receipt.conflicts : [])
       await txn.runAsync(
         "UPDATE unity_events SET state='conflict', conflict_code=? WHERE session_id=? AND event_id=?",
         conflict.code,
@@ -378,7 +381,7 @@ export async function requeueMissingRanges(
   const db = await database();
   let count = 0;
   await db.withExclusiveTransactionAsync(async (txn) => {
-    for (const range of ranges) {
+    for (const range of Array.isArray(ranges) ? ranges : []) {
       if (
         !Number.isSafeInteger(range.from) ||
         !Number.isSafeInteger(range.to) ||

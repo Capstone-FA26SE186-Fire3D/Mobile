@@ -64,3 +64,24 @@ test('only synthetic abandoned completions retire on 409', async (t) => {
   await assert.rejects(syncTrainingSession('s2'), (e) => e.status === 409);
   assert.equal((await queue.completionFor('s2')).state, 'pending');
 });
+
+test('null optional receipt arrays do not prevent a session from completing', async (t) => {
+  await queueFixture(t);
+  await events();
+  await completed();
+  mockBackend(t, async (path) =>
+    path.endsWith('events:batch')
+      ? { accepted: [event(1).eventId], duplicates: null, conflicts: null, missingRanges: null }
+      : { status: 'Completed', missingRanges: null },
+  );
+  assert.equal((await syncTrainingSession('s1')).status, 'Completed');
+  assert.equal((await queue.pendingEvents('s1')).length, 0);
+});
+
+test('awaiting sync tolerates a null missing-ranges response', async (t) => {
+  await queueFixture(t);
+  await completed('s1', 0);
+  mockBackend(t, async () => ({ status: 'AwaitingSync', missingRanges: null }));
+  assert.equal((await syncTrainingSession('s1')).status, 'AwaitingSync');
+  assert.equal((await queue.completionFor('s1')).state, 'awaiting_sync');
+});

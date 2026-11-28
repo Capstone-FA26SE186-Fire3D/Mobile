@@ -270,7 +270,10 @@ export async function syncTrainingSession(
     await applyEventReceipt(id, receipt);
     const requeued = await requeueMissingRanges(id, receipt.missingRanges);
     if (
-      receipt.accepted.length + receipt.duplicates.length + receipt.conflicts.length + requeued ===
+      (Array.isArray(receipt.accepted) ? receipt.accepted.length : 0) +
+        (Array.isArray(receipt.duplicates) ? receipt.duplicates.length : 0) +
+        (Array.isArray(receipt.conflicts) ? receipt.conflicts.length : 0) +
+        requeued ===
       0
     ) {
       stalled++;
